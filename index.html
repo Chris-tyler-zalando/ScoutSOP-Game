@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Zalando Scout — Warehouse Run</title>
-  <link rel="stylesheet" href="styles.css?v=2.22">
+  <link rel="stylesheet" href="styles.css?v=2.24">
 </head>
 <body>
   <main id="game-shell" aria-label="Zalando Scout game">
@@ -36,9 +36,25 @@
       <button id="action-control" class="control-button action-control" type="button" data-tooltip="SPACE — Open Box / Accept Truck / Sprint / Jump">ACTION</button>
     </section>
 
+
+    <section id="cockpit-help" class="modal-overlay hidden" aria-label="Cockpit help">
+      <div class="cockpit-help-card" role="dialog" aria-modal="true" aria-labelledby="cockpit-title">
+        <h2 id="cockpit-title">COCKPIT HELP</h2>
+        <p>Collect work around the warehouse and complete it at the Dock office.</p>
+        <div class="help-grid">
+          <div><strong>TASKS</strong><p>Shoes generate <b>ALM</b> or <b>SL</b> work. Boxes generate <b>Email</b> or <b>Workday</b> work. When a counter reaches <b>5</b>, go to the office computer. Extra progress becomes backlog.</p></div>
+          <div><strong>SOP SCOUT</strong><p>Tokens can be used at the office to instantly complete one ready task and receive its points.</p></div>
+          <div><strong>COFFEE</strong><p>Hold <b>Action</b> while moving to spend a coffee and run faster. Collect <b>3 coffees</b> to restore one heart.</p></div>
+          <div><strong>DANGER &amp; EXIT</strong><p>Robots remove <b>1 heart</b>; forklift robots remove <b>2 hearts</b>. The Dock and Kitchen are safe zones. Complete one <b>ALM, SL, Email</b> and <b>Workday</b> task before leaving.</p></div>
+        </div>
+        <button id="close-cockpit-help" class="orange-button help-close" type="button">Close</button>
+      </div>
+    </section>
+
     <section id="intro-ui" class="intro-overlay hidden" aria-label="Opening story">
       <img id="intro-image" class="intro-image" alt="Story scene">
       <div class="intro-vignette" aria-hidden="true"></div>
+      <div class="intro-top-caption-wrap"><p id="intro-caption-top" class="intro-caption"></p></div>
       <div class="intro-caption-wrap"><p id="intro-caption" class="intro-caption"></p></div>
       <div class="intro-controls">
         <button id="intro-skip" class="dark-button intro-button" type="button">Skip Intro</button>
@@ -68,6 +84,6 @@
       </div>
     </section>
   </main>
-  <script src="game.js?v=2.22"></script>
+  <script src="game.js?v=2.24"></script>
 </body>
 </html>

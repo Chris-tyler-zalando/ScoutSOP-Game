@@ -1,31 +1,24 @@
-ZALANDO SCOUT — SYSTEM UPDATE V2.22 TASK OFFICE
+ZALANDO SCOUT — SYSTEM UPDATE V2.24
 
-Replace these system files only:
+Replace the system files only:
 - index.html
 - styles.css
 - game.js
 - README.txt
 
-Keep your existing assets folder.
+Keep your existing assets folder in the same directory.
 
-NEW ASSETS USED WHEN PRESENT:
-- baseoffice.jpg
-- officeframe.webp
-- pcmenu.jpg
-- jira.jpg
-- error.jpg
-- scoticon.png
+Added / changed in V2.24:
+- Front screen now shows version V2.24 beside WAREHOUSE RUN.
+- Story slide for the warehouse task briefing now shows its first message at the top and the ALM / SL / Email / Workday instruction at the bottom.
+- Inventory story text now says the player will also need to help complete inventory checks.
+- Office computer home screen is clean with no text drawn over the icon menu image.
+- Office monitor insertion is slightly enlarged and the four menu icons use invisible click zones.
+- Jira, Email, Workday and SOP Scout screens now draw directly onto the blank monitor already present in baseoffice.jpg, rather than adding a black screen overlay.
+- Area signs are larger and no longer receive the additional dark shadow/border treatment.
+- TASK BOARD is renamed COCKPIT.
+- Clicking the COCKPIT opens a help modal explaining tasks, SOP Scout tokens, coffee sprinting, health damage, safe zones and exit requirements.
+- SOP Scout token occurrence has been reduced to roughly one-third of its previous box frequency.
+- The yellow Dock area and both Kitchen areas are now safe zones: walking robots and enemy forklifts do not enter them or damage the player there.
 
-FEATURES INCLUDED:
-- Walking robots tripled from the previous build; forklift enemies doubled from 2 to 4.
-- Delivery boxes and loose coffees tripled from the previous build.
-- Shoes hover, can be collected, respawn, and add ALM or SL task progress.
-- Small shelf-front boxes hover, can be opened with Action, respawn, and can yield hearts, coffee, Email tasks, Workday tasks or SOP Scout tokens.
-- Normal glowing boxes can also yield Email tasks, Workday tasks or SOP Scout tokens.
-- SOP Scout token celebration flash and Task Board HUD.
-- Enter Dock office with Action; office uses layered base/screen/frame assets.
-- Jira / Email / Workday emoji-riddle puzzles are included using the supplied puzzle data.
-- SOP Scout can instantly complete a ready backlog task for +50 points.
-- Backlog stacks: every 5 task progress creates one required task unit.
-- Exit is locked until at least one ALM, SL, Email and Workday task is completed during the current warehouse.
-- Ready work and waiting deliveries display glowing arrows pointing towards the Dock office.
+Existing V2.23 functionality remains, including office task puzzles, exit gating, directional arrows, Inventory Check, mobile controls, coffee sprint, score download and increased enemies.

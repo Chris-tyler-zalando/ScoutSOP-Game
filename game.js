@@ -28,6 +28,9 @@
   const introUI = document.getElementById('intro-ui');
   const introImage = document.getElementById('intro-image');
   const introCaption = document.getElementById('intro-caption');
+  const introCaptionTop = document.getElementById('intro-caption-top');
+  const cockpitHelpUI = document.getElementById('cockpit-help');
+  const closeCockpitHelpButton = document.getElementById('close-cockpit-help');
   const introNextButton = document.getElementById('intro-next');
   const introSkipButton = document.getElementById('intro-skip');
 
@@ -42,6 +45,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
+  const VERSION = 'V2.24';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -58,7 +62,7 @@
   const FLOOR_TINTS = ['rgba(255,118,36,.055)', 'rgba(41,117,154,.045)', 'rgba(120,94,48,.05)', 'rgba(74,124,89,.045)', 'rgba(128,70,110,.04)'];
   const TASK_TYPES = ['alm', 'sl', 'email', 'workday'];
   const TASK_LABELS = { alm: 'ALM', sl: 'SL', email: 'EMAIL', workday: 'WORKDAY' };
-  const OFFICE_MONITOR = { x: 102, y: 75, width: 553, height: 353 };
+  const OFFICE_MONITOR = { x: 94, y: 68, width: 578, height: 369 };
   const keys = new Set();
 
   const TASK_PUZZLES = {
@@ -122,16 +126,16 @@
     { images: ['robot.jpg'], music: 'welcome', text: 'Zalando has invested in automation systems in our warehouses to help make getting customers orders more efficient.' },
     { images: ['welcome2.jpg'], music: 'factory', text: 'Everything has been going well for the last few months, and productivity is up!' },
     { images: ['itguy.jpg'], music: 'evilrobot', text: 'But one day Crazy Ivan from IT decided to enhance the robots with his own special AI algorithm, and something has gone wrong!' },
-    { images: ['warehouse.jpg'], music: 'factory', text: 'We need to send you to the warehouse to investigate and help with the tasks which are not getting done.', captionPosition: 'top' },
+    { images: ['warehouse.jpg'], music: 'factory', topText: 'We need to send you to the warehouse to investigate and help with the tasks which are not getting done.', bottomText: 'You need to help complete ALM tickets, SL tickets and the tasks in your Email and Workday.' },
     { images: ['danger.jpg'], music: 'evilrobot', text: 'Beware of the evil automated robots. They do not want you taking their jobs.' },
-    { images: ['inventorycheck.jpg'], music: 'inventory', text: 'We need you to help out with inventory checks.' },
+    { images: ['inventorycheck.jpg'], music: 'inventory', text: 'You will also need to help complete inventory checks.' },
     { images: ['qs2.jpg'], music: 'kitchen', text: 'And help out with Quarantine Storage.' },
     { images: ['exit.jpg'], music: 'winner', text: 'Complete your tasks and make your way to the exit, so we can send you to the next warehouse!' },
     { images: ['background1.jpg'], music: 'gameplay', text: 'Your shift begins now!' }
   ];
   const INTRO_TYPE_INTERVAL = 19;
   let introToken = 0;
-  let introTypeTimer = null;
+  let introTypeTimers = [];
   let pendingShiftStart = null;
   const images = {};
   let patterns = {};
@@ -168,6 +172,7 @@
     zones: {},
     boxes: [],
     looseCoffees: [],
+    kitchenCoffees: [],
     enemies: [],
     forklifts: [],
     player: null,
@@ -789,7 +794,7 @@
   }
   function destinationPosition(z) { return tileCenter({ x: z.x, y: z.y }); }
   function occupiedAt(p, includeEnemies = true) {
-    const objects = [...game.boxes, ...game.looseCoffees, ...(includeEnemies ? game.enemies : [])];
+    const objects = [...game.boxes, ...game.looseCoffees, ...game.kitchenCoffees.filter(coffee => coffee.available), ...(includeEnemies ? game.enemies : [])];
     if (includeEnemies && game.forklifts.length) objects.push(...game.forklifts);
     return objects.some(o => dist(p, o) < TILE * 0.78);
   }
@@ -829,6 +834,16 @@
   function spawnLooseCoffee() {
     const t = randomFloorTile(250, true);
     if (t) game.looseCoffees.push({ ...tileCenter(t), bob: rand(0, Math.PI * 2) });
+  }
+  function placeKitchenCoffees() {
+    // Fixed coffee point beside the right-hand side of each kitchen refrigerator.
+    // It reappears once the player leaves the pickup spot, so it cannot be collected continuously while standing still.
+    game.kitchenCoffees = game.zones.kitchens.map(k => ({
+      x: (k.left + 6.56) * TILE,
+      y: (k.top + 2.55) * TILE,
+      bob: rand(0, Math.PI * 2),
+      available: true
+    }));
   }
   function makeRobotAtTile(t, guard = false, index = 0) {
     const p = tileCenter(t);
@@ -882,8 +897,10 @@
     };
     game.boxes = [];
     game.looseCoffees = [];
+    game.kitchenCoffees = [];
     for (let i = 0; i < activeBoxCount(); i++) spawnBox();
     for (let i = 0; i < activeCoffeeCount(); i++) spawnLooseCoffee();
+    placeKitchenCoffees();
     spawnEnemies();
     game.routePath = [];
     game.routeUntil = 0;
@@ -945,7 +962,7 @@
     addMessage('SAVED SHIFT CONTINUED — BACK AT DOCK', '#ff7700', 3000);
   }
   function introIsReady() {
-    return introSlides.length > 0 && introSlides.every(slide => String(slide.text || '').trim().length > 0);
+    return introSlides.length > 0 && introSlides.every(slide => String(slide.text || slide.topText || slide.bottomText || '').trim().length > 0);
   }
   function startNewShift() {
     if (!requireName()) return;
@@ -971,22 +988,25 @@
     else performNewShift();
   }
   function stopIntroTyping() {
-    if (introTypeTimer) window.clearTimeout(introTypeTimer);
-    introTypeTimer = null;
+    introTypeTimers.forEach(timer => window.clearTimeout(timer));
+    introTypeTimers = [];
   }
-  function typeIntroText(text, token) {
-    stopIntroTyping();
-    introCaption.textContent = '';
+  function typeIntroText(element, text, token, startDelay = 0) {
+    element.textContent = '';
+    const wrap = element.parentElement;
+    const content = String(text || '');
+    wrap.classList.toggle('is-empty', !content);
+    if (!content) return;
     let index = 0;
     const step = () => {
       if (token !== introToken || game.mode !== 'intro') return;
-      introCaption.textContent = text.slice(0, index);
-      if (index < text.length) {
+      element.textContent = content.slice(0, index);
+      if (index < content.length) {
         index += 1;
-        introTypeTimer = window.setTimeout(step, INTRO_TYPE_INTERVAL);
+        introTypeTimers.push(window.setTimeout(step, INTRO_TYPE_INTERVAL));
       }
     };
-    step();
+    introTypeTimers.push(window.setTimeout(step, startDelay));
   }
   function tryIntroImage(names, token, index = 0) {
     if (token !== introToken || game.mode !== 'intro') return;
@@ -1010,11 +1030,14 @@
     const token = ++introToken;
     stopIntroTyping();
     introCaption.textContent = '';
+    introCaptionTop.textContent = '';
     introImage.classList.remove('is-visible');
-    introUI.classList.toggle('caption-top', slide.captionPosition === 'top');
     tryIntroImage(slide.images, token);
     music.play(slide.music, true);
-    typeIntroText(slide.text, token);
+    const topText = slide.topText || '';
+    const bottomText = slide.bottomText || slide.text || '';
+    typeIntroText(introCaptionTop, topText, token, 0);
+    typeIntroText(introCaption, bottomText, token, topText ? 420 : 0);
     introNextButton.textContent = game.introIndex === introSlides.length - 1 ? 'Start Shift' : 'Next';
   }
   function startIntro() {
@@ -1201,9 +1224,17 @@
     synth.teleport();
     addMessage('EMERGENCY MOVE — SAFE AISLE REACHED', '#ffd054', 2200);
   }
-  function pointInsideZone(p, z) {
-    const t = worldToTile(p.x, p.y);
+  function tileInsideZone(t, z) {
     return t.x >= z.left && t.x < z.left + z.width && t.y >= z.top && t.y < z.top + z.height;
+  }
+  function pointInsideZone(p, z) {
+    return tileInsideZone(worldToTile(p.x, p.y), z);
+  }
+  function tileInsideSafeZone(t) {
+    return tileInsideZone(t, game.zones.dock) || game.zones.kitchens.some(k => tileInsideZone(t, k));
+  }
+  function playerInsideSafeZone() {
+    return !!game.player && (pointInsideZone(game.player, game.zones.dock) || game.zones.kitchens.some(k => pointInsideZone(game.player, k)));
   }
   function updateSpecialMusic() {
     let wanted = null;
@@ -1304,6 +1335,15 @@
         spawnLooseCoffee();
       }
     }
+    game.kitchenCoffees.forEach(coffee => {
+      const nearCoffee = dist(p, coffee) < 48;
+      if (coffee.available && nearCoffee) {
+        collectCoffee();
+        coffee.available = false;
+      } else if (!coffee.available && dist(p, coffee) > TILE * 0.90) {
+        coffee.available = true;
+      }
+    });
     for (let i = game.decorativeProps.length - 1; i >= 0; i--) {
       const prop = game.decorativeProps[i];
       if (prop.image === 'shoe' && dist(p, decorativeCenter(prop)) < TILE * .48) {
@@ -1325,7 +1365,7 @@
     game.camera.y = clamp(game.player.y - H / 2, 0, Math.max(0, WORLD_H - H));
   }
 
-  function bfs(start, goal) {
+  function bfs(start, goal, avoidSafeZones = false) {
     const q = [start];
     const seen = new Set([cellKey(start.x, start.y)]);
     const prev = new Map();
@@ -1335,7 +1375,9 @@
       for (const d of directions) {
         const n = { x: c.x + d.x, y: c.y + d.y };
         const key = cellKey(n.x, n.y);
-        if (isFloorTile(n.x, n.y) && !seen.has(key)) { seen.add(key); prev.set(key, c); q.push(n); }
+        if (isFloorTile(n.x, n.y) && (!avoidSafeZones || !tileInsideSafeZone(n)) && !seen.has(key)) {
+          seen.add(key); prev.set(key, c); q.push(n);
+        }
       }
     }
     const goalKey = cellKey(goal.x, goal.y);
@@ -1367,24 +1409,32 @@
     if (now < enemy.disabledUntil) return;
     const pt = worldToTile(game.player.x, game.player.y);
     const et = worldToTile(enemy.x, enemy.y);
-    const chasing = dist(enemy, game.player) < enemy.detection;
+    if (tileInsideSafeZone(et)) {
+      const safeZone = tileInsideZone(et, game.zones.dock) ? game.zones.dock : game.zones.kitchens.find(k => tileInsideZone(et, k));
+      const outside = safeZone ? tileNearZoneEdge(safeZone) : randomFloorTile(0, true);
+      const reset = tileCenter(outside);
+      enemy.x = reset.x; enemy.y = reset.y; enemy.path = [];
+      return;
+    }
+    enemy.path = (enemy.path || []).filter(tile => !tileInsideSafeZone(tile));
+    const chasing = !playerInsideSafeZone() && dist(enemy, game.player) < enemy.detection;
     if (now >= enemy.nextPathAt) {
       if (chasing) {
-        enemy.path = bfs(et, pt).slice(0, forklift ? 18 : 13);
+        enemy.path = bfs(et, pt, true).slice(0, forklift ? 18 : 13);
         enemy.nextPathAt = now + (forklift ? 300 : 430);
       } else if (!enemy.path.length || now > enemy.wanderingUntil) {
-        const target = enemy.guard && Math.random() < .7 ? tileNearZoneEdge(Math.random() < .5 ? game.zones.dock : game.zones.quarantine) : randomFloorTile(0, false);
-        enemy.path = bfs(et, target).slice(0, randInt(3, forklift ? 13 : 9));
+        const target = enemy.guard && Math.random() < .7 ? tileNearZoneEdge(Math.random() < .5 ? game.zones.dock : game.zones.quarantine) : randomFloorTile(0, true);
+        enemy.path = bfs(et, target, true).slice(0, randInt(3, forklift ? 13 : 9));
         enemy.wanderingUntil = now + randInt(1800, 4500);
         enemy.nextPathAt = now + 1000;
       }
     }
     moveAlongPath(enemy, dt);
     enemy.anim = (enemy.anim || 0) + dt * 7;
-    if (dist(enemy, game.player) < (forklift ? 73 * enemy.scale : 43 * enemy.scale)) damagePlayer(forklift ? 2 : 1, now, forklift ? 'FORKLIFT COLLISION!' : 'ROBOT COLLISION!', enemy);
+    if (!playerInsideSafeZone() && dist(enemy, game.player) < (forklift ? 73 * enemy.scale : 43 * enemy.scale)) damagePlayer(forklift ? 2 : 1, now, forklift ? 'FORKLIFT COLLISION!' : 'ROBOT COLLISION!', enemy);
   }
   function damagePlayer(amount, now, label, attacker) {
-    if (game.mode !== 'play' || game.player.action || now < game.player.invulnerableUntil) return;
+    if (game.mode !== 'play' || game.player.action || now < game.player.invulnerableUntil || playerInsideSafeZone()) return;
     const damage = amount === 2 ? 2 : 1;
     game.health = Math.max(0, game.health - damage);
     if (damage > 1) game.stats.forkliftHits++;
@@ -1427,14 +1477,14 @@
   }
 
   const lootTable = [
-    { id: 'offline', weight: 18 }, { id: 'order', weight: 15 }, { id: 'shares', weight: 8 }, { id: 'heart', weight: 7 },
-    { id: 'coffee', weight: 12 }, { id: 'emailTask', weight: 10 }, { id: 'workdayTask', weight: 10 }, { id: 'sopToken', weight: 7 },
+    { id: 'heart', weight: 9 }, { id: 'coffee', weight: 13 },
+    { id: 'emailTask', weight: 24 }, { id: 'workdayTask', weight: 24 }, { id: 'sopToken', weight: 3 },
     { id: 'return', weight: 9 }, { id: 'mixed', weight: 7 }, { id: 'mould', weight: 7 }, { id: 'break', weight: 6 },
     { id: 'ops', weight: 3 }, { id: 'empty', weight: 8 }
   ];
   const smallBoxLoot = [
     { id: 'empty', weight: 50 }, { id: 'heart', weight: 10 }, { id: 'coffee', weight: 10 },
-    { id: 'emailTask', weight: 10 }, { id: 'workdayTask', weight: 10 }, { id: 'sopToken', weight: 10 }
+    { id: 'emailTask', weight: 12 }, { id: 'workdayTask', weight: 12 }, { id: 'sopToken', weight: 3 }
   ];
   function weightedFrom(table) {
     const total = table.reduce((sum, item) => sum + item.weight, 0);
@@ -1497,9 +1547,6 @@
   }
   function resolveLoot(item, now) {
     switch (item) {
-      case 'offline': game.score += 100; game.stats.offlineStock++; synth.points(); addMessage('OFFLINE STOCK  +100', '#ffd054', 1700); break;
-      case 'order': game.score += 200; game.stats.customerOrders++; synth.points(); addMessage('UNSHIPPED CUSTOMER ORDER  +200', '#ffd054', 1850); break;
-      case 'shares': game.score += 300; game.stats.sharesFound++; synth.points(); addMessage('ZALANDO SHARES  +300', '#ff7700', 1900); break;
       case 'heart':
         game.stats.heartsFound++;
         if (game.health < MAX_HEARTS) { game.health++; synth.pickup(); addMessage('HEART RESTORED!', '#ed4959', 1600); }
@@ -1885,16 +1932,15 @@
       drawContain(images[prop.image], prop.left * TILE, prop.top * TILE + hover, prop.width * TILE, prop.height * TILE, 1, true, !!prop.flipX);
     });
   }
-  function drawZoneSign(text, z, width = 235) {
+  function drawZoneSign(text, z, width = 300, height = 78) {
     const x = z.left * TILE + z.width * TILE / 2 - width / 2;
-    const y = z.top * TILE + 10;
-    drawShadow(x, y, width, 58, .22);
+    const y = z.top * TILE + 8;
     ctx.save();
-    ctx.drawImage(images.sign, x, y, width, 58);
-    ctx.font = 'bold 19px Trebuchet MS';
+    ctx.drawImage(images.sign, x, y, width, height);
+    ctx.font = 'bold 23px Trebuchet MS';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#29231d';
-    ctx.fillText(text, x + width / 2, y + 36);
+    ctx.fillText(text, x + width / 2, y + height * .63);
     ctx.restore();
   }
   function drawDock(z) {
@@ -1909,20 +1955,20 @@
     ctx.lineTo((z.left + z.width) * TILE - 25, z.top * TILE + TILE * 5.5);
     ctx.stroke();
     ctx.restore();
-    drawZoneSign('DOCK', z, 230);
+    drawZoneSign('DOCK', z, 330, 82);
     drawContain(images.entrance, z.left * TILE + 18, z.top * TILE + 64, TILE * 8.1, TILE * 3.0, .96, true);
     // Truck is drawn dynamically above the cached warehouse layer when it arrives.
   }
   function drawZones() {
     const q = game.zones.quarantine, inv = game.zones.inventory, ex = game.zones.exit;
-    if (isZoneVisible(q, 120)) drawZoneSign('QUARANTINE STORAGE', q, 420);
+    if (isZoneVisible(q, 120)) drawZoneSign('QUARANTINE STORAGE', q, 560, 84);
     if (isZoneVisible(game.zones.dock, 120)) drawDock(game.zones.dock);
-    if (isZoneVisible(inv, 120)) drawZoneSign('INVENTORY CHECK', inv, 365);
-    game.zones.kitchens.forEach(k => { if (isZoneVisible(k, 120)) drawZoneSign('KITCHEN', k, 220); });
+    if (isZoneVisible(inv, 120)) drawZoneSign('INVENTORY CHECK', inv, 490, 84);
+    game.zones.kitchens.forEach(k => { if (isZoneVisible(k, 120)) drawZoneSign('KITCHEN', k, 300, 80); });
     game.zoneProps.forEach(prop => drawSceneryProp(prop, true));
 
     if (!isZoneVisible(ex, 120)) return;
-    drawZoneSign('EXIT', ex, 190);
+    drawZoneSign('EXIT', ex, 270, 78);
     const exitX = ex.left * TILE + TILE * .42, exitY = ex.top * TILE + TILE * .94;
     const exitW = ex.width * TILE - TILE * .84, exitH = ex.height * TILE - TILE * 1.40;
     drawContain(images.exit, exitX, exitY, exitW, exitH, 1, true);
@@ -1996,11 +2042,23 @@
       const bob = Math.sin(now / 245 + coffee.bob) * 5;
       drawContain(images.coffee, coffee.x - 24, coffee.y - 44 + bob, 48, 68, 1, true);
     });
+    game.kitchenCoffees.forEach(coffee => {
+      if (!coffee.available || !onScreenRect(coffee.x - 30, coffee.y - 54, 60, 86, 35)) return;
+      const bob = Math.sin(now / 245 + coffee.bob) * 5;
+      ctx.save();
+      ctx.globalAlpha = .24;
+      ctx.fillStyle = '#e59c47';
+      ctx.beginPath();
+      ctx.ellipse(coffee.x, coffee.y + 16, 29, 13, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      drawContain(images.coffee, coffee.x - 27, coffee.y - 48 + bob, 54, 76, 1, true);
+    });
   }
   function drawPlayer(now) {
     const p = game.player;
     if (!p) return;
-    if (now < p.invulnerableUntil && Math.floor(now / 100) % 2 === 0 && game.mode === 'play') return;
+    if (now < p.invulnerableUntil && (!p.action || p.action.type !== 'jump') && Math.floor(now / 100) % 2 === 0 && game.mode === 'play') return;
     if (p.action && p.action.type === 'jump') {
       const progress = clamp((now - p.action.start) / p.action.duration, 0, 1);
       const lift = Math.sin(progress * Math.PI) * 46;
@@ -2102,12 +2160,27 @@
     ctx.globalAlpha = .95; ctx.shadowBlur = 0; ctx.font = 'bold 13px Trebuchet MS'; ctx.fillStyle = '#ffd054';
     ctx.fillText(guideDelivery ? 'DELIVERY' : 'OFFICE', screenX, screenY + 22); ctx.restore();
   }
+  function cockpitRect() { return { x: 16, y: 80, w: 232, h: 169 }; }
   function drawTaskBoard() {
-    ctx.save(); const x = 16, y = 80, w = 222, h = 148;
-    ctx.fillStyle = 'rgba(12,15,18,.86)'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
-    ctx.font = 'bold 15px Trebuchet MS'; ctx.fillStyle = '#ffd054'; ctx.fillText('TASK BOARD', x + 13, y + 22);
-    TASK_TYPES.forEach((type, i) => { const py = y + 48 + i * 21, jobs = taskJobsReady(type); ctx.font = 'bold 13px Trebuchet MS'; ctx.fillStyle = game.tasks.completed[type] ? '#71dd8d' : '#fff4df'; ctx.fillText(`${TASK_LABELS[type]} ${game.tasks[type]}/5`, x + 13, py); ctx.textAlign = 'right'; ctx.fillStyle = jobs ? '#ff9a3b' : '#cdbd9e'; ctx.fillText(jobs ? `${jobs} READY` : (game.tasks.completed[type] ? 'DONE ✓' : '—'), x + w - 12, py); ctx.textAlign = 'left'; });
-    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 13px Trebuchet MS'; ctx.fillText(`SOP TOKENS  ${game.tasks.tokens}`, x + 13, y + h - 10); ctx.restore();
+    ctx.save(); const { x, y, w, h } = cockpitRect();
+    ctx.fillStyle = 'rgba(12,15,18,.88)'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+    ctx.font = 'bold 16px Trebuchet MS'; ctx.fillStyle = '#ffd054'; ctx.fillText('COCKPIT', x + 13, y + 23);
+    ctx.font = 'bold 11px Trebuchet MS'; ctx.textAlign = 'right'; ctx.fillStyle = '#ff9a3b'; ctx.fillText('CLICK FOR HELP  ?', x + w - 12, y + 22); ctx.textAlign = 'left';
+    TASK_TYPES.forEach((type, i) => { const py = y + 51 + i * 21, jobs = taskJobsReady(type); ctx.font = 'bold 13px Trebuchet MS'; ctx.fillStyle = game.tasks.completed[type] ? '#71dd8d' : '#fff4df'; ctx.fillText(`${TASK_LABELS[type]} ${game.tasks[type]}/5`, x + 13, py); ctx.textAlign = 'right'; ctx.fillStyle = jobs ? '#ff9a3b' : '#cdbd9e'; ctx.fillText(jobs ? `${jobs} READY` : (game.tasks.completed[type] ? 'DONE ✓' : '—'), x + w - 12, py); ctx.textAlign = 'left'; });
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 13px Trebuchet MS'; ctx.fillText(`SOP TOKENS  ${game.tasks.tokens}`, x + 13, y + h - 11);
+    ctx.restore();
+  }
+  function openCockpitHelp() {
+    if (game.mode !== 'play') return;
+    game.mode = 'cockpitHelp';
+    keys.clear(); stopSprint(); setGameplayControlsVisible(false);
+    cockpitHelpUI.classList.remove('hidden');
+  }
+  function closeCockpitHelp() {
+    if (game.mode !== 'cockpitHelp') return;
+    cockpitHelpUI.classList.add('hidden');
+    game.mode = 'play';
+    setGameplayControlsVisible(true);
   }
   function drawTokenCelebration(now) { if (now >= game.tokenFlashUntil) return; const alpha = clamp((game.tokenFlashUntil - now) / 900, 0, 1) * .36; ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#ff6900'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
   function drawHUD(now) {
@@ -2166,7 +2239,7 @@
     drawContain(images.title, 240, 70, 800, 224, 1, true);
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 29px Trebuchet MS'; ctx.fillText('WAREHOUSE RUN', W / 2, 328);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 29px Trebuchet MS'; ctx.fillText(`WAREHOUSE RUN  •  ${VERSION}`, W / 2, 328);
     ctx.fillStyle = '#f6e8ce'; ctx.font = '18px Trebuchet MS';
     ctx.fillText('WASD / ARROWS  MOVE     SPACE  ACTION / COFFEE SPRINT     M  MUTE', W / 2, 572);
     ctx.fillText('Reach the exit. Collect points. Survive the warehouse.', W / 2, 610);
@@ -2194,9 +2267,9 @@
     ctx.fillText(`WAREHOUSES CLEARED  ${game.stats.warehousesCleared}     BEST SCORE  ${formatScore(game.bestScore)}`, W / 2, 337);
 
     const summary = [
-      ['DELIVERIES', game.stats.trucksCompleted], ['OFFLINE STOCK', game.stats.offlineStock], ['COFFEES', game.stats.coffeesCollected],
-      ['LUNCH BREAKS', game.stats.lunchBreaks], ['RETURNS', game.stats.returnsProcessed], ['INVENTORY PAIRS', game.stats.inventoryMatches],
-      ['CUSTOMER ORDERS', game.stats.customerOrders], ['SHOES FOUND', game.stats.shoesCollected], ['BOXES OPENED', game.stats.boxesOpened],
+      ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks],
+      ['RETURNS', game.stats.returnsProcessed], ['INVENTORY PAIRS', game.stats.inventoryMatches], ['SHOES FOUND', game.stats.shoesCollected],
+      ['BIG BOXES OPENED', game.stats.boxesOpened], ['SMALL BOXES OPENED', game.stats.smallBoxesOpened], ['SOP FOUND', game.stats.sopTokensFound],
       ['ALM TASKS', game.stats.almTasksCompleted], ['SL TASKS', game.stats.slTasksCompleted], ['EMAIL TASKS', game.stats.emailTasksCompleted],
       ['WORKDAY TASKS', game.stats.workdayTasksCompleted], ['SOP USED', game.stats.sopTokensUsed], ['TASKS FAILED', game.stats.taskFailures]
     ];
@@ -2285,20 +2358,80 @@
   }
 
   function officeScreenRect() { return OFFICE_MONITOR; }
-  function drawOfficeBase() { if (images.officeBase) drawCoverImage(images.officeBase, 0, 0, W, H); else { drawCoverImage(images.background, 0, 0, W, H); ctx.fillStyle = 'rgba(22,15,34,.62)'; ctx.fillRect(0, 0, W, H); } }
-  function drawMonitorImage(img) { const r = officeScreenRect(); if (img) drawCoverImage(img, r.x, r.y, r.width, r.height); else { ctx.fillStyle = '#10171d'; ctx.fillRect(r.x, r.y, r.width, r.height); } }
-  function officeButton(x, y, w, h, label, id, active = true) { game.office.hotspots.push({ x, y, w, h, id, active }); ctx.save(); ctx.fillStyle = active ? 'rgba(255,105,0,.88)' : 'rgba(80,80,80,.72)'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = active ? '#ffd054' : '#888'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h); ctx.fillStyle = '#fff'; ctx.font = 'bold 15px Trebuchet MS'; ctx.textAlign = 'center'; ctx.fillText(label, x + w / 2, y + h / 2 + 5); ctx.restore(); }
-  function drawOfficeMenu() { const r = officeScreenRect(); drawMonitorImage(images.officeMenu); game.office.hotspots = [{ x: r.x + 55, y: r.y + 154, w: 90, h: 86, id: 'app-sop', active: true }, { x: r.x + 170, y: r.y + 154, w: 90, h: 86, id: 'app-jira', active: true }, { x: r.x + 283, y: r.y + 154, w: 90, h: 86, id: 'app-email', active: true }, { x: r.x + 397, y: r.y + 154, w: 90, h: 86, id: 'app-workday', active: true }]; ctx.save(); ctx.font = 'bold 16px Trebuchet MS'; ctx.fillStyle = '#fff4df'; ctx.fillText(`ALM ${game.tasks.alm}/5    SL ${game.tasks.sl}/5    EMAIL ${game.tasks.email}/5    WORKDAY ${game.tasks.workday}/5`, r.x + 18, r.y + r.height - 30); ctx.fillStyle = '#ffd054'; ctx.fillText(`SOP SCOUT TOKENS: ${game.tasks.tokens}`, r.x + 18, r.y + r.height - 8); ctx.restore(); officeButton(W - 178, H - 62, 148, 42, 'LEAVE OFFICE', 'leave-office', true); }
-  function drawOfficeChoice(page, types, title, tokenMode = false) { const r = officeScreenRect(); drawMonitorImage(page === 'jira' ? images.jiraScreen : images.officeMenu); ctx.save(); ctx.fillStyle = 'rgba(8,12,17,.80)'; ctx.fillRect(r.x + 16, r.y + 16, r.width - 32, r.height - 32); ctx.fillStyle = '#fff4df'; ctx.font = 'bold 24px Trebuchet MS'; ctx.fillText(title, r.x + 36, r.y + 56); ctx.font = '16px Trebuchet MS'; ctx.fillStyle = '#edc17e'; ctx.fillText(tokenMode ? 'Choose a ready task to complete instantly for +50.' : 'Choose the backlog category to process.', r.x + 36, r.y + 88); ctx.restore(); types.forEach((type, i) => officeButton(r.x + 44, r.y + 114 + i * 58, r.width - 88, 44, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0))); officeButton(r.x + 44, r.y + r.height - 56, 126, 36, 'BACK', 'office-menu', true); }
+  function drawOfficeBase() {
+    if (images.officeBase) drawCoverImage(images.officeBase, 0, 0, W, H);
+    else { drawCoverImage(images.background, 0, 0, W, H); ctx.fillStyle = 'rgba(22,15,34,.62)'; ctx.fillRect(0, 0, W, H); }
+  }
+  function drawMonitorImage(img) { const r = officeScreenRect(); if (img) drawCoverImage(img, r.x, r.y, r.width, r.height); }
+  function officeButton(x, y, w, h, label, id, active = true) {
+    game.office.hotspots.push({ x, y, w, h, id, active });
+    ctx.save(); ctx.fillStyle = active ? '#ff6900' : '#b9b9b9'; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = active ? '#d95600' : '#8b8b8b'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = active ? '#fff' : '#eee'; ctx.font = 'bold 15px Trebuchet MS'; ctx.textAlign = 'center'; ctx.fillText(label, x + w / 2, y + h / 2 + 5); ctx.restore();
+  }
+  function drawOfficeMenu() {
+    const r = officeScreenRect();
+    drawMonitorImage(images.officeMenu);
+    game.office.hotspots = [
+      { x: r.x + r.width * .075, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-sop', active: true },
+      { x: r.x + r.width * .285, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-jira', active: true },
+      { x: r.x + r.width * .495, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-email', active: true },
+      { x: r.x + r.width * .705, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-workday', active: true }
+    ];
+  }
+  function drawOfficeHeader(title, subtitle = '') {
+    const r = officeScreenRect();
+    ctx.save();
+    ctx.fillStyle = '#242832'; ctx.font = 'bold 24px Trebuchet MS'; ctx.fillText(title, r.x + 34, r.y + 50);
+    if (subtitle) { ctx.fillStyle = '#5b606b'; ctx.font = '15px Trebuchet MS'; ctx.fillText(subtitle, r.x + 34, r.y + 78); }
+    ctx.strokeStyle = '#f0ede7'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(r.x + 28, r.y + 92); ctx.lineTo(r.x + r.width - 28, r.y + 92); ctx.stroke();
+    ctx.restore();
+  }
+  function drawOfficeChoice(page, types, title, tokenMode = false) {
+    const r = officeScreenRect();
+    drawOfficeHeader(title, tokenMode ? 'Choose one ready task for SOP Scout to complete instantly.' : 'Choose the backlog category to process.');
+    types.forEach((type, i) => officeButton(r.x + 38, r.y + 113 + i * 55, r.width - 76, 42, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0)));
+    officeButton(r.x + 38, r.y + r.height - 48, 120, 33, 'BACK', 'office-menu', true);
+  }
   function startOfficePuzzle(type) { if (taskJobsReady(type) < 1) return; const data = TASK_PUZZLES[type], challenge = choice(data.puzzles); game.office.page = 'puzzle'; game.office.selectedType = type; game.office.puzzle = { type, data, challenge, selected: [] }; }
   function submitOfficePuzzle() { const pz = game.office && game.office.puzzle; if (!pz || pz.selected.length !== 3) return; const ok = pz.selected.slice().sort().join('|') === pz.challenge.answer.slice().sort().join('|'); completeTaskUnit(pz.type, false, ok); game.office.puzzle = null; addMessage(ok ? `${TASK_LABELS[pz.type]} TASK COMPLETE  +50` : `${TASK_LABELS[pz.type]} TASK FAILED  +0`, ok ? '#71dd8d' : '#ee394d', 2200); if (taskJobsReady(pz.type) > 0) startOfficePuzzle(pz.type); else game.office.page = 'menu'; }
-  function drawOfficePuzzle() { const r = officeScreenRect(), pz = game.office.puzzle; drawMonitorImage(pz.type === 'alm' || pz.type === 'sl' ? images.jiraScreen : images.officeMenu); ctx.save(); ctx.fillStyle = 'rgba(8,12,17,.84)'; ctx.fillRect(r.x + 10, r.y + 10, r.width - 20, r.height - 20); ctx.fillStyle = '#ffd054'; ctx.font = 'bold 21px Trebuchet MS'; ctx.fillText(pz.data.app, r.x + 26, r.y + 39); ctx.font = 'bold 14px Trebuchet MS'; ctx.fillStyle = '#fff4df'; ctx.fillText('SELECT THE THREE MATCHING EMOJIS', r.x + 26, r.y + 63); const slotsX = r.x + 162, slotsY = r.y + 77; for (let i = 0; i < 3; i++) { ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(slotsX + i * 74, slotsY, 62, 52); ctx.strokeStyle = '#ff6900'; ctx.strokeRect(slotsX + i * 74, slotsY, 62, 52); ctx.font = '33px Arial'; if (pz.selected[i]) ctx.fillText(pz.selected[i], slotsX + i * 74 + 13, slotsY + 38); } ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Trebuchet MS'; const words = pz.challenge.clue.split(' '); let line = '', yy = r.y + 160; words.forEach(word => { const test = line ? `${line} ${word}` : word; if (ctx.measureText(test).width > r.width - 70) { ctx.fillText(line, r.x + 32, yy); yy += 20; line = word; } else line = test; }); if (line) ctx.fillText(line, r.x + 32, yy); ctx.restore(); pz.data.bank.forEach((emoji, i) => { const x = r.x + 26 + i * 62, y = r.y + 236; game.office.hotspots.push({ x, y, w: 54, h: 52, id: `emoji-${emoji}`, active: true }); ctx.save(); ctx.fillStyle = pz.selected.includes(emoji) ? 'rgba(255,105,0,.42)' : 'rgba(255,255,255,.12)'; ctx.fillRect(x, y, 54, 52); ctx.strokeStyle = '#ff6900'; ctx.strokeRect(x, y, 54, 52); ctx.font = '31px Arial'; ctx.fillText(emoji, x + 10, y + 37); ctx.restore(); }); officeButton(r.x + 240, r.y + 300, 118, 36, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3); }
-  function drawOffice(now) { drawOfficeBase(); game.office.hotspots = []; if (game.office.page === 'menu') drawOfficeMenu(); else if (game.office.page === 'jira') drawOfficeChoice('jira', ['alm','sl'], 'JIRA TASK BACKLOG'); else if (game.office.page === 'sop') drawOfficeChoice('sop', TASK_TYPES.filter(type => taskJobsReady(type) > 0), 'SOP SCOUT', true); else if (game.office.page === 'puzzle') drawOfficePuzzle(); if (images.officeFrame) drawCoverImage(images.officeFrame, 0, 0, W, H); officeButton(W - 178, H - 62, 148, 42, 'LEAVE OFFICE', 'leave-office', true); ctx.save(); ctx.fillStyle = '#fff4df'; ctx.font = 'bold 16px Trebuchet MS'; ctx.fillText('ESC — LEAVE OFFICE', 22, H - 23); ctx.restore(); drawTokenCelebration(now); }
+  function drawOfficePuzzle() {
+    const r = officeScreenRect(), pz = game.office.puzzle;
+    drawOfficeHeader(pz.data.app, 'SELECT THE THREE MATCHING EMOJIS');
+    const slotsX = r.x + 168, slotsY = r.y + 103;
+    ctx.save();
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = '#f2f3f5'; ctx.fillRect(slotsX + i * 74, slotsY, 62, 50); ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; ctx.strokeRect(slotsX + i * 74, slotsY, 62, 50);
+      ctx.font = '32px Arial'; if (pz.selected[i]) ctx.fillText(pz.selected[i], slotsX + i * 74 + 13, slotsY + 37);
+    }
+    ctx.fillStyle = '#242832'; ctx.font = 'bold 14px Trebuchet MS';
+    const words = pz.challenge.clue.split(' '); let line = '', yy = r.y + 184;
+    words.forEach(word => { const test = line ? `${line} ${word}` : word; if (ctx.measureText(test).width > r.width - 66) { ctx.fillText(line, r.x + 30, yy); yy += 20; line = word; } else line = test; });
+    if (line) ctx.fillText(line, r.x + 30, yy);
+    ctx.restore();
+    pz.data.bank.forEach((emoji, i) => {
+      const x = r.x + 28 + i * 65, y = r.y + 245; game.office.hotspots.push({ x, y, w: 56, h: 50, id: `emoji-${emoji}`, active: true });
+      ctx.save(); ctx.fillStyle = pz.selected.includes(emoji) ? '#ffdfca' : '#f4f4f4'; ctx.fillRect(x, y, 56, 50); ctx.strokeStyle = pz.selected.includes(emoji) ? '#ff6900' : '#bcbcbc'; ctx.lineWidth = 2; ctx.strokeRect(x, y, 56, 50); ctx.font = '30px Arial'; ctx.fillText(emoji, x + 11, y + 36); ctx.restore();
+    });
+    officeButton(r.x + 232, r.y + r.height - 49, 120, 34, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3);
+  }
+  function drawOffice(now) {
+    drawOfficeBase();
+    game.office.hotspots = [];
+    if (game.office.page === 'menu') drawOfficeMenu();
+    else if (game.office.page === 'jira') drawOfficeChoice('jira', ['alm','sl'], 'JIRA TASK BACKLOG');
+    else if (game.office.page === 'sop') drawOfficeChoice('sop', TASK_TYPES.filter(type => taskJobsReady(type) > 0), 'SOP SCOUT', true);
+    else if (game.office.page === 'puzzle') drawOfficePuzzle();
+    if (images.officeFrame) drawCoverImage(images.officeFrame, 0, 0, W, H);
+    officeButton(W - 178, H - 62, 148, 42, 'LEAVE OFFICE', 'leave-office', true);
+    ctx.save(); ctx.fillStyle = '#fff4df'; ctx.font = 'bold 16px Trebuchet MS'; ctx.fillText('ESC — LEAVE OFFICE', 22, H - 23); ctx.restore();
+    drawTokenCelebration(now);
+  }
   function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskJobsReady('alm') || taskJobsReady('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskJobsReady('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskJobsReady('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) chosen.splice(idx, 1); else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
   function draw(now) {
     ctx.clearRect(0, 0, W, H);
     if (game.mode === 'title' || game.mode === 'intro') drawTitle();
-    else if (game.mode === 'play' || game.mode === 'dying') drawWorld(now);
+    else if (game.mode === 'play' || game.mode === 'dying' || game.mode === 'cockpitHelp') drawWorld(now);
     else if (game.mode === 'inventoryBriefing') drawInventoryBriefing();
     else if (game.mode === 'inventoryPuzzle') drawInventoryPuzzle(now);
     else if (game.mode === 'office') drawOffice(now);
@@ -2323,13 +2456,13 @@
     rc.fillStyle = '#ff6900'; rc.font = 'bold 68px Trebuchet MS'; rc.fillText(formatScore(game.score), report.width / 2, 328);
     rc.fillStyle = '#ffd054'; rc.font = 'bold 23px Trebuchet MS'; rc.fillText(`WAREHOUSES CLEARED  ${game.stats.warehousesCleared}`, report.width / 2, 366);
     const lines = [
-      [`Deliveries`, game.stats.trucksCompleted], [`Offline stock`, game.stats.offlineStock],
-      [`Coffees`, game.stats.coffeesCollected], [`Lunch breaks`, game.stats.lunchBreaks],
-      [`Returns`, game.stats.returnsProcessed], [`Inventory pairs`, game.stats.inventoryMatches],
-      [`Shoes collected`, game.stats.shoesCollected], [`ALM tasks`, game.stats.almTasksCompleted],
-      [`SL tasks`, game.stats.slTasksCompleted], [`Email tasks`, game.stats.emailTasksCompleted],
-      [`Workday tasks`, game.stats.workdayTasksCompleted], [`SOP tokens used`, game.stats.sopTokensUsed],
-      [`Boxes opened`, game.stats.boxesOpened], [`Highest score`, formatScore(game.bestScore)]
+      [`Deliveries`, game.stats.trucksCompleted], [`Coffees`, game.stats.coffeesCollected],
+      [`Lunch breaks`, game.stats.lunchBreaks], [`Returns`, game.stats.returnsProcessed],
+      [`Inventory pairs`, game.stats.inventoryMatches], [`Shoes collected`, game.stats.shoesCollected],
+      [`Big boxes opened`, game.stats.boxesOpened], [`Small boxes opened`, game.stats.smallBoxesOpened],
+      [`SOP tokens found`, game.stats.sopTokensFound], [`SOP tokens used`, game.stats.sopTokensUsed],
+      [`ALM tasks`, game.stats.almTasksCompleted], [`SL tasks`, game.stats.slTasksCompleted],
+      [`Email tasks`, game.stats.emailTasksCompleted], [`Workday tasks`, game.stats.workdayTasksCompleted]
     ];
     rc.font = 'bold 15px Trebuchet MS'; rc.textAlign = 'left';
     lines.forEach(([label, value], i) => {
@@ -2363,6 +2496,7 @@
     startNewShift();
   });
   downloadScoreButton.addEventListener('click', downloadScoreCard);
+  closeCockpitHelpButton.addEventListener('click', closeCockpitHelp);
   muteToggleButton.addEventListener('click', () => { synth.init(); if (game.mode === 'title') startTitleMusic(); volumePanel.classList.toggle('hidden'); });
   displayToggleButton.addEventListener('click', () => { toggleDisplayMode(); });
   volumeSlider.addEventListener('input', event => { synth.init(); setVolume(event.target.value); if (game.mode === 'title') startTitleMusic(); });
@@ -2412,6 +2546,7 @@
     const y = (event.clientY - rect.top) * (canvas.height / rect.height);
     if (game.mode === 'inventoryPuzzle') handleInventoryClick(x, y);
     else if (game.mode === 'office') handleOfficeClick(x, y);
+    else if (game.mode === 'play') { const c = cockpitRect(); if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) openCockpitHelp(); }
   });
   introNextButton.addEventListener('click', nextIntroSlide);
   introSkipButton.addEventListener('click', skipIntro);
@@ -2433,6 +2568,7 @@
       toggleAudio();
       return;
     }
+    if (event.code === 'Escape' && game.mode === 'cockpitHelp') { closeCockpitHelp(); return; }
     if (event.code === 'Escape' && game.mode === 'intro') {
       skipIntro();
       return;
@@ -2445,6 +2581,7 @@
       pendingShiftStart = null;
       stopIntroTyping();
       introUI.classList.add('hidden');
+      cockpitHelpUI.classList.add('hidden');
       introImage.classList.remove('is-visible');
       keys.clear();
       music.stop();
