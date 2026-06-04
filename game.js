@@ -42,8 +42,8 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const ACTIVE_BOXES = 20;
-  const ACTIVE_COFFEES = 9;
+  const ACTIVE_BOXES = 40;
+  const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
@@ -56,7 +56,41 @@
   const PUZZLE_ROWS = 6;
   const PUZZLE_SIZE = PUZZLE_COLS * PUZZLE_ROWS;
   const FLOOR_TINTS = ['rgba(255,118,36,.055)', 'rgba(41,117,154,.045)', 'rgba(120,94,48,.05)', 'rgba(74,124,89,.045)', 'rgba(128,70,110,.04)'];
+  const TASK_TYPES = ['alm', 'sl', 'email', 'workday'];
+  const TASK_LABELS = { alm: 'ALM', sl: 'SL', email: 'EMAIL', workday: 'WORKDAY' };
+  const OFFICE_MONITOR = { x: 102, y: 75, width: 553, height: 353 };
   const keys = new Set();
+
+  const TASK_PUZZLES = {
+    alm: { app: 'JIRA — ALM TICKET', bank: ['🧵','✂️','🔄','📈','📋','🛠️','🛑','🏷️'], puzzles: [
+      { clue: 'Log the new ALM fabric issue, check off the item on your task list, and sync the system with a sprint.', answer: ['🧵','📋','🔄'] },
+      { clue: 'The production line is blocked, so grab your tools and inspect the fabric defect.', answer: ['🛑','🛠️','✂️'] },
+      { clue: 'Print out the incorrect barcode label, update the team task list, and track progress on the growth chart.', answer: ['🏷️','📋','📈'] },
+      { clue: 'Run a system sprint, use the tools to debug, and report the ALM fabric issue to engineering.', answer: ['🔄','🛠️','🧵'] },
+      { clue: 'Isolate the material with the fabric defect, mark the ticket as blocked, and update the growth chart.', answer: ['✂️','🛑','📈'] }
+    ] },
+    sl: { app: 'JIRA — SL TICKET', bank: ['📦','🚫','☣️','🚛','🏭','🛡️','⛽','🗺️'], puzzles: [
+      { clue: 'Review the incoming shipping notice package, flag the pallet with no EAN, and move it to quarantine storage.', answer: ['📦','🚫','☣️'] },
+      { clue: 'Confirm the arriving delivery truck, check it into the warehouse, and review the route map.', answer: ['🚛','🏭','🗺️'] },
+      { clue: 'Run a logistics safety check, stop the item with no EAN, and hold it in the warehouse.', answer: ['🛡️','🚫','🏭'] },
+      { clue: 'Calculate the transit fuel, update the inbound delivery truck status, and sign off on the shipping notice package.', answer: ['⛽','🚛','📦'] },
+      { clue: 'Send the restricted load to quarantine storage, plot the next drop on the route map, and complete the safety check.', answer: ['☣️','🗺️','🛡️'] }
+    ] },
+    email: { app: 'GMAIL — EMAIL TASK', bank: ['✉️','📎','🖊️','📥','📢','🗣️','🗂️','✍️'], puzzles: [
+      { clue: 'Open your unread envelope, check for a file paperclip, and clear out your inbox.', answer: ['✉️','📎','📥'] },
+      { clue: 'Take a pen, draft the company announcement, and send it to the speaking head contact.', answer: ['🖊️','📢','🗣️'] },
+      { clue: 'Start writing the team update, organize your inbox, and file it in the folders.', answer: ['✍️','📥','🗂️'] },
+      { clue: 'Click the paperclip to attach the file, grab your pen, and finish writing the email.', answer: ['📎','🖊️','✍️'] },
+      { clue: 'Check the incoming envelope pile, look through your folders, and make a loud announcement.', answer: ['✉️','🗂️','📢'] }
+    ] },
+    workday: { app: 'WORKDAY — ADMIN TASK', bank: ['📅','⏰','💵','🪪','🏖️','🏢','✍️','🩺'], puzzles: [
+      { clue: 'Update your profile ID card, check your calendar schedule, and request your vacation time.', answer: ['🪪','📅','🏖️'] },
+      { clue: 'Log your alarm clock hours, submit your expense dollar bill, and register your new office building location.', answer: ['⏰','💵','🏢'] },
+      { clue: 'Log your medical sick leave, sign your new employment contract, and review your calendar schedule.', answer: ['🩺','✍️','📅'] },
+      { clue: 'Check your monthly payroll cash, update your profile ID card, and input your worked alarm clock hours.', answer: ['💵','🪪','⏰'] },
+      { clue: 'Book your summer vacation days, submit a medical note for sick leave, and sign the contract policy.', answer: ['🏖️','🩺','✍️'] }
+    ] }
+  };
 
   const assetSources = {
     actionssprite: ['actionssprite.png'], background: ['background1.jpg'], box1: ['box1.png'], box2: ['box2.png'],
@@ -70,9 +104,11 @@
     inventorybg: ['inventory.png', 'inventory.jpg', 'inventorycheck.jpg', 'meeting.jpg'],
     table: ['table.png'], table2: ['table2.png'], table3: ['table3.png'], zalandologo: ['zalandologo.png'],
     smallbox: ['smallbox.png'], smallbox2: ['smallbox2.png'], smallbox3: ['smallbox3.png'], shoe: ['shoe.png'],
-    title: ['title.png'], truck: ['truck.png'], walksprite: ['walksprite.png']
+    title: ['title.png'], truck: ['truck.png'], walksprite: ['walksprite.png'],
+    officeBase: ['baseoffice.jpg'], officeFrame: ['officeframe.webp'], officeMenu: ['pcmenu.jpg'],
+    jiraScreen: ['jira.jpg'], errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -153,11 +189,44 @@
     unstuckUntil: 0,
     floorTint: FLOOR_TINTS[0],
     floorLogos: [],
+    tasks: freshTasks(),
+    office: null,
+    tokenFlashUntil: 0,
+    exitWarnUntil: 0,
     stats: freshStats()
   };
 
   function freshStats() {
-    return { boxesOpened: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, opsFinds: 0, inventoryChecks: 0, coffeeSprints: 0, jumps: 0, robotHits: 0, forkliftHits: 0 };
+    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, opsFinds: 0, inventoryChecks: 0, coffeeSprints: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, taskFailures: 0 };
+  }
+  function freshTasks() { return { alm: 0, sl: 0, email: 0, workday: 0, tokens: 0, completed: { alm: false, sl: false, email: false, workday: false } }; }
+  function taskJobsReady(type) { return Math.floor((game.tasks[type] || 0) / 5); }
+  function anyTaskReady() { return TASK_TYPES.some(type => taskJobsReady(type) > 0); }
+  function requiredTasksComplete() { return TASK_TYPES.every(type => game.tasks.completed[type]); }
+  function completionChecklist() { return TASK_TYPES.map(type => `${TASK_LABELS[type]} ${game.tasks.completed[type] ? '✓' : '✗'}`).join('   '); }
+  function addTaskProgress(type, amount, source) {
+    const before = taskJobsReady(type);
+    game.tasks[type] += amount;
+    const after = taskJobsReady(type);
+    synth.pickup();
+    addMessage(`${source} — ${TASK_LABELS[type]} +${amount}  (${game.tasks[type]}/5)`, '#ffd054', 1950);
+    if (after > before) addMessage(`${TASK_LABELS[type]} TASK READY — GO TO THE DOCK OFFICE`, '#ff7700', 3000);
+    updateBest();
+  }
+  function completeTaskUnit(type, viaToken, success = true) {
+    if (taskJobsReady(type) < 1) return false;
+    game.tasks[type] = Math.max(0, game.tasks[type] - 5);
+    if (success) {
+      game.score += 50;
+      game.tasks.completed[type] = true;
+      const key = `${type}TasksCompleted`;
+      game.stats[key] = (game.stats[key] || 0) + 1;
+      if (viaToken) game.stats.sopTokensUsed++;
+      synth.points();
+      if (requiredTasksComplete()) addMessage('YOU FINISHED YOUR WORK! FIND THE EXIT AND LEAVE THIS WAREHOUSE.', '#71dd8d', 3800);
+    } else game.stats.taskFailures++;
+    updateBest();
+    return true;
   }
 
   class Synth {
@@ -311,8 +380,8 @@
     WORLD_W = MAP_W * TILE;
     WORLD_H = MAP_H * TILE;
   }
-  function activeBoxCount() { return game.level >= 5 ? 72 : 38; }
-  function activeCoffeeCount() { return game.level >= 5 ? 26 : 15; }
+  function activeBoxCount() { return game.level >= 5 ? 432 : 228; }
+  function activeCoffeeCount() { return game.level >= 5 ? 156 : 90; }
   function makeFloorGrid() { return Array.from({ length: MAP_H }, () => Array(MAP_W).fill(0)); }
   function rectTiles(rect) {
     const tiles = [];
@@ -396,8 +465,20 @@
   }
   function addDecorativeProp(image, rect, flipX = false) {
     if (!images[image]) return;
-    game.decorativeProps.push({ ...rect, image, flipX, collisionRect: null, decorative: true });
+    game.decorativeProps.push({ ...rect, image, flipX, collisionRect: null, decorative: true, collectible: image === 'shoe', interactive: /^smallbox/.test(image), bob: rand(0, Math.PI * 2) });
   }
+  function spawnShelfFrontProp(image) {
+    if (!images[image]) return;
+    const shelfProps = game.obstacles.filter(prop => /^box[2-7]$/.test(prop.image));
+    if (!shelfProps.length) return;
+    const shelf = choice(shelfProps), scale = choice([1, .5, .3]);
+    const width = (image === 'shoe' ? .98 : 1.0) * scale, height = (image === 'shoe' ? .62 : .88) * scale;
+    const floorTop = shelf.collisionRect ? shelf.collisionRect.top : shelf.top + shelf.height * .72;
+    const left = clamp(shelf.left + rand(.08, Math.max(.14, shelf.width - width - .08)), 1.1, MAP_W - width - 1.1);
+    const top = clamp(floorTop + rand(.05, .48), 1.1, MAP_H - height - 1.1);
+    addDecorativeProp(image, { left, top, width, height }, Math.random() < .5);
+  }
+  function decorativeCenter(prop) { return { x: (prop.left + prop.width / 2) * TILE, y: (prop.top + prop.height / 2) * TILE }; }
   function scatterDecorativeClutter() {
     game.decorativeProps = [];
     const choices = ['smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe', 'shoe'].filter(key => images[key]);
@@ -762,17 +843,21 @@
     let index = 0;
     [
       game.zones.quarantine, game.zones.quarantine, game.zones.quarantine, game.zones.quarantine,
+      game.zones.quarantine, game.zones.quarantine, game.zones.quarantine, game.zones.quarantine,
+      game.zones.quarantine, game.zones.quarantine, game.zones.quarantine, game.zones.quarantine,
+      game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock,
+      game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock,
       game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock
     ].forEach(z => {
       const t = tileNearZoneEdge(z);
       if (t) game.enemies.push(makeRobotAtTile(t, true, index++));
     });
-    const roamingCount = (2 + Math.floor((game.level - 1) * 0.72)) * 2;
+    const roamingCount = (2 + Math.floor((game.level - 1) * 0.72)) * 6;
     for (let i = 0; i < roamingCount; i++) game.enemies.push(makeRobotAtTile(randomFloorTile(700, true), false, index++));
 
-    // Two forklift threats patrol every warehouse; later levels can add further special hazards.
+    // Four forklift threats patrol every warehouse.
     game.forklifts = [];
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 4; i++) {
       const ft = i === 0 ? tileNearZoneEdge(game.zones.dock) : randomFloorTile(900, true);
       const fp = tileCenter(ft);
       game.forklifts.push({
@@ -783,7 +868,10 @@
     }
   }
 
-  function buildLevel(level) {
+  function buildLevel(level, preserveTasks = false) {
+    if (!preserveTasks) game.tasks = freshTasks();
+    game.office = null;
+    game.exitWarnUntil = 0;
     configureMapSize(level);
     game.floorTint = FLOOR_TINTS[(level - 1) % FLOOR_TINTS.length];
     buildWarehouseLayout();
@@ -812,6 +900,7 @@
     game.score = 0;
     game.health = 3;
     game.coffees = 0;
+    game.tasks = freshTasks();
     game.stats = freshStats();
     game.messages = [];
     game.particles = [];
@@ -846,11 +935,12 @@
     game.health = clamp(Number(save.health) || MAX_HEARTS, 1, MAX_HEARTS);
     game.coffees = clamp(Number(save.coffees) || 0, 0, 2);
     game.stats = { ...freshStats(), ...(save.stats || {}) };
+    game.tasks = { ...freshTasks(), ...(save.tasks || {}), completed: { ...freshTasks().completed, ...((save.tasks && save.tasks.completed) || {}) } };
     game.mode = 'play';
     titleUI.classList.add('hidden');
     gameoverUI.classList.add('hidden');
     setGameplayControlsVisible(true);
-    buildLevel(game.level);
+    buildLevel(game.level, true);
     music.playGameplay(true);
     addMessage('SAVED SHIFT CONTINUED — BACK AT DOCK', '#ff7700', 3000);
   }
@@ -1015,7 +1105,7 @@
   }
   function saveShift() {
     if (!game.playerName || game.mode === 'title') return;
-    const save = { playerName: game.playerName, level: game.level, score: game.score, health: game.health, coffees: game.coffees, stats: game.stats };
+    const save = { playerName: game.playerName, level: game.level, score: game.score, health: game.health, coffees: game.coffees, tasks: game.tasks, stats: game.stats };
     localStorage.setItem(SAVE_KEY, JSON.stringify(save));
     refreshSavedButton();
   }
@@ -1146,9 +1236,23 @@
   function stopSprint() {
     if (game.player) game.player.sprinting = false;
   }
+  function playerNearDockOffice() {
+    if (!game.player) return false;
+    const z = game.zones.dock;
+    const office = tileCenter({ x: z.left + 4, y: z.top + 4 });
+    return dist(game.player, office) < TILE * 4.5 || pointInsideZone(game.player, z);
+  }
+  function enterDockOffice() {
+    if (game.mode !== 'play' || !playerNearDockOffice()) return false;
+    game.mode = 'office';
+    game.office = { page: 'menu', selectedType: null, puzzle: null, hotspots: [] };
+    keys.clear(); stopSprint(); setGameplayControlsVisible(false);
+    return true;
+  }
   function handleActionPress(now) {
     if (game.mode !== 'play' || !game.player || game.player.action) return false;
     if (openNearbyBox(now)) return true;
+    if (playerNearDockOffice() && enterDockOffice()) return true;
     if (game.player.moving && game.coffees > 0 && startSprint()) return true;
     return tryJump(now);
   }
@@ -1200,7 +1304,16 @@
         spawnLooseCoffee();
       }
     }
-    // Reaching any visible part of the marked EXIT zone completes the warehouse; no action-button press is required.
+    for (let i = game.decorativeProps.length - 1; i >= 0; i--) {
+      const prop = game.decorativeProps[i];
+      if (prop.image === 'shoe' && dist(p, decorativeCenter(prop)) < TILE * .48) {
+        game.decorativeProps.splice(i, 1);
+        game.stats.shoesCollected++;
+        addTaskProgress(Math.random() < .5 ? 'alm' : 'sl', 1, 'SHOE FOUND');
+        spawnShelfFrontProp('shoe');
+      }
+    }
+    // Exit does not require Action, but it is locked until all four task categories have been completed.
     if (pointInsideZone(p, game.zones.exit)) triggerLevelWin();
     if (pointInsideZone(p, game.zones.inventory) && now >= game.inventoryCooldownUntil) startInventoryBriefing();
     updateSpecialMusic();
@@ -1315,17 +1428,40 @@
 
   const lootTable = [
     { id: 'offline', weight: 18 }, { id: 'order', weight: 15 }, { id: 'shares', weight: 8 }, { id: 'heart', weight: 7 },
-    { id: 'coffee', weight: 12 }, { id: 'return', weight: 9 }, { id: 'mixed', weight: 7 }, { id: 'mould', weight: 7 },
-    { id: 'break', weight: 6 }, { id: 'ops', weight: 3 }, { id: 'empty', weight: 8 }
+    { id: 'coffee', weight: 12 }, { id: 'emailTask', weight: 10 }, { id: 'workdayTask', weight: 10 }, { id: 'sopToken', weight: 7 },
+    { id: 'return', weight: 9 }, { id: 'mixed', weight: 7 }, { id: 'mould', weight: 7 }, { id: 'break', weight: 6 },
+    { id: 'ops', weight: 3 }, { id: 'empty', weight: 8 }
   ];
-  function weightedLoot() {
-    const total = lootTable.reduce((sum, item) => sum + item.weight, 0);
+  const smallBoxLoot = [
+    { id: 'empty', weight: 50 }, { id: 'heart', weight: 10 }, { id: 'coffee', weight: 10 },
+    { id: 'emailTask', weight: 10 }, { id: 'workdayTask', weight: 10 }, { id: 'sopToken', weight: 10 }
+  ];
+  function weightedFrom(table) {
+    const total = table.reduce((sum, item) => sum + item.weight, 0);
     let roll = Math.random() * total;
-    for (const item of lootTable) { roll -= item.weight; if (roll <= 0) return item.id; }
+    for (const item of table) { roll -= item.weight; if (roll <= 0) return item.id; }
     return 'empty';
   }
+  function weightedLoot() { return weightedFrom(lootTable); }
+  function weightedSmallBoxLoot() { return weightedFrom(smallBoxLoot); }
   function openNearbyBox(now) {
     if (game.player.action || game.mode !== 'play') return false;
+    let smallIndex = -1, smallDistance = TILE * 1.05;
+    game.decorativeProps.forEach((prop, i) => {
+      if (!prop.interactive) return;
+      const d = dist(game.player, decorativeCenter(prop));
+      if (d < smallDistance) { smallDistance = d; smallIndex = i; }
+    });
+    if (smallIndex >= 0) {
+      const prop = game.decorativeProps.splice(smallIndex, 1)[0];
+      spawnShelfFrontProp(prop.image);
+      game.stats.smallBoxesOpened++;
+      const centre = decorativeCenter(prop);
+      burst(centre.x, centre.y, '#ff6900', 7);
+      startPlayerAction('pickup', 520, () => resolveLoot(weightedSmallBoxLoot(), performance.now()));
+      saveShift();
+      return true;
+    }
     let closest = null;
     let index = -1;
     let distance = TILE * 1.30;
@@ -1370,6 +1506,16 @@
         else { game.score += 100; synth.points(); addMessage('FULL HEALTH  +100', '#ed4959', 1600); }
         break;
       case 'coffee': collectCoffee(); return;
+      case 'emailTask': addTaskProgress('email', 1, 'EMAIL TASK FOUND'); return;
+      case 'workdayTask': addTaskProgress('workday', 1, 'WORKDAY TASK FOUND'); return;
+      case 'sopToken':
+        game.tasks.tokens++;
+        game.stats.sopTokensFound++;
+        game.tokenFlashUntil = performance.now() + 900;
+        synth.route();
+        addMessage('SOP SCOUT TOKEN FOUND!', '#ff7700', 2500);
+        updateBest();
+        return;
       case 'return': game.score += 150; game.stats.returnsProcessed++; teleportTo(game.zones.dock, 'RETURN — SENT TO DOCK  +150', null); break;
       case 'mixed': game.stats.mixedStock++; teleportTo(game.zones.inventory, 'MIXED STOCK — INVENTORY CHECK', 'inventory'); startInventoryBriefing(); break;
       case 'mould': game.stats.mouldyClothes++; teleportTo(game.zones.quarantine, 'MOULDY CLOTHES — QUARANTINE', null); break;
@@ -1501,6 +1647,14 @@
 
   function triggerLevelWin() {
     if (game.player.action || game.mode !== 'play') return;
+    if (!requiredTasksComplete()) {
+      if (performance.now() >= game.exitWarnUntil) {
+        game.exitWarnUntil = performance.now() + 3300;
+        addMessage('YOU HAVE UNFINISHED WORK! GO TO THE OFFICE BEFORE YOU CAN LEAVE.', '#ff7700', 3100);
+        addMessage(completionChecklist(), '#ffd054', 3100);
+      }
+      return;
+    }
     music.play('winner', false);
     startPlayerAction('win', 1040, () => {
       game.score += 750 + game.health * 100;
@@ -1719,11 +1873,16 @@
       }
     });
   }
-  function drawDecorativeClutter() {
+  function drawDecorativeClutter(now = performance.now()) {
     game.decorativeProps.forEach(prop => {
       if (!images[prop.image]) return;
       if (!onScreenRect(prop.left * TILE, prop.top * TILE, prop.width * TILE, prop.height * TILE, 60)) return;
-      drawContain(images[prop.image], prop.left * TILE, prop.top * TILE, prop.width * TILE, prop.height * TILE, 1, true, !!prop.flipX);
+      const hover = (prop.collectible || prop.interactive) ? Math.sin(now / 245 + prop.bob) * 6 : 0;
+      if (prop.collectible || prop.interactive) {
+        ctx.save(); ctx.globalAlpha = .18; ctx.fillStyle = '#ff6900'; ctx.beginPath();
+        ctx.ellipse((prop.left + prop.width / 2) * TILE, (prop.top + prop.height) * TILE + 5, prop.width * TILE * .45, 13, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      }
+      drawContain(images[prop.image], prop.left * TILE, prop.top * TILE + hover, prop.width * TILE, prop.height * TILE, 1, true, !!prop.flipX);
     });
   }
   function drawZoneSign(text, z, width = 235) {
@@ -1777,7 +1936,7 @@
     drawFloors();
     drawObstacles();
     drawZones();
-    drawDecorativeClutter();
+    drawDecorativeClutter(performance.now());
   }
   function truckDrawX(now) {
     const z = game.zones.dock;
@@ -1925,6 +2084,32 @@
     ctx.fillText(text, W / 2, y + 31);
     ctx.restore();
   }
+  function taskTargetPosition() { return tileCenter({ x: game.zones.dock.left + 4, y: game.zones.dock.top + 4 }); }
+  function drawGuidanceArrow(now) {
+    if (!game.player || game.mode !== 'play') return;
+    const guideOffice = anyTaskReady();
+    const guideDelivery = game.truck && game.truck.phase !== 'leaving';
+    if (!guideOffice && !guideDelivery) return;
+    const target = taskTargetPosition();
+    const dx = target.x - game.player.x, dy = target.y - game.player.y;
+    const horizontal = Math.abs(dx) > Math.abs(dy);
+    const arrow = horizontal ? (dx < 0 ? '◀' : '▶') : (dy < 0 ? '▲' : '▼');
+    const screenX = game.player.x - game.camera.x + (horizontal ? (dx < 0 ? -94 : 78) : 0);
+    const screenY = game.player.y - game.camera.y + (horizontal ? -30 : (dy < 0 ? -116 : 55));
+    const pulse = .42 + .34 * (1 + Math.sin(now / 150)) / 2;
+    ctx.save(); ctx.globalAlpha = pulse; ctx.font = 'bold 58px Trebuchet MS'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff6900'; ctx.shadowColor = '#ff6900'; ctx.shadowBlur = 22; ctx.fillText(arrow, screenX, screenY);
+    ctx.globalAlpha = .95; ctx.shadowBlur = 0; ctx.font = 'bold 13px Trebuchet MS'; ctx.fillStyle = '#ffd054';
+    ctx.fillText(guideDelivery ? 'DELIVERY' : 'OFFICE', screenX, screenY + 22); ctx.restore();
+  }
+  function drawTaskBoard() {
+    ctx.save(); const x = 16, y = 80, w = 222, h = 148;
+    ctx.fillStyle = 'rgba(12,15,18,.86)'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+    ctx.font = 'bold 15px Trebuchet MS'; ctx.fillStyle = '#ffd054'; ctx.fillText('TASK BOARD', x + 13, y + 22);
+    TASK_TYPES.forEach((type, i) => { const py = y + 48 + i * 21, jobs = taskJobsReady(type); ctx.font = 'bold 13px Trebuchet MS'; ctx.fillStyle = game.tasks.completed[type] ? '#71dd8d' : '#fff4df'; ctx.fillText(`${TASK_LABELS[type]} ${game.tasks[type]}/5`, x + 13, py); ctx.textAlign = 'right'; ctx.fillStyle = jobs ? '#ff9a3b' : '#cdbd9e'; ctx.fillText(jobs ? `${jobs} READY` : (game.tasks.completed[type] ? 'DONE ✓' : '—'), x + w - 12, py); ctx.textAlign = 'left'; });
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 13px Trebuchet MS'; ctx.fillText(`SOP TOKENS  ${game.tasks.tokens}`, x + 13, y + h - 10); ctx.restore();
+  }
+  function drawTokenCelebration(now) { if (now >= game.tokenFlashUntil) return; const alpha = clamp((game.tokenFlashUntil - now) / 900, 0, 1) * .36; ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#ff6900'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
   function drawHUD(now) {
     ctx.save();
     ctx.fillStyle = 'rgba(12,15,18,.88)'; ctx.fillRect(0, 0, W, 70);
@@ -1970,7 +2155,10 @@
       ctx.fillText(`ROUTE VISIBLE  ${Math.ceil((game.routeUntil - now) / 1000)}s`, 20, H - 18);
     }
     ctx.restore();
+    drawTaskBoard();
+    drawGuidanceArrow(now);
     drawCarrierToast(now);
+    drawTokenCelebration(now);
   }
   function drawTitle() {
     drawCoverImage(images.background, 0, 0, W, H);
@@ -2008,20 +2196,22 @@
     const summary = [
       ['DELIVERIES', game.stats.trucksCompleted], ['OFFLINE STOCK', game.stats.offlineStock], ['COFFEES', game.stats.coffeesCollected],
       ['LUNCH BREAKS', game.stats.lunchBreaks], ['RETURNS', game.stats.returnsProcessed], ['INVENTORY PAIRS', game.stats.inventoryMatches],
-      ['CUSTOMER ORDERS', game.stats.customerOrders], ['ZALANDO SHARES', game.stats.sharesFound], ['BOXES OPENED', game.stats.boxesOpened]
+      ['CUSTOMER ORDERS', game.stats.customerOrders], ['SHOES FOUND', game.stats.shoesCollected], ['BOXES OPENED', game.stats.boxesOpened],
+      ['ALM TASKS', game.stats.almTasksCompleted], ['SL TASKS', game.stats.slTasksCompleted], ['EMAIL TASKS', game.stats.emailTasksCompleted],
+      ['WORKDAY TASKS', game.stats.workdayTasksCompleted], ['SOP USED', game.stats.sopTokensUsed], ['TASKS FAILED', game.stats.taskFailures]
     ];
-    ctx.fillStyle = 'rgba(15,18,21,.76)'; ctx.fillRect(128, 360, 1024, 150);
-    ctx.strokeStyle = 'rgba(255,105,0,.74)'; ctx.lineWidth = 2; ctx.strokeRect(128, 360, 1024, 150);
-    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 19px Trebuchet MS'; ctx.fillText('SHIFT SUMMARY', W / 2, 389);
+    ctx.fillStyle = 'rgba(15,18,21,.76)'; ctx.fillRect(128, 350, 1024, 205);
+    ctx.strokeStyle = 'rgba(255,105,0,.74)'; ctx.lineWidth = 2; ctx.strokeRect(128, 350, 1024, 205);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 19px Trebuchet MS'; ctx.fillText('SHIFT SUMMARY', W / 2, 378);
     ctx.textAlign = 'left';
     summary.forEach(([label, value], i) => {
       const col = i % 3, row = Math.floor(i / 3);
-      const x = 166 + col * 327, y = 422 + row * 28;
+      const x = 166 + col * 327, y = 410 + row * 27;
       ctx.fillStyle = '#edc17e'; ctx.font = 'bold 14px Trebuchet MS'; ctx.fillText(label, x, y);
       ctx.fillStyle = '#fff4df'; ctx.font = 'bold 18px Trebuchet MS'; ctx.fillText(String(value), x + 207, y);
     });
     ctx.textAlign = 'center'; ctx.fillStyle = '#f6e8ce'; ctx.font = '17px Trebuchet MS';
-    ctx.fillText('Continue from the Dock, or begin a new shift.', W / 2, 546);
+    ctx.fillText('Continue from the Dock, or begin a new shift.', W / 2, 579);
     ctx.restore();
   }
 
@@ -2094,12 +2284,24 @@
     ctx.restore();
   }
 
+  function officeScreenRect() { return OFFICE_MONITOR; }
+  function drawOfficeBase() { if (images.officeBase) drawCoverImage(images.officeBase, 0, 0, W, H); else { drawCoverImage(images.background, 0, 0, W, H); ctx.fillStyle = 'rgba(22,15,34,.62)'; ctx.fillRect(0, 0, W, H); } }
+  function drawMonitorImage(img) { const r = officeScreenRect(); if (img) drawCoverImage(img, r.x, r.y, r.width, r.height); else { ctx.fillStyle = '#10171d'; ctx.fillRect(r.x, r.y, r.width, r.height); } }
+  function officeButton(x, y, w, h, label, id, active = true) { game.office.hotspots.push({ x, y, w, h, id, active }); ctx.save(); ctx.fillStyle = active ? 'rgba(255,105,0,.88)' : 'rgba(80,80,80,.72)'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = active ? '#ffd054' : '#888'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h); ctx.fillStyle = '#fff'; ctx.font = 'bold 15px Trebuchet MS'; ctx.textAlign = 'center'; ctx.fillText(label, x + w / 2, y + h / 2 + 5); ctx.restore(); }
+  function drawOfficeMenu() { const r = officeScreenRect(); drawMonitorImage(images.officeMenu); game.office.hotspots = [{ x: r.x + 55, y: r.y + 154, w: 90, h: 86, id: 'app-sop', active: true }, { x: r.x + 170, y: r.y + 154, w: 90, h: 86, id: 'app-jira', active: true }, { x: r.x + 283, y: r.y + 154, w: 90, h: 86, id: 'app-email', active: true }, { x: r.x + 397, y: r.y + 154, w: 90, h: 86, id: 'app-workday', active: true }]; ctx.save(); ctx.font = 'bold 16px Trebuchet MS'; ctx.fillStyle = '#fff4df'; ctx.fillText(`ALM ${game.tasks.alm}/5    SL ${game.tasks.sl}/5    EMAIL ${game.tasks.email}/5    WORKDAY ${game.tasks.workday}/5`, r.x + 18, r.y + r.height - 30); ctx.fillStyle = '#ffd054'; ctx.fillText(`SOP SCOUT TOKENS: ${game.tasks.tokens}`, r.x + 18, r.y + r.height - 8); ctx.restore(); officeButton(W - 178, H - 62, 148, 42, 'LEAVE OFFICE', 'leave-office', true); }
+  function drawOfficeChoice(page, types, title, tokenMode = false) { const r = officeScreenRect(); drawMonitorImage(page === 'jira' ? images.jiraScreen : images.officeMenu); ctx.save(); ctx.fillStyle = 'rgba(8,12,17,.80)'; ctx.fillRect(r.x + 16, r.y + 16, r.width - 32, r.height - 32); ctx.fillStyle = '#fff4df'; ctx.font = 'bold 24px Trebuchet MS'; ctx.fillText(title, r.x + 36, r.y + 56); ctx.font = '16px Trebuchet MS'; ctx.fillStyle = '#edc17e'; ctx.fillText(tokenMode ? 'Choose a ready task to complete instantly for +50.' : 'Choose the backlog category to process.', r.x + 36, r.y + 88); ctx.restore(); types.forEach((type, i) => officeButton(r.x + 44, r.y + 114 + i * 58, r.width - 88, 44, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0))); officeButton(r.x + 44, r.y + r.height - 56, 126, 36, 'BACK', 'office-menu', true); }
+  function startOfficePuzzle(type) { if (taskJobsReady(type) < 1) return; const data = TASK_PUZZLES[type], challenge = choice(data.puzzles); game.office.page = 'puzzle'; game.office.selectedType = type; game.office.puzzle = { type, data, challenge, selected: [] }; }
+  function submitOfficePuzzle() { const pz = game.office && game.office.puzzle; if (!pz || pz.selected.length !== 3) return; const ok = pz.selected.slice().sort().join('|') === pz.challenge.answer.slice().sort().join('|'); completeTaskUnit(pz.type, false, ok); game.office.puzzle = null; addMessage(ok ? `${TASK_LABELS[pz.type]} TASK COMPLETE  +50` : `${TASK_LABELS[pz.type]} TASK FAILED  +0`, ok ? '#71dd8d' : '#ee394d', 2200); if (taskJobsReady(pz.type) > 0) startOfficePuzzle(pz.type); else game.office.page = 'menu'; }
+  function drawOfficePuzzle() { const r = officeScreenRect(), pz = game.office.puzzle; drawMonitorImage(pz.type === 'alm' || pz.type === 'sl' ? images.jiraScreen : images.officeMenu); ctx.save(); ctx.fillStyle = 'rgba(8,12,17,.84)'; ctx.fillRect(r.x + 10, r.y + 10, r.width - 20, r.height - 20); ctx.fillStyle = '#ffd054'; ctx.font = 'bold 21px Trebuchet MS'; ctx.fillText(pz.data.app, r.x + 26, r.y + 39); ctx.font = 'bold 14px Trebuchet MS'; ctx.fillStyle = '#fff4df'; ctx.fillText('SELECT THE THREE MATCHING EMOJIS', r.x + 26, r.y + 63); const slotsX = r.x + 162, slotsY = r.y + 77; for (let i = 0; i < 3; i++) { ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(slotsX + i * 74, slotsY, 62, 52); ctx.strokeStyle = '#ff6900'; ctx.strokeRect(slotsX + i * 74, slotsY, 62, 52); ctx.font = '33px Arial'; if (pz.selected[i]) ctx.fillText(pz.selected[i], slotsX + i * 74 + 13, slotsY + 38); } ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Trebuchet MS'; const words = pz.challenge.clue.split(' '); let line = '', yy = r.y + 160; words.forEach(word => { const test = line ? `${line} ${word}` : word; if (ctx.measureText(test).width > r.width - 70) { ctx.fillText(line, r.x + 32, yy); yy += 20; line = word; } else line = test; }); if (line) ctx.fillText(line, r.x + 32, yy); ctx.restore(); pz.data.bank.forEach((emoji, i) => { const x = r.x + 26 + i * 62, y = r.y + 236; game.office.hotspots.push({ x, y, w: 54, h: 52, id: `emoji-${emoji}`, active: true }); ctx.save(); ctx.fillStyle = pz.selected.includes(emoji) ? 'rgba(255,105,0,.42)' : 'rgba(255,255,255,.12)'; ctx.fillRect(x, y, 54, 52); ctx.strokeStyle = '#ff6900'; ctx.strokeRect(x, y, 54, 52); ctx.font = '31px Arial'; ctx.fillText(emoji, x + 10, y + 37); ctx.restore(); }); officeButton(r.x + 240, r.y + 300, 118, 36, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3); }
+  function drawOffice(now) { drawOfficeBase(); game.office.hotspots = []; if (game.office.page === 'menu') drawOfficeMenu(); else if (game.office.page === 'jira') drawOfficeChoice('jira', ['alm','sl'], 'JIRA TASK BACKLOG'); else if (game.office.page === 'sop') drawOfficeChoice('sop', TASK_TYPES.filter(type => taskJobsReady(type) > 0), 'SOP SCOUT', true); else if (game.office.page === 'puzzle') drawOfficePuzzle(); if (images.officeFrame) drawCoverImage(images.officeFrame, 0, 0, W, H); officeButton(W - 178, H - 62, 148, 42, 'LEAVE OFFICE', 'leave-office', true); ctx.save(); ctx.fillStyle = '#fff4df'; ctx.font = 'bold 16px Trebuchet MS'; ctx.fillText('ESC — LEAVE OFFICE', 22, H - 23); ctx.restore(); drawTokenCelebration(now); }
+  function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskJobsReady('alm') || taskJobsReady('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskJobsReady('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskJobsReady('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) chosen.splice(idx, 1); else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
   function draw(now) {
     ctx.clearRect(0, 0, W, H);
     if (game.mode === 'title' || game.mode === 'intro') drawTitle();
     else if (game.mode === 'play' || game.mode === 'dying') drawWorld(now);
     else if (game.mode === 'inventoryBriefing') drawInventoryBriefing();
     else if (game.mode === 'inventoryPuzzle') drawInventoryPuzzle(now);
+    else if (game.mode === 'office') drawOffice(now);
     else if (game.mode === 'transition') drawTransition(now);
     else if (game.mode === 'gameover') drawGameOver();
   }
@@ -2124,15 +2326,17 @@
       [`Deliveries`, game.stats.trucksCompleted], [`Offline stock`, game.stats.offlineStock],
       [`Coffees`, game.stats.coffeesCollected], [`Lunch breaks`, game.stats.lunchBreaks],
       [`Returns`, game.stats.returnsProcessed], [`Inventory pairs`, game.stats.inventoryMatches],
-      [`Customer orders`, game.stats.customerOrders], [`Zalando shares`, game.stats.sharesFound],
+      [`Shoes collected`, game.stats.shoesCollected], [`ALM tasks`, game.stats.almTasksCompleted],
+      [`SL tasks`, game.stats.slTasksCompleted], [`Email tasks`, game.stats.emailTasksCompleted],
+      [`Workday tasks`, game.stats.workdayTasksCompleted], [`SOP tokens used`, game.stats.sopTokensUsed],
       [`Boxes opened`, game.stats.boxesOpened], [`Highest score`, formatScore(game.bestScore)]
     ];
-    rc.font = 'bold 18px Trebuchet MS'; rc.textAlign = 'left';
+    rc.font = 'bold 15px Trebuchet MS'; rc.textAlign = 'left';
     lines.forEach(([label, value], i) => {
       const col = i % 2, row = Math.floor(i / 2);
-      const x = 195 + col * 435, y = 405 + row * 43;
+      const x = 168 + col * 455, y = 397 + row * 30;
       rc.fillStyle = '#edc17e'; rc.fillText(label.toUpperCase(), x, y);
-      rc.fillStyle = '#fff4df'; rc.textAlign = 'right'; rc.fillText(String(value), x + 325, y); rc.textAlign = 'left';
+      rc.fillStyle = '#fff4df'; rc.textAlign = 'right'; rc.fillText(String(value), x + 350, y); rc.textAlign = 'left';
     });
     rc.fillStyle = '#ff6900'; rc.fillRect(0, 646, report.width, 29);
     rc.fillStyle = '#fff'; rc.textAlign = 'center'; rc.font = 'bold 15px Trebuchet MS'; rc.fillText('ZALANDO SCOUT — WAREHOUSE RUN', report.width / 2, 667);
@@ -2203,11 +2407,11 @@
   titleUI.addEventListener('pointerdown', () => { synth.init(); startTitleMusic(); });
   nameInput.addEventListener('focus', () => { synth.init(); startTitleMusic(); });
   canvas.addEventListener('click', event => {
-    if (game.mode !== 'inventoryPuzzle') return;
     const rect = canvas.getBoundingClientRect();
     const x = (event.clientX - rect.left) * (canvas.width / rect.width);
     const y = (event.clientY - rect.top) * (canvas.height / rect.height);
-    handleInventoryClick(x, y);
+    if (game.mode === 'inventoryPuzzle') handleInventoryClick(x, y);
+    else if (game.mode === 'office') handleOfficeClick(x, y);
   });
   introNextButton.addEventListener('click', nextIntroSlide);
   introSkipButton.addEventListener('click', skipIntro);
@@ -2232,6 +2436,9 @@
     if (event.code === 'Escape' && game.mode === 'intro') {
       skipIntro();
       return;
+    }
+    if (event.code === 'Escape' && game.mode === 'office') {
+      game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return;
     }
     if (event.code === 'Escape') {
       game.mode = 'title';
