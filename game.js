@@ -400,18 +400,18 @@
   }
   function scatterDecorativeClutter() {
     game.decorativeProps = [];
-    const choices = ['smallbox', 'smallbox2', 'smallbox3', 'shoe'].filter(key => images[key]);
+    const choices = ['smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe', 'shoe'].filter(key => images[key]);
     if (!choices.length) return;
     const shelfProps = game.obstacles.filter(prop => /^box[2-7]$/.test(prop.image));
     const scaleChoices = [1, .5, .3];
-    const maxDecor = Math.min(game.level >= 5 ? 1800 : 840, Math.max(144, Math.round(shelfProps.length * .96)));
+    const maxDecor = Math.min(game.level >= 5 ? 3200 : 1500, Math.max(240, Math.round(shelfProps.length * 1.62)));
     let placed = 0;
 
     // Denser decorative clutter: keep it attached to shelf fronts and gaps, not stranded in open aisles.
     for (const shelf of shuffle(shelfProps)) {
       if (placed >= maxDecor) break;
-      if (Math.random() < .18) continue;
-      const itemsHere = Math.random() < .42 ? 2 : 1;
+      if (Math.random() < .07) continue;
+      const itemsHere = Math.random() < .32 ? 3 : (Math.random() < .72 ? 2 : 1);
       for (let i = 0; i < itemsHere && placed < maxDecor; i++) {
         const image = choice(choices);
         const scale = choice(scaleChoices);
@@ -429,7 +429,7 @@
   }
   function scatterConeHazards() {
     if (!images.cone) return;
-    const groupsTarget = game.level >= 5 ? 34 : 18;
+    const groupsTarget = game.level >= 5 ? 64 : 34;
     let groupsPlaced = 0;
     let attempts = 0;
     while (groupsPlaced < groupsTarget && attempts < groupsTarget * 45) {
@@ -599,37 +599,54 @@
   }
 
   function installDenseShelfWalls() {
-    // Build the warehouse as repeated visual shelf bands. Each band is almost continuous,
-    // with staggered crossing points. Shelf spacing is intentionally tighter than one
-    // screen-height so a player can never stand in a huge blank expanse of concrete.
-    let rowIndex = 0;
-    const firstRow = 4.1;
-    const lastRow = MAP_H - 5.1;
-    const rowGap = 3.15;
-    const rackW = 3.15;
-    const rackH = 2.48;
-    const rackStep = 3.04;
-    for (let top = firstRow; top <= lastRow; top += rowGap, rowIndex++) {
-      const openings = wallOpeningsForRow(rowIndex);
-      const baseImage = rowIndex % 2 === 0 ? 'box5' : 'box6';
-      const altImage = rowIndex % 4 === 1 ? 'box6' : 'box5';
-      let segmentIndex = 0;
-      for (let x = 1.55; x < MAP_W - 3.4; x += rackStep, segmentIndex++) {
-        const rect = { left: x, top, width: rackW, height: rackH };
-        // A crossing is only a narrow break in the shelf wall, never a broad empty zone.
-        if (openings.some(gap => x < gap + 1.65 && x + rackW > gap - .35)) continue;
-        let image = segmentIndex % 5 === 4 ? altImage : baseImage;
-        // Deliberate short runs of other rack shapes keep repeated walls from looking cloned.
-        if (rowIndex % 6 === 3 && segmentIndex % 11 >= 7 && segmentIndex % 11 <= 9) image = 'box7';
-        if (rowIndex % 7 === 4 && segmentIndex % 13 >= 9 && segmentIndex % 13 <= 11) image = 'box3';
-        occupyObstacle(rect, image, { floorBand: .23, sideInset: .10 });
+    // A warehouse maze made from shelf-wall aisles. Each horizontal band is visible shelving,
+    // broken by regular one-square crossings; no shelf wall runs for more than six rack units
+    // without a clear passage. The gaps move between rows so crossing the building takes navigation.
+    const rackW = 2.42;
+    const rackH = 2.30;
+    const pieceStep = 2.32;
+    const crossingGap = 1.25;
+    const rowStep = 4.02;
+    const rows = [];
+    for (let y = 3.05; y <= MAP_H - 4.2; y += rowStep) rows.push(y);
+
+    rows.forEach((top, rowIndex) => {
+      let x = 1.40;
+      let groupIndex = 0;
+      while (x < MAP_W - rackW - 1.35) {
+        const runLength = 3 + ((rowIndex * 5 + groupIndex * 3) % 4); // 3 to 6 units per wall run.
+        for (let piece = 0; piece < runLength && x < MAP_W - rackW - 1.35; piece++) {
+          let image;
+          if ((groupIndex + rowIndex) % 8 === 5 && piece >= Math.max(0, runLength - 3)) image = 'box7';
+          else if ((groupIndex + rowIndex) % 9 === 6 && piece >= Math.max(0, runLength - 3)) image = 'box3';
+          else image = (rowIndex + Math.floor(piece / 2) + groupIndex) % 2 === 0 ? 'box5' : 'box6';
+          occupyObstacle({ left: x, top, width: rackW, height: rackH }, image, { floorBand: .24, sideInset: .08 });
+          x += pieceStep;
+        }
+        // The player gets a visible crossing between every rack run.
+        x += crossingGap;
+        groupIndex++;
+      }
+    });
+
+    // Vertical partial shelf dividers interrupt long straight aisles while keeping open turns.
+    // Their alternating position makes the route feel like warehouse corridors, not a blank grid.
+    for (let sectionX = 10.2, section = 0; sectionX < MAP_W - 7; sectionX += 12.5, section++) {
+      for (let row = 0; row < rows.length - 1; row++) {
+        if ((row + section) % 3 === 1) continue;
+        const corridorTop = rows[row] + rackH + .22;
+        const available = rows[row + 1] - corridorTop - .24;
+        if (available < 1.12) continue;
+        const x = sectionX + (((row + section) % 2) ? 1.75 : -1.10);
+        const image = (row + section) % 2 === 0 ? 'box7' : 'box3';
+        occupyObstacle({ left: x, top: corridorTop, width: 1.55, height: Math.min(1.38, available) }, image, { floorBand: .26, sideInset: .11 });
       }
     }
   }
 
   function viewportHasShelfCoverage(left, top, width, height) {
     const view = { left, top, width, height };
-    return game.obstacles.filter(o => /^box[2-7]$/.test(o.image) && overlaps(view, o)).length >= 2;
+    return game.obstacles.filter(o => /^box[2-7]$/.test(o.image) && overlaps(view, o)).length >= 6;
   }
 
   function sealUnexpectedOpenPatches() {
@@ -641,11 +658,11 @@
     for (let top = 2; top < MAP_H - patchH - 1; top += Math.max(3, Math.floor(patchH / 2))) {
       for (let left = 2; left < MAP_W - patchW - 1; left += Math.max(5, Math.floor(patchW / 2))) {
         if (viewportHasShelfCoverage(left, top, patchW, patchH)) continue;
-        const y = top + Math.floor(patchH / 2) - .6;
+        const y = top + Math.floor(patchH / 2) - .7;
         const centreGap = left + Math.floor(patchW / 2);
-        for (let x = left; x < left + patchW - 2; x += 3.02) {
-          if (x < centreGap + 1.25 && x + 3.12 > centreGap - .35) continue;
-          occupyObstacle({ left: x, top: y, width: 3.12, height: 2.42 }, ((Math.floor(x) + Math.floor(y)) % 2 === 0 ? 'box5' : 'box6'), { floorBand: .23, sideInset: .10 });
+        for (let x = left; x < left + patchW - 2; x += 2.42) {
+          if (x < centreGap + .85 && x + 2.42 > centreGap - .25) continue;
+          occupyObstacle({ left: x, top: y, width: 2.42, height: 2.30 }, ((Math.floor(x) + Math.floor(y)) % 2 === 0 ? 'box5' : 'box6'), { floorBand: .24, sideInset: .08 });
         }
       }
     }
