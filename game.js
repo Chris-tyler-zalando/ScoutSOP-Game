@@ -45,7 +45,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.25';
+  const VERSION = 'V2.26';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -64,19 +64,9 @@
   const FLOOR_TINTS = ['rgba(255,118,36,.055)', 'rgba(41,117,154,.045)', 'rgba(120,94,48,.05)', 'rgba(74,124,89,.045)', 'rgba(128,70,110,.04)'];
   const TASK_TYPES = ['alm', 'sl', 'email', 'workday'];
   const TASK_LABELS = { alm: 'ALM', sl: 'SL', email: 'EMAIL', workday: 'WORKDAY' };
-  const QS_BASKETS = [
-    { id: 'clothes', label: 'CLOTHES', color: '#5b7fd7', icon: '👕' },
-    { id: 'mouldy', label: 'MOULDY', color: '#5e9862', icon: '☣️' },
-    { id: 'shoes', label: 'SHOES', color: '#b96d34', icon: '👟' },
-    { id: 'box', label: 'BOXES', color: '#9f7c4f', icon: '📦' }
-  ];
-  const QS_ITEMS = [
-    { id: 'clothes', label: 'CLEAN CLOTHES', icon: '👕' },
-    { id: 'mouldy', label: 'MOULDY CLOTHES', icon: '☣️' },
-    { id: 'shoes', label: 'SHOES', icon: '👟' },
-    { id: 'box', label: 'SMALL BOX', icon: '📦' }
-  ];
-  const OFFICE_MONITOR = { x: 86, y: 56, width: 608, height: 392 };
+  const QS_SPAWN_PHASES = [2000, 1500, 1200, 1000, 800, 500];
+  const OFFICE_MENU_MONITOR = { x: 86, y: 56, width: 608, height: 392 };
+  const OFFICE_APP_MONITOR = { x: 108, y: 77, width: 558, height: 345 };
   const keys = new Set();
 
   const TASK_PUZZLES = {
@@ -124,10 +114,11 @@
     smallbox: ['smallbox.png'], smallbox2: ['smallbox2.png'], smallbox3: ['smallbox3.png'], shoe: ['shoe.png'],
     title: ['title.png'], truck: ['truck.png'], walksprite: ['walksprite.png'],
     officeBase: ['baseoffice.jpg'], officeFrame: ['officeframe.webp'], officeMenu: ['pcmenu.jpg'],
-    palletjack: ['palletjack.png'],
+    palletjack: ['palletjack.png'], clothesDamaged: ['clothesdamaged.png'], slbox: ['slbox.png'],
+    qsBg: ['qs2.jpg', 'qs2.png'], fireExtinguisher: ['fire.png'], fireAnim: ['fire.webp'],
     jiraScreen: ['jira.jpg'], errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -214,13 +205,15 @@
     office: null,
     qsPuzzle: null,
     qsCooldownUntil: 0,
+    fire: null,
+    nextFireAt: 0,
     tokenFlashUntil: 0,
     exitWarnUntil: 0,
     stats: freshStats()
   };
 
   function freshStats() {
-    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, opsFinds: 0, inventoryChecks: 0, quarantineSorts: 0, coffeeSprints: 0, palletJackRides: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, taskFailures: 0 };
+    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, opsFinds: 0, inventoryChecks: 0, quarantineSorts: 0, coffeeSprints: 0, palletJackRides: 0, firesExtinguished: 0, firePoints: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, taskFailures: 0 };
   }
   function freshTasks() { return { alm: 0, sl: 0, email: 0, workday: 0, tokens: 0, completed: { alm: false, sl: false, email: false, workday: false } }; }
   function taskJobsReady(type) { return Math.floor((game.tasks[type] || 0) / 5); }
@@ -976,6 +969,8 @@
     game.palletJacks = [];
     game.qsPuzzle = null;
     game.qsCooldownUntil = 0;
+    game.fire = null;
+    game.nextFireAt = performance.now() + randInt(45000, 90000);
     for (let i = 0; i < activeBoxCount(); i++) spawnBox();
     for (let i = 0; i < activeCoffeeCount(); i++) spawnLooseCoffee();
     placeKitchenCoffees();
@@ -1361,6 +1356,7 @@
   }
   function handleActionPress(now) {
     if (game.mode !== 'play' || !game.player || game.player.action) return false;
+    if (tryFireAction(now)) return true;
     if (openNearbyBox(now)) return true;
     if (activateNearbyPalletJack(now)) return true;
     if (playerNearDockOffice() && enterDockOffice()) return true;
@@ -1436,8 +1432,8 @@
     }
     // Exit does not require Action, but it is locked until all four task categories have been completed.
     if (pointInsideZone(p, game.zones.exit)) triggerLevelWin();
-    if (pointInsideZone(p, game.zones.inventory) && now >= game.inventoryCooldownUntil) startInventoryBriefing();
-    if (pointInsideZone(p, game.zones.quarantine) && now >= game.qsCooldownUntil) startQSPuzzle();
+    if (!game.fire && pointInsideZone(p, game.zones.inventory) && now >= game.inventoryCooldownUntil) startInventoryBriefing();
+    if (!game.fire && pointInsideZone(p, game.zones.quarantine) && now >= game.qsCooldownUntil) startQSPuzzle();
     updateSpecialMusic();
     centerCamera();
   }
@@ -1562,14 +1558,14 @@
   }
 
   const lootTable = [
-    { id: 'heart', weight: 9 }, { id: 'coffee', weight: 13 },
-    { id: 'emailTask', weight: 24 }, { id: 'workdayTask', weight: 24 }, { id: 'sopToken', weight: 3 },
-    { id: 'return', weight: 9 }, { id: 'mixed', weight: 7 }, { id: 'mould', weight: 7 }, { id: 'qsTask', weight: 6 }, { id: 'break', weight: 6 },
-    { id: 'ops', weight: 3 }, { id: 'empty', weight: 8 }
+    { id: 'heart', weight: 8 }, { id: 'coffee', weight: 13 },
+    { id: 'emailTask', weight: 30 }, { id: 'workdayTask', weight: 30 }, { id: 'sopToken', weight: 2 },
+    { id: 'return', weight: 8 }, { id: 'mixed', weight: 7 }, { id: 'mould', weight: 8 }, { id: 'break', weight: 6 },
+    { id: 'ops', weight: 3 }, { id: 'empty', weight: 5 }
   ];
   const smallBoxLoot = [
-    { id: 'empty', weight: 50 }, { id: 'heart', weight: 10 }, { id: 'coffee', weight: 10 },
-    { id: 'emailTask', weight: 12 }, { id: 'workdayTask', weight: 12 }, { id: 'sopToken', weight: 3 }
+    { id: 'empty', weight: 38 }, { id: 'heart', weight: 8 }, { id: 'coffee', weight: 10 },
+    { id: 'emailTask', weight: 20 }, { id: 'workdayTask', weight: 20 }, { id: 'sopToken', weight: 2 }
   ];
   function weightedFrom(table) {
     const total = table.reduce((sum, item) => sum + item.weight, 0);
@@ -1651,7 +1647,6 @@
       case 'return': game.score += 150; game.stats.returnsProcessed++; teleportTo(game.zones.dock, 'RETURN — SENT TO DOCK  +150', null); break;
       case 'mixed': game.stats.mixedStock++; teleportTo(game.zones.inventory, 'MIXED STOCK — INVENTORY CHECK', 'inventory'); startInventoryBriefing(); break;
       case 'mould': game.stats.mouldyClothes++; teleportTo(game.zones.quarantine, 'MOULDY CLOTHES — QUARANTINE', null); break;
-      case 'qsTask': teleportTo(game.zones.quarantine, 'QUARANTINE SORT — REPORT TO QS', null); break;
       case 'break': game.stats.lunchBreaks++; teleportTo(choice(game.zones.kitchens), 'COFFEE BREAK — SENT TO KITCHEN', 'kitchen'); break;
       case 'ops':
         game.stats.opsFinds++;
@@ -1778,53 +1773,101 @@
     updateBest();
   }
 
-  function randomQSItemType() { return choice(QS_ITEMS); }
-  function qsItemRect(item) { return { x: item.x - item.w / 2, y: item.y - item.h / 2, w: item.w, h: item.h }; }
-  function qsBasketLayout() {
-    const width = 248, height = 124, gap = 24;
-    const total = width * QS_BASKETS.length + gap * (QS_BASKETS.length - 1);
-    const startX = (W - total) / 2;
-    return QS_BASKETS.map((basket, index) => ({ ...basket, x: startX + index * (width + gap), y: H - 170, w: width, h: height }));
+  function qsSpawnInterval(elapsed) {
+    return QS_SPAWN_PHASES[Math.min(QS_SPAWN_PHASES.length - 1, Math.floor(elapsed / 5000))];
+  }
+  function createQSItem(now) {
+    const mouldy = Math.random() < 0.5;
+    return {
+      kind: mouldy ? 'mouldy' : 'damaged',
+      frame: randInt(0, 11),
+      baseX: rand(70, W - 70),
+      x: 0,
+      y: -72,
+      w: randInt(56, 74),
+      h: randInt(62, 84),
+      speed: rand(178, 224),
+      phase: rand(0, Math.PI * 2),
+      drift: rand(14, 33),
+      driftSpeed: rand(1.3, 2.2),
+      spawnedAt: now
+    };
   }
   function createQSPuzzle() {
-    const current = randomQSItemType();
+    const now = performance.now();
     game.qsPuzzle = {
-      until: performance.now() + QS_DURATION,
+      startedAt: now,
+      until: now + QS_DURATION,
+      nextSpawnAt: now + 500,
+      items: [],
       scoreEarned: 0,
-      sorted: 0,
-      misses: 0,
-      dragging: false,
-      pointerId: null,
-      dragOffsetX: 0,
-      dragOffsetY: 0,
+      disposeCount: 0,
+      destroyCount: 0,
+      failedCount: 0,
+      missedCount: 0,
       flashUntil: 0,
       flashText: '',
-      baskets: qsBasketLayout(),
-      item: { type: current.id, label: current.label, icon: current.icon, x: W / 2, y: 202, w: 118, h: 118, homeX: W / 2, homeY: 202 }
+      basket: { x: W / 2, y: H - 90, w: 298, h: 105, speed: 720, dragging: false, pointerId: null, offsetX: 0 }
     };
     game.mode = 'qsPuzzle';
   }
   function startQSPuzzle() {
     if (game.mode !== 'play' || performance.now() < game.qsCooldownUntil) return;
-    game.mode = 'qsPuzzle';
     setGameplayControlsVisible(false);
     keys.clear();
+    stopSprint();
     game.specialMusic = 'inventory';
     music.play('inventory', true);
     createQSPuzzle();
   }
-  function nextQSItem() {
+  function updateQSPuzzle(dt, now) {
     const pz = game.qsPuzzle;
     if (!pz) return;
-    const next = randomQSItemType();
-    pz.item = { type: next.id, label: next.label, icon: next.icon, x: W / 2, y: 202, w: 118, h: 118, homeX: W / 2, homeY: 202 };
-    pz.dragging = false;
-    pz.pointerId = null;
+    const b = pz.basket;
+    if (!b.dragging) {
+      let dx = 0;
+      if (keys.has('ArrowLeft') || keys.has('KeyA')) dx--;
+      if (keys.has('ArrowRight') || keys.has('KeyD')) dx++;
+      b.x = clamp(b.x + dx * b.speed * dt, b.w / 2 + 18, W - b.w / 2 - 18);
+    }
+    const elapsed = now - pz.startedAt;
+    while (now >= pz.nextSpawnAt && now < pz.until) {
+      pz.items.push(createQSItem(now));
+      pz.nextSpawnAt += qsSpawnInterval(elapsed);
+    }
+    const basketTop = b.y - b.h / 2 + 18;
+    for (let i = pz.items.length - 1; i >= 0; i--) {
+      const item = pz.items[i];
+      item.y += item.speed * dt;
+      item.x = item.baseX + Math.sin((now - item.spawnedAt) / 1000 * item.driftSpeed + item.phase) * item.drift;
+      const withinBox = item.x >= b.x - b.w / 2 && item.x <= b.x + b.w / 2;
+      if (withinBox && item.y + item.h / 2 >= basketTop && item.y < b.y + b.h / 2) {
+        const side = item.x < b.x ? 'dispose' : 'destroy';
+        const correct = (item.kind === 'damaged' && side === 'dispose') || (item.kind === 'mouldy' && side === 'destroy');
+        if (correct) {
+          pz.scoreEarned += 5;
+          game.score += 5;
+          if (side === 'dispose') pz.disposeCount++; else pz.destroyCount++;
+          game.stats.quarantineSorts++;
+          pz.flashText = '+5  CORRECT';
+          synth.points();
+          updateBest();
+        } else {
+          pz.failedCount++;
+          pz.flashText = 'WRONG SORT  +0';
+          synth.note(180, .08, 'square', .03);
+        }
+        pz.flashUntil = now + 700;
+        pz.items.splice(i, 1);
+      } else if (item.y - item.h / 2 > H) {
+        pz.missedCount++;
+        pz.items.splice(i, 1);
+      }
+    }
   }
   function finishQSPuzzle() {
     const pz = game.qsPuzzle;
     if (!pz) return;
-    const resultText = pz.scoreEarned > 0 ? `QUARANTINE SORT COMPLETE  +${pz.scoreEarned}` : 'QUARANTINE SORT COMPLETE';
     const exitTile = tileNearZoneEdge(game.zones.quarantine);
     const pos = tileCenter(exitTile);
     game.player.x = pos.x;
@@ -1834,68 +1877,87 @@
     game.qsPuzzle = null;
     game.specialMusic = null;
     game.mode = 'play';
+    keys.clear();
     setGameplayControlsVisible(true);
     centerCamera();
     music.playGameplay();
-    addMessage(resultText, '#ff7700', 3000);
+    addMessage(`QUARANTINE SORT COMPLETE  +${pz.scoreEarned}  DISPOSE ${pz.disposeCount}  DESTROY ${pz.destroyCount}`, '#ff7700', 3400);
     updateBest();
-  }
-  function qsPointerWithinItem(x, y) {
-    const pz = game.qsPuzzle;
-    if (!pz) return false;
-    const rect = qsItemRect(pz.item);
-    return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
-  }
-  function qsBasketAt(x, y) {
-    const pz = game.qsPuzzle;
-    if (!pz) return null;
-    return pz.baskets.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) || null;
   }
   function handleQSPointerDown(x, y, pointerId = null) {
     const pz = game.qsPuzzle;
-    if (!pz || !qsPointerWithinItem(x, y)) return false;
-    pz.dragging = true;
-    pz.pointerId = pointerId;
-    pz.dragOffsetX = x - pz.item.x;
-    pz.dragOffsetY = y - pz.item.y;
+    if (!pz) return false;
+    const b = pz.basket;
+    if (x < b.x - b.w / 2 || x > b.x + b.w / 2 || y < b.y - b.h / 2 || y > b.y + b.h / 2) return false;
+    b.dragging = true;
+    b.pointerId = pointerId;
+    b.offsetX = x - b.x;
     return true;
   }
   function handleQSPointerMove(x, y, pointerId = null) {
     const pz = game.qsPuzzle;
-    if (!pz || !pz.dragging) return false;
-    if (pz.pointerId !== null && pointerId !== null && pz.pointerId !== pointerId) return false;
-    pz.item.x = x - pz.dragOffsetX;
-    pz.item.y = y - pz.dragOffsetY;
+    if (!pz || !pz.basket.dragging) return false;
+    const b = pz.basket;
+    if (b.pointerId !== null && pointerId !== null && b.pointerId !== pointerId) return false;
+    b.x = clamp(x - b.offsetX, b.w / 2 + 18, W - b.w / 2 - 18);
     return true;
-  }
-  function resolveQSItemDrop(targetBasket) {
-    const pz = game.qsPuzzle;
-    if (!pz) return;
-    const correct = !!targetBasket && targetBasket.id === pz.item.type;
-    if (correct) {
-      pz.scoreEarned += 50;
-      pz.sorted++;
-      game.stats.quarantineSorts++;
-      game.score += 50;
-      pz.flashText = '+50  SORTED';
-      synth.points();
-    } else {
-      pz.misses++;
-      pz.flashText = targetBasket ? 'WRONG BASKET' : 'MISSED';
-      synth.note(180, .08, 'square', .03);
-    }
-    pz.flashUntil = performance.now() + 850;
-    updateBest();
-    nextQSItem();
   }
   function handleQSPointerUp(x, y, pointerId = null) {
     const pz = game.qsPuzzle;
-    if (!pz || !pz.dragging) return false;
-    if (pz.pointerId !== null && pointerId !== null && pz.pointerId !== pointerId) return false;
-    pz.dragging = false;
-    pz.pointerId = null;
-    resolveQSItemDrop(qsBasketAt(x, y));
+    if (!pz || !pz.basket.dragging) return false;
+    if (pz.basket.pointerId !== null && pointerId !== null && pz.basket.pointerId !== pointerId) return false;
+    pz.basket.dragging = false;
+    pz.basket.pointerId = null;
     return true;
+  }
+
+  function extinguisherStations() {
+    const stations = [
+      { label: 'DOCK OFFICE', pos: taskTargetPosition() },
+      { label: 'INVENTORY CHECK', pos: destinationPosition(game.zones.inventory) },
+      { label: 'QUARANTINE STORAGE', pos: destinationPosition(game.zones.quarantine) }
+    ];
+    game.zones.kitchens.forEach((zone, index) => stations.push({ label: `KITCHEN ${index + 1}`, pos: destinationPosition(zone) }));
+    return stations;
+  }
+  function scheduleNextFire(now) { game.nextFireAt = now + randInt(50000, 115000); }
+  function startFireEvent(now) {
+    if (game.fire || game.mode !== 'play') return;
+    let tile = randomFloorTile(TILE * 6, true);
+    let attempts = 0;
+    while ((tileInsideSafeZone(tile) || tileInsideZone(tile, game.zones.inventory) || tileInsideZone(tile, game.zones.quarantine)) && attempts++ < 40) tile = randomFloorTile(TILE * 6, true);
+    const pos = tileCenter(tile);
+    const station = extinguisherStations().sort((a, b) => dist(game.player, a.pos) - dist(game.player, b.pos))[0];
+    game.fire = { x: pos.x, y: pos.y, startedAt: now, hasExtinguisher: false, station, warningUntil: now + 7000 };
+    addMessage('🔥 WARNING FIRE! GET AN EXTINGUISHER — FOLLOW THE ARROW!', '#ee394d', 7000);
+    synth.hurt();
+  }
+  function tryFireAction(now) {
+    if (!game.fire || game.mode !== 'play') return false;
+    if (!game.fire.hasExtinguisher && dist(game.player, game.fire.station.pos) < TILE * 3.0) {
+      game.fire.hasExtinguisher = true;
+      synth.pickup();
+      addMessage('EXTINGUISHER COLLECTED — GET TO THE FIRE!', '#ffd054', 3500);
+      return true;
+    }
+    if (game.fire.hasExtinguisher && dist(game.player, game.fire) < TILE * 1.7) {
+      const seconds = (now - game.fire.startedAt) / 1000;
+      const reward = seconds <= 60 ? 200 : seconds <= 90 ? 150 : seconds <= 120 ? 100 : seconds <= 150 ? 50 : 0;
+      game.score += reward;
+      game.stats.firesExtinguished++;
+      game.stats.firePoints += reward;
+      burst(game.fire.x, game.fire.y, '#ffd054', 28);
+      game.fire = null;
+      scheduleNextFire(now);
+      synth.points();
+      addMessage(`FIRE EXTINGUISHED  +${reward}`, '#71dd8d', 3500);
+      updateBest();
+      return true;
+    }
+    return false;
+  }
+  function updateFireEvent(now) {
+    if (!game.fire && now >= game.nextFireAt) startFireEvent(now);
   }
 
   function triggerLevelWin() {
@@ -1999,13 +2061,15 @@
       game.enemies.forEach(enemy => updateEnemy(enemy, dt, now, false));
       game.forklifts.forEach(forklift => updateEnemy(forklift, dt, now, true));
       updateTruck(now);
+      updateFireEvent(now);
       game.messages = game.messages.filter(message => message.until > now);
     } else if (game.mode === 'inventoryBriefing' && now >= game.inventoryBriefUntil) {
       createInventoryPuzzle();
     } else if (game.mode === 'inventoryPuzzle' && game.inventoryPuzzle && now >= game.inventoryPuzzle.until) {
       finishInventoryPuzzle();
-    } else if (game.mode === 'qsPuzzle' && game.qsPuzzle && now >= game.qsPuzzle.until) {
-      finishQSPuzzle();
+    } else if (game.mode === 'qsPuzzle' && game.qsPuzzle) {
+      updateQSPuzzle(dt, now);
+      if (now >= game.qsPuzzle.until) finishQSPuzzle();
     } else if (game.mode === 'dying') {
       updatePlayerAction(now);
       game.messages = game.messages.filter(message => message.until > now);
@@ -2238,6 +2302,28 @@
     });
     ctx.restore();
   }
+  function drawFireWorld(now) {
+    if (!game.fire) return;
+    if (onScreenRect(game.fire.x - 74, game.fire.y - 102, 148, 160, 60)) {
+      const pulse = 1 + Math.sin(now / 130) * .06;
+      if (images.fireAnim) drawContain(images.fireAnim, game.fire.x - 62 * pulse, game.fire.y - 120 * pulse, 124 * pulse, 160 * pulse, 1, true);
+      else {
+        ctx.save(); ctx.font = '96px Arial'; ctx.textAlign = 'center'; ctx.fillText('🔥', game.fire.x, game.fire.y); ctx.restore();
+      }
+    }
+  }
+  function drawFireAlarm(now) {
+    if (!game.fire) return;
+    const pulse = .14 + .15 * (1 + Math.sin(now / 175)) / 2;
+    const grad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .28, W / 2, H / 2, Math.max(W, H) * .70);
+    grad.addColorStop(0, 'rgba(255,0,0,0)');
+    grad.addColorStop(1, `rgba(210,20,30,${pulse})`);
+    ctx.save(); ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H); ctx.restore();
+    if (performance.now() < game.fire.warningUntil) {
+      ctx.save(); ctx.fillStyle = 'rgba(65,5,8,.92)'; ctx.fillRect(135, 86, W - 270, 52); ctx.strokeStyle = '#ee394d'; ctx.lineWidth = 3; ctx.strokeRect(135, 86, W - 270, 52);
+      ctx.font = 'bold 22px Trebuchet MS'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff4df'; ctx.fillText('🔥 WARNING FIRE! GET AN EXTINGUISHER AND PUT OUT THE FIRE! 🔥', W / 2, 120); ctx.restore();
+    }
+  }
   function drawPickups(now) {
     game.boxes.forEach(box => {
       if (!onScreenRect(box.x - 82, box.y - 68, 164, 126, 40)) return;
@@ -2304,6 +2390,7 @@
   function drawPlayer(now) {
     const p = game.player;
     if (!p) return;
+    const carryingExtinguisher = game.fire && game.fire.hasExtinguisher;
     if (playerRidingPalletJack(now)) drawPalletJack(p.x - 2, p.y + 28, .95);
     if (now < p.invulnerableUntil && (!p.action || p.action.type !== 'jump') && Math.floor(now / 100) % 2 === 0 && game.mode === 'play') return;
     if (p.action && p.action.type === 'jump') {
@@ -2324,6 +2411,10 @@
     const row = p.facing === 'down' ? 0 : p.facing === 'up' ? 1 : 2;
     const flip = p.facing === 'left';
     spriteFrame(images.walksprite, 5, 3, p.frame, row, p.x - 54, p.y - 90, 108, 146, flip, 1, true);
+    if (carryingExtinguisher) {
+      if (images.fireExtinguisher) drawContain(images.fireExtinguisher, p.x + (p.facing === 'left' ? -44 : 14), p.y - 56, 38, 76, 1, true);
+      else { ctx.save(); ctx.font = '38px Arial'; ctx.fillText('🧯', p.x + 12, p.y - 18); ctx.restore(); }
+    }
   }
   function drawEnemyPowerDown(enemy, now, width = 128) {
     const remain = Math.ceil((enemy.disabledUntil - now) / 1000);
@@ -2392,10 +2483,12 @@
   function taskTargetPosition() { return tileCenter({ x: game.zones.dock.left + 4, y: game.zones.dock.top + 4 }); }
   function drawGuidanceArrow(now) {
     if (!game.player || game.mode !== 'play') return;
+    const guideFire = !!game.fire;
     const guideOffice = anyTaskReady();
     const guideDelivery = game.truck && game.truck.phase !== 'leaving';
-    if (!guideOffice && !guideDelivery) return;
-    const target = taskTargetPosition();
+    if (!guideFire && !guideOffice && !guideDelivery) return;
+    const target = guideFire ? (game.fire.hasExtinguisher ? game.fire : game.fire.station.pos) : taskTargetPosition();
+    const label = guideFire ? (game.fire.hasExtinguisher ? 'FIRE' : 'EXTINGUISHER') : (guideDelivery ? 'DELIVERY' : 'OFFICE');
     const dx = target.x - game.player.x, dy = target.y - game.player.y;
     const horizontal = Math.abs(dx) > Math.abs(dy);
     const arrow = horizontal ? (dx < 0 ? '◀' : '▶') : (dy < 0 ? '▲' : '▼');
@@ -2405,7 +2498,7 @@
     ctx.save(); ctx.globalAlpha = pulse; ctx.font = 'bold 58px Trebuchet MS'; ctx.textAlign = 'center';
     ctx.fillStyle = '#ff6900'; ctx.shadowColor = '#ff6900'; ctx.shadowBlur = 22; ctx.fillText(arrow, screenX, screenY);
     ctx.globalAlpha = .95; ctx.shadowBlur = 0; ctx.font = 'bold 13px Trebuchet MS'; ctx.fillStyle = '#ffd054';
-    ctx.fillText(guideDelivery ? 'DELIVERY' : 'OFFICE', screenX, screenY + 22); ctx.restore();
+    ctx.fillText(label, screenX, screenY + 22); ctx.restore();
   }
   function cockpitRect() { return { x: 16, y: 80, w: 232, h: 169 }; }
   function drawTaskBoard() {
@@ -2479,6 +2572,7 @@
     drawGuidanceArrow(now);
     drawCarrierToast(now);
     drawTokenCelebration(now);
+    drawFireAlarm(now);
   }
   function drawTitle() {
     drawCoverImage(images.background, 0, 0, W, H);
@@ -2514,7 +2608,7 @@
     ctx.fillText(`WAREHOUSES CLEARED  ${game.stats.warehousesCleared}     BEST SCORE  ${formatScore(game.bestScore)}`, W / 2, 337);
 
     const summary = [
-      ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks], ['QS SORTS', game.stats.quarantineSorts], ['PALLET JACKS', game.stats.palletJackRides],
+      ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks], ['QS SORTS', game.stats.quarantineSorts], ['FIRES OUT', game.stats.firesExtinguished], ['PALLET JACKS', game.stats.palletJackRides],
       ['RETURNS', game.stats.returnsProcessed], ['INVENTORY PAIRS', game.stats.inventoryMatches], ['SHOES FOUND', game.stats.shoesCollected],
       ['BIG BOXES OPENED', game.stats.boxesOpened], ['SMALL BOXES OPENED', game.stats.smallBoxesOpened], ['SOP FOUND', game.stats.sopTokensFound],
       ['ALM TASKS', game.stats.almTasksCompleted], ['SL TASKS', game.stats.slTasksCompleted], ['EMAIL TASKS', game.stats.emailTasksCompleted],
@@ -2543,6 +2637,7 @@
     ctx.translate(-game.camera.x + sx, -game.camera.y + sy);
     drawStaticWorldView();
     drawLiveTruck(now);
+    drawFireWorld(now);
     drawRoute(now);
     drawPickups(now);
     drawEnemies(now);
@@ -2604,174 +2699,129 @@
     ctx.restore();
   }
 
+  function drawQSSprite(item) {
+    const sheet = item.kind === 'mouldy' && images.clothesDamaged ? images.clothesDamaged : images.clothes;
+    if (!sheet) return;
+    const cols = 4, rows = 3, sw = sheet.width / cols, sh = sheet.height / rows;
+    const col = item.frame % cols, row = Math.floor(item.frame / cols);
+    ctx.drawImage(sheet, col * sw, row * sh, sw, sh, item.x - item.w / 2, item.y - item.h / 2, item.w, item.h);
+  }
   function drawQSPuzzle(now) {
     const pz = game.qsPuzzle;
     if (!pz) return;
-    if (images.qsObj2) drawCoverImage(images.qsObj2, 0, 0, W, H);
-    else if (images.qs) drawCoverImage(images.qs, 0, 0, W, H);
-    else { ctx.fillStyle = '#2b2f35'; ctx.fillRect(0, 0, W, H); }
+    if (images.qsBg) drawCoverImage(images.qsBg, 0, 0, W, H);
+    else { ctx.fillStyle = '#4d5052'; ctx.fillRect(0, 0, W, H); }
+    ctx.fillStyle = 'rgba(0,0,0,.26)'; ctx.fillRect(0, 0, W, H);
     ctx.save();
-    ctx.fillStyle = 'rgba(12,15,18,.42)';
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(18,20,23,.90)';
-    ctx.fillRect(42, 24, W - 84, 86);
-    ctx.strokeStyle = '#ff6900';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(42, 24, W - 84, 86);
-    ctx.fillStyle = '#fff4df';
-    ctx.font = 'bold 26px Trebuchet MS';
-    ctx.fillText('QUARANTINE SORT', 66, 58);
-    ctx.font = '16px Trebuchet MS';
-    ctx.fillStyle = '#f0c7a0';
-    ctx.fillText('Drag each item into the correct basket before time runs out.', 66, 86);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#ffd054';
-    ctx.font = 'bold 22px Trebuchet MS';
-    ctx.fillText(`${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, W - 70, 58);
-    ctx.font = 'bold 18px Trebuchet MS';
-    ctx.fillText(`SCORE  ${pz.scoreEarned}`, W - 70, 85);
-    ctx.textAlign = 'left';
-    pz.baskets.forEach(basket => {
-      ctx.fillStyle = 'rgba(16,19,23,.78)';
-      ctx.fillRect(basket.x, basket.y, basket.w, basket.h);
-      ctx.strokeStyle = basket.color;
-      ctx.lineWidth = 4;
-      ctx.strokeRect(basket.x, basket.y, basket.w, basket.h);
-      ctx.font = '44px Arial';
-      ctx.fillText(basket.icon, basket.x + 16, basket.y + 54);
-      ctx.fillStyle = '#fff4df';
-      ctx.font = 'bold 18px Trebuchet MS';
-      ctx.fillText(basket.label, basket.x + 72, basket.y + 40);
-      ctx.font = '14px Trebuchet MS';
-      ctx.fillStyle = '#f0c7a0';
-      ctx.fillText('DROP HERE', basket.x + 72, basket.y + 72);
-    });
-    const item = pz.item;
-    const ix = item.x - item.w / 2, iy = item.y - item.h / 2;
-    ctx.fillStyle = 'rgba(18,20,23,.88)';
-    ctx.fillRect(ix, iy, item.w, item.h);
-    ctx.strokeStyle = '#ff6900';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(ix, iy, item.w, item.h);
-    ctx.font = '54px Arial';
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.fillText(item.icon, item.x, item.y + 12);
-    ctx.font = 'bold 16px Trebuchet MS';
-    ctx.fillStyle = '#ffd054';
-    ctx.fillText(item.label, item.x, iy + item.h + 26);
-    ctx.textAlign = 'left';
-    if (pz.flashUntil > now) {
-      const alpha = clamp((pz.flashUntil - now) / 850, 0, 1);
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = 'rgba(16,18,22,.92)';
-      ctx.fillRect(W / 2 - 140, 118, 280, 42);
-      ctx.strokeStyle = pz.flashText.includes('+50') ? '#71dd8d' : '#ee394d';
-      ctx.strokeRect(W / 2 - 140, 118, 280, 42);
-      ctx.fillStyle = pz.flashText.includes('+50') ? '#71dd8d' : '#fff4df';
-      ctx.font = 'bold 20px Trebuchet MS';
-      ctx.textAlign = 'center';
-      ctx.fillText(pz.flashText, W / 2, 146);
-      ctx.textAlign = 'left';
-      ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(12,15,18,.91)'; ctx.fillRect(36, 20, W - 72, 74);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(36, 20, W - 72, 74);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText('QUARANTINE CHAOS', 62, 65);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#ffd054'; ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, W - 60, 65);
+    ctx.textAlign = 'left'; ctx.font = 'bold 18px Trebuchet MS';
+    ctx.fillStyle = '#fff4df'; ctx.fillText(`DISPOSED  ${pz.disposeCount}    DESTROYED  ${pz.destroyCount}    BONUS  +${pz.scoreEarned}`, 62, 118);
+    pz.items.forEach(item => drawQSSprite(item));
+    const b = pz.basket;
+    if (images.slbox) drawContain(images.slbox, b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 1, true);
+    else {
+      ctx.fillStyle = '#b58652'; ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+      ctx.strokeStyle = '#ff6900'; ctx.strokeRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+    }
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 15px Trebuchet MS'; ctx.textAlign = 'center';
+    ctx.fillText('DISPOSE', b.x - b.w / 4, b.y + 6); ctx.fillText('DESTROY', b.x + b.w / 4, b.y + 6);
+    ctx.strokeStyle = 'rgba(255,255,255,.72)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(b.x, b.y - b.h / 2 + 12); ctx.lineTo(b.x, b.y + b.h / 2 - 12); ctx.stroke();
+    if (now < pz.flashUntil) {
+      ctx.fillStyle = pz.flashText.startsWith('+5') ? '#71dd8d' : '#ee394d';
+      ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText(pz.flashText, W / 2, 174);
     }
     ctx.restore();
   }
 
-  function officeScreenRect() { return OFFICE_MONITOR; }
+  function officeScreenRect() { return game.office && game.office.page === 'menu' ? OFFICE_MENU_MONITOR : OFFICE_APP_MONITOR; }
   function drawOfficeBase() {
     if (images.officeBase) drawCoverImage(images.officeBase, 0, 0, W, H);
     else { drawCoverImage(images.background, 0, 0, W, H); ctx.fillStyle = 'rgba(22,15,34,.62)'; ctx.fillRect(0, 0, W, H); }
   }
-  function drawMonitorImage(img) { const r = officeScreenRect(); if (img) drawCoverImage(img, r.x, r.y, r.width, r.height); }
-  function drawOfficePanel() {
-    const r = officeScreenRect();
-    ctx.save();
-    ctx.fillStyle = '#fbfbfd';
-    ctx.fillRect(r.x, r.y, r.width, r.height);
-    ctx.fillStyle = '#eef1f5';
-    ctx.fillRect(r.x, r.y, r.width, 40);
-    ctx.strokeStyle = '#d4d7de';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(r.x, r.y, r.width, r.height);
-    ctx.fillStyle = '#9aa2b2';
-    ctx.beginPath(); ctx.arc(r.x + 24, r.y + 20, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(r.x + 44, r.y + 20, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(r.x + 64, r.y + 20, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  }
+  function drawMonitorImage(img) { const r = OFFICE_MENU_MONITOR; if (img) drawCoverImage(img, r.x, r.y, r.width, r.height); }
   function officeButton(x, y, w, h, label, id, active = true) {
     game.office.hotspots.push({ x: x - 8, y: y - 8, w: w + 16, h: h + 16, id, active });
     ctx.save(); ctx.fillStyle = active ? '#ff6900' : '#d6d6d6'; ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = active ? '#d95600' : '#a7a7a7'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
-    ctx.fillStyle = active ? '#fff' : '#f7f7f7'; ctx.font = 'bold 17px Trebuchet MS'; ctx.textAlign = 'center'; ctx.fillText(label, x + w / 2, y + h / 2 + 6); ctx.restore();
-  }
-  function officeCard(x, y, w, h, title, subtitle, id, emoji, accent, enabled = true) {
-    game.office.hotspots.push({ x: x - 8, y: y - 8, w: w + 16, h: h + 16, id, active: enabled });
-    ctx.save();
-    ctx.fillStyle = enabled ? '#ffffff' : '#f2f2f2';
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = enabled ? accent : '#d2d2d2';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x, y, w, h);
-    ctx.font = '44px Arial';
-    ctx.fillStyle = enabled ? accent : '#bbbbbb';
-    ctx.fillText(emoji, x + 16, y + 52);
-    ctx.fillStyle = enabled ? '#242832' : '#8f949b';
-    ctx.font = 'bold 22px Trebuchet MS';
-    ctx.fillText(title, x + 16, y + 90);
-    ctx.font = '14px Trebuchet MS';
-    ctx.fillStyle = '#6d7380';
-    ctx.fillText(subtitle, x + 16, y + 118);
-    ctx.restore();
+    ctx.fillStyle = active ? '#fff' : '#f7f7f7'; ctx.font = 'bold 15px Trebuchet MS'; ctx.textAlign = 'center'; ctx.fillText(label, x + w / 2, y + h / 2 + 5); ctx.restore();
   }
   function drawOfficeMenu() {
-    const r = officeScreenRect();
-    drawOfficePanel();
-    drawOfficeHeader('DOCK OFFICE', 'Choose an app. The monitor starts blank so the tools feel clearer.');
-    const cardW = 254, cardH = 124, left = r.x + 42, top = r.y + 106, gap = 18;
-    officeCard(left, top, cardW, cardH, 'SOP SCOUT', `${game.tasks.tokens} token${game.tasks.tokens === 1 ? '' : 's'} ready`, 'app-sop', '🤖', '#ff6900', game.tasks.tokens > 0 && anyTaskReady());
-    officeCard(left + cardW + gap, top, cardW, cardH, 'JIRA', `${taskJobsReady('alm') + taskJobsReady('sl')} ready tasks`, 'app-jira', '📋', '#4c84df', taskJobsReady('alm') || taskJobsReady('sl'));
-    officeCard(left, top + cardH + 18, cardW, cardH, 'EMAIL', `${taskJobsReady('email')} ready tasks`, 'app-email', '✉️', '#8f65d8', taskJobsReady('email') > 0);
-    officeCard(left + cardW + gap, top + cardH + 18, cardW, cardH, 'WORKDAY', `${taskJobsReady('workday')} ready tasks`, 'app-workday', '🗂️', '#42a17d', taskJobsReady('workday') > 0);
+    const r = OFFICE_MENU_MONITOR;
+    drawMonitorImage(images.officeMenu);
+    game.office.hotspots = [
+      { x: r.x + r.width * .075, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-sop', active: true },
+      { x: r.x + r.width * .285, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-jira', active: true },
+      { x: r.x + r.width * .495, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-email', active: true },
+      { x: r.x + r.width * .705, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-workday', active: true }
+    ];
   }
   function drawOfficeHeader(title, subtitle = '') {
-    const r = officeScreenRect();
+    const r = OFFICE_APP_MONITOR;
     ctx.save();
-    ctx.fillStyle = '#242832'; ctx.font = 'bold 26px Trebuchet MS'; ctx.fillText(title, r.x + 30, r.y + 72);
-    if (subtitle) { ctx.fillStyle = '#66707f'; ctx.font = '15px Trebuchet MS'; ctx.fillText(subtitle, r.x + 30, r.y + 98); }
-    ctx.strokeStyle = '#d9dde4'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(r.x + 26, r.y + 114); ctx.lineTo(r.x + r.width - 26, r.y + 114); ctx.stroke();
+    ctx.fillStyle = '#242832'; ctx.font = 'bold 23px Trebuchet MS'; ctx.fillText(title, r.x + 24, r.y + 41);
+    if (subtitle) { ctx.fillStyle = '#5b606b'; ctx.font = '14px Trebuchet MS'; ctx.fillText(subtitle, r.x + 24, r.y + 65); }
+    ctx.strokeStyle = '#dfdfdf'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(r.x + 20, r.y + 78); ctx.lineTo(r.x + r.width - 20, r.y + 78); ctx.stroke();
     ctx.restore();
   }
   function drawOfficeChoice(page, types, title, tokenMode = false) {
-    const r = officeScreenRect();
-    drawOfficePanel();
+    const r = OFFICE_APP_MONITOR;
     drawOfficeHeader(title, tokenMode ? 'Choose one ready task for SOP Scout to complete instantly.' : 'Choose the backlog category to process.');
-    types.forEach((type, i) => officeButton(r.x + 34, r.y + 132 + i * 60, r.width - 68, 48, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0)));
-    officeButton(r.x + 34, r.y + r.height - 52, 140, 38, 'BACK', 'office-menu', true);
+    types.forEach((type, i) => officeButton(r.x + 24, r.y + 95 + i * 48, r.width - 48, 38, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0)));
+    officeButton(r.x + 24, r.y + r.height - 42, 106, 29, 'BACK', 'office-menu', true);
   }
-  function startOfficePuzzle(type) { if (taskJobsReady(type) < 1) return; const data = TASK_PUZZLES[type], challenge = choice(data.puzzles); game.office.page = 'puzzle'; game.office.selectedType = type; game.office.puzzle = { type, data, challenge, selected: [] }; }
-  function submitOfficePuzzle() { const pz = game.office && game.office.puzzle; if (!pz || pz.selected.length !== 3) return; const ok = pz.selected.slice().sort().join('|') === pz.challenge.answer.slice().sort().join('|'); completeTaskUnit(pz.type, false, ok); game.office.puzzle = null; addMessage(ok ? `${TASK_LABELS[pz.type]} TASK COMPLETE  +50` : `${TASK_LABELS[pz.type]} TASK FAILED  +0`, ok ? '#71dd8d' : '#ee394d', 2200); if (taskJobsReady(pz.type) > 0) startOfficePuzzle(pz.type); else game.office.page = 'menu'; }
+  function startOfficePuzzle(type) {
+    if (taskJobsReady(type) < 1) return;
+    const data = TASK_PUZZLES[type], challenge = choice(data.puzzles);
+    game.office.page = 'puzzle'; game.office.selectedType = type; game.office.puzzle = { type, data, challenge, selected: [] }; game.office.result = null;
+  }
+  function submitOfficePuzzle() {
+    const pz = game.office && game.office.puzzle;
+    if (!pz || pz.selected.length !== 3) return;
+    const ok = pz.selected.slice().sort().join('|') === pz.challenge.answer.slice().sort().join('|');
+    completeTaskUnit(pz.type, false, ok);
+    game.office.result = { ok, type: pz.type, until: performance.now() + 1600 };
+    game.office.puzzle = null;
+    game.office.page = 'result';
+  }
+  function drawOfficeResult(now) {
+    const r = OFFICE_APP_MONITOR, result = game.office.result;
+    if (!result) { game.office.page = 'menu'; return; }
+    drawOfficeHeader(TASK_LABELS[result.type] + ' TASK RESULT');
+    ctx.save(); ctx.textAlign = 'center';
+    ctx.fillStyle = result.ok ? '#1b8b4c' : '#bd2837';
+    ctx.font = 'bold 39px Trebuchet MS';
+    ctx.fillText(result.ok ? 'CORRECT!' : 'WRONG!', r.x + r.width / 2, r.y + 164);
+    ctx.fillStyle = '#242832'; ctx.font = 'bold 24px Trebuchet MS';
+    ctx.fillText(result.ok ? 'TASK COMPLETE  +50' : 'TASK FAILED  +0', r.x + r.width / 2, r.y + 205);
+    ctx.restore();
+    if (now >= result.until) {
+      const type = result.type;
+      game.office.result = null;
+      if (taskJobsReady(type) > 0) startOfficePuzzle(type); else game.office.page = 'menu';
+    }
+  }
   function drawOfficePuzzle() {
-    const r = officeScreenRect(), pz = game.office.puzzle;
-    drawOfficePanel();
+    const r = OFFICE_APP_MONITOR, pz = game.office.puzzle;
     drawOfficeHeader(pz.data.app, 'SELECT THE THREE MATCHING EMOJIS');
-    const slotsX = r.x + 168, slotsY = r.y + 103;
+    const slotsX = r.x + 142, slotsY = r.y + 86;
     ctx.save();
     for (let i = 0; i < 3; i++) {
-      ctx.fillStyle = '#f2f3f5'; ctx.fillRect(slotsX + i * 74, slotsY, 62, 50); ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; ctx.strokeRect(slotsX + i * 74, slotsY, 62, 50);
-      ctx.font = '32px Arial'; if (pz.selected[i]) ctx.fillText(pz.selected[i], slotsX + i * 74 + 13, slotsY + 37);
+      ctx.fillStyle = '#f2f3f5'; ctx.fillRect(slotsX + i * 66, slotsY, 54, 43); ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; ctx.strokeRect(slotsX + i * 66, slotsY, 54, 43);
+      ctx.font = '27px Arial'; if (pz.selected[i]) ctx.fillText(pz.selected[i], slotsX + i * 66 + 11, slotsY + 31);
     }
-    ctx.fillStyle = '#242832'; ctx.font = 'bold 14px Trebuchet MS';
-    const words = pz.challenge.clue.split(' '); let line = '', yy = r.y + 184;
-    words.forEach(word => { const test = line ? `${line} ${word}` : word; if (ctx.measureText(test).width > r.width - 66) { ctx.fillText(line, r.x + 30, yy); yy += 20; line = word; } else line = test; });
-    if (line) ctx.fillText(line, r.x + 30, yy);
+    ctx.fillStyle = '#242832'; ctx.font = 'bold 12px Trebuchet MS';
+    const words = pz.challenge.clue.split(' '); let line = '', yy = r.y + 156;
+    words.forEach(word => { const test = line ? `${line} ${word}` : word; if (ctx.measureText(test).width > r.width - 46) { ctx.fillText(line, r.x + 22, yy); yy += 17; line = word; } else line = test; });
+    if (line) ctx.fillText(line, r.x + 22, yy);
     ctx.restore();
     pz.data.bank.forEach((emoji, i) => {
-      const x = r.x + 28 + i * 65, y = r.y + 245; game.office.hotspots.push({ x: x - 6, y: y - 6, w: 68, h: 62, id: `emoji-${emoji}`, active: true });
-      ctx.save(); ctx.fillStyle = pz.selected.includes(emoji) ? '#ffdfca' : '#f4f4f4'; ctx.fillRect(x, y, 56, 50); ctx.strokeStyle = pz.selected.includes(emoji) ? '#ff6900' : '#bcbcbc'; ctx.lineWidth = 2; ctx.strokeRect(x, y, 56, 50); ctx.font = '30px Arial'; ctx.fillText(emoji, x + 11, y + 36); ctx.restore();
+      const x = r.x + 21 + i * 63, y = r.y + 214; game.office.hotspots.push({ x: x - 5, y: y - 5, w: 58, h: 51, id: `emoji-${emoji}`, active: true });
+      ctx.save(); ctx.fillStyle = pz.selected.includes(emoji) ? '#ffdfca' : '#f4f4f4'; ctx.fillRect(x, y, 49, 41); ctx.strokeStyle = pz.selected.includes(emoji) ? '#ff6900' : '#bcbcbc'; ctx.lineWidth = 2; ctx.strokeRect(x, y, 49, 41); ctx.font = '25px Arial'; ctx.fillText(emoji, x + 9, y + 29); ctx.restore();
     });
-    officeButton(r.x + 232, r.y + r.height - 49, 120, 34, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3);
+    officeButton(r.x + 205, r.y + r.height - 43, 112, 30, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3);
   }
   function drawOffice(now) {
     drawOfficeBase();
@@ -2780,11 +2830,13 @@
     else if (game.office.page === 'jira') drawOfficeChoice('jira', ['alm','sl'], 'JIRA TASK BACKLOG');
     else if (game.office.page === 'sop') drawOfficeChoice('sop', TASK_TYPES.filter(type => taskJobsReady(type) > 0), 'SOP SCOUT', true);
     else if (game.office.page === 'puzzle') drawOfficePuzzle();
+    else if (game.office.page === 'result') drawOfficeResult(now);
     if (images.officeFrame) drawCoverImage(images.officeFrame, 0, 0, W, H);
     officeButton(W - 178, H - 62, 148, 42, 'LEAVE OFFICE', 'leave-office', true);
     ctx.save(); ctx.fillStyle = '#fff4df'; ctx.font = 'bold 16px Trebuchet MS'; ctx.fillText('ESC — LEAVE OFFICE', 22, H - 23); ctx.restore();
     drawTokenCelebration(now);
   }
+
   function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskJobsReady('alm') || taskJobsReady('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskJobsReady('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskJobsReady('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) chosen.splice(idx, 1); else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
   function draw(now) {
     ctx.clearRect(0, 0, W, H);
@@ -2945,7 +2997,7 @@
 
   document.addEventListener('keydown', event => {
     const prevent = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code);
-    if (prevent && game.mode === 'play') event.preventDefault();
+    if (prevent && (game.mode === 'play' || game.mode === 'qsPuzzle')) event.preventDefault();
     if (document.activeElement === nameInput) return;
     synth.init();
     const directionButton = controlButtonForCode(event.code);

@@ -1,31 +1,33 @@
-ZALANDO SCOUT — SYSTEM UPDATE V2.25
+ZALANDO SCOUT — SYSTEM UPDATE V2.26
+====================================
 
-Replace the system files only:
+This ZIP contains the system files only:
 - index.html
 - styles.css
 - game.js
-- README.txt
 
-Keep your existing assets folder in the same directory.
+Keep your existing assets folder beside these files. The new version expects these additional assets in that folder when available:
+- palletjack.png
+- clothesdamaged.png
+- slbox.png
+- qs2.jpg (or qs2.png fallback)
+- fire.png (extinguisher)
+- fire.webp (animated fire)
 
-Added / changed in V2.25:
-- Front screen now shows version V2.25 beside WAREHOUSE RUN.
-- Story slide for the warehouse task briefing now shows its first message at the top and the ALM / SL / Email / Workday instruction at the bottom.
-- Inventory story text now says the player will also need to help complete inventory checks.
-- Office computer home screen is clean with no text drawn over the icon menu image.
-- Office monitor insertion is slightly enlarged and the four menu icons use invisible click zones.
-- Jira, Email, Workday and SOP Scout screens now draw directly onto the blank monitor already present in baseoffice.jpg, rather than adding a black screen overlay.
-- Area signs are larger and no longer receive the additional dark shadow/border treatment.
-- TASK BOARD is renamed COCKPIT.
-- Clicking the COCKPIT opens a help modal explaining tasks, SOP Scout tokens, coffee sprinting, health damage, safe zones and exit requirements.
-- SOP Scout token occurrence has been reduced to roughly one-third of its previous box frequency.
-- The yellow Dock area and both Kitchen areas are now safe zones: walking robots and enemy forklifts do not enter them or damage the player there.
+Changes in V2.26
+----------------
+- Restored the original pcmenu.jpg image for the Dock Office home screen. The game no longer redraws its own replacement app menu.
+- Once an app is clicked, only the menu image is removed and the Jira / Email / Workday / SOP Scout content is drawn on the blank monitor in baseoffice.jpg.
+- Reduced the office task-interface drawing area so the task screens fit within the monitor frame.
+- Added visible CORRECT / WRONG result screens before an office task moves to the next backlog item or returns to the menu.
+- Boxes now generate Email and Workday task progress only. ALM and SL task progress continues to come from shoes.
+- Corrected Quarantine Storage: it is now a 30-second falling-item catcher game rather than a drag-and-drop basket screen.
+- In Quarantine Storage, clothes.png items belong in DISPOSE and clothesdamaged.png items belong in DESTROY; correct catches score +5 points, and the fall frequency increases across the 30-second round.
+- Quarantine Storage triggers on entering the area or being sent there by a box, then uses a 30-second retrigger cooldown.
+- Added random Fire Events during normal warehouse play, with a red alarm vignette, guidance arrow to the nearest extinguisher point, carried extinguisher display, return guidance to the fire and time-based scoring.
+- Fire event score: +200 within 60 seconds, +150 within 90 seconds, +100 within 120 seconds, +50 within 150 seconds, otherwise +0.
 
-Existing V2.23 functionality remains, including office task puzzles, exit gating, directional arrows, Inventory Check, mobile controls, coffee sprint, score download and increased enemies.
-
-
-V2.25 updates:
-- Added Quarantine Sort drag-and-drop minigame with 30 second cooldown.
-- Added 5 pallet jacks per warehouse, including one near the dock, granting 30 seconds of speed and collision immunity.
-- Removed the top-right carrier helper text and shifted delivery prompts to toast-style messages.
-- Reworked the Dock office monitor UI to start blank with larger click targets.
+Retained from earlier builds
+----------------------------
+- Pallet jacks, including one near the Dock, with 30-second speed/protection effect.
+- Cockpit help modal, safe zones, task-gated exit, Inventory Check, mobile controls, coffee sprint, score download, carrier toast and increased enemies.
