@@ -45,7 +45,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.24';
+  const VERSION = 'V2.25';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -56,13 +56,27 @@
   const VOLUME_KEY = 'zalandoScoutAudioVolume';
   const DISPLAY_MODE_KEY = 'zalandoScoutDisplayMode';
   const INVENTORY_DURATION = 30000;
+  const QS_DURATION = 30000;
+  const PALLET_JACK_DURATION = 30000;
   const PUZZLE_COLS = 5;
   const PUZZLE_ROWS = 6;
   const PUZZLE_SIZE = PUZZLE_COLS * PUZZLE_ROWS;
   const FLOOR_TINTS = ['rgba(255,118,36,.055)', 'rgba(41,117,154,.045)', 'rgba(120,94,48,.05)', 'rgba(74,124,89,.045)', 'rgba(128,70,110,.04)'];
   const TASK_TYPES = ['alm', 'sl', 'email', 'workday'];
   const TASK_LABELS = { alm: 'ALM', sl: 'SL', email: 'EMAIL', workday: 'WORKDAY' };
-  const OFFICE_MONITOR = { x: 94, y: 68, width: 578, height: 369 };
+  const QS_BASKETS = [
+    { id: 'clothes', label: 'CLOTHES', color: '#5b7fd7', icon: '👕' },
+    { id: 'mouldy', label: 'MOULDY', color: '#5e9862', icon: '☣️' },
+    { id: 'shoes', label: 'SHOES', color: '#b96d34', icon: '👟' },
+    { id: 'box', label: 'BOXES', color: '#9f7c4f', icon: '📦' }
+  ];
+  const QS_ITEMS = [
+    { id: 'clothes', label: 'CLEAN CLOTHES', icon: '👕' },
+    { id: 'mouldy', label: 'MOULDY CLOTHES', icon: '☣️' },
+    { id: 'shoes', label: 'SHOES', icon: '👟' },
+    { id: 'box', label: 'SMALL BOX', icon: '📦' }
+  ];
+  const OFFICE_MONITOR = { x: 86, y: 56, width: 608, height: 392 };
   const keys = new Set();
 
   const TASK_PUZZLES = {
@@ -110,9 +124,10 @@
     smallbox: ['smallbox.png'], smallbox2: ['smallbox2.png'], smallbox3: ['smallbox3.png'], shoe: ['shoe.png'],
     title: ['title.png'], truck: ['truck.png'], walksprite: ['walksprite.png'],
     officeBase: ['baseoffice.jpg'], officeFrame: ['officeframe.webp'], officeMenu: ['pcmenu.jpg'],
+    palletjack: ['palletjack.png'],
     jiraScreen: ['jira.jpg'], errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -173,6 +188,7 @@
     boxes: [],
     looseCoffees: [],
     kitchenCoffees: [],
+    palletJacks: [],
     enemies: [],
     forklifts: [],
     player: null,
@@ -196,13 +212,15 @@
     floorLogos: [],
     tasks: freshTasks(),
     office: null,
+    qsPuzzle: null,
+    qsCooldownUntil: 0,
     tokenFlashUntil: 0,
     exitWarnUntil: 0,
     stats: freshStats()
   };
 
   function freshStats() {
-    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, opsFinds: 0, inventoryChecks: 0, coffeeSprints: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, taskFailures: 0 };
+    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, opsFinds: 0, inventoryChecks: 0, quarantineSorts: 0, coffeeSprints: 0, palletJackRides: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, taskFailures: 0 };
   }
   function freshTasks() { return { alm: 0, sl: 0, email: 0, workday: 0, tokens: 0, completed: { alm: false, sl: false, email: false, workday: false } }; }
   function taskJobsReady(type) { return Math.floor((game.tasks[type] || 0) / 5); }
@@ -309,7 +327,7 @@
       else if (game.mode === 'play') {
         if (game.specialMusic) this.play(game.specialMusic, true);
         else this.playGameplay();
-      } else if (game.mode === 'inventoryBriefing' || game.mode === 'inventoryPuzzle') this.play('inventory', true);
+      } else if (game.mode === 'inventoryBriefing' || game.mode === 'inventoryPuzzle' || game.mode === 'qsPuzzle') this.play('inventory', true);
       else if (game.mode === 'gameover') this.play('gameover', true);
       else if (game.mode === 'intro') this.play(introSlides[game.introIndex].music, true);
       else if (game.mode === 'title') this.play('startup', true);
@@ -794,7 +812,7 @@
   }
   function destinationPosition(z) { return tileCenter({ x: z.x, y: z.y }); }
   function occupiedAt(p, includeEnemies = true) {
-    const objects = [...game.boxes, ...game.looseCoffees, ...game.kitchenCoffees.filter(coffee => coffee.available), ...(includeEnemies ? game.enemies : [])];
+    const objects = [...game.boxes, ...game.looseCoffees, ...game.kitchenCoffees.filter(coffee => coffee.available), ...game.palletJacks.filter(jack => jack.active !== false), ...(includeEnemies ? game.enemies : [])];
     if (includeEnemies && game.forklifts.length) objects.push(...game.forklifts);
     return objects.some(o => dist(p, o) < TILE * 0.78);
   }
@@ -845,6 +863,63 @@
       available: true
     }));
   }
+  function createPalletJackAtTile(t, nearDock = false) {
+    const p = tileCenter(t);
+    return { x: p.x, y: p.y, bob: rand(0, Math.PI * 2), nearDock, active: true };
+  }
+  function placePalletJacks() {
+    game.palletJacks = [];
+    const used = new Set();
+    const addJack = (t, nearDock = false) => {
+      if (!t) return;
+      const key = cellKey(t.x, t.y);
+      if (used.has(key)) return;
+      used.add(key);
+      game.palletJacks.push(createPalletJackAtTile(t, nearDock));
+    };
+    addJack(tileNearZoneEdge(game.zones.dock), true);
+    let attempts = 0;
+    while (game.palletJacks.length < 5 && attempts < 120) {
+      attempts++;
+      addJack(randomFloorTile(340, true), false);
+    }
+  }
+  function playerRidingPalletJack(now = performance.now()) {
+    return !!(game.player && game.player.palletJackUntil && now < game.player.palletJackUntil);
+  }
+  function nearestAvailablePalletJack(maxDistance = TILE * 0.95) {
+    let nearest = null;
+    let best = maxDistance;
+    game.palletJacks.forEach(jack => {
+      if (jack.active === false) return;
+      const d = dist(game.player, jack);
+      if (d < best) { best = d; nearest = jack; }
+    });
+    return nearest;
+  }
+  function activateNearbyPalletJack(now) {
+    if (game.mode !== 'play' || !game.player || playerRidingPalletJack(now)) return false;
+    const jack = nearestAvailablePalletJack();
+    if (!jack) return false;
+    jack.active = false;
+    game.player.palletJackUntil = now + PALLET_JACK_DURATION;
+    game.player.invulnerableUntil = Math.max(game.player.invulnerableUntil || 0, now + PALLET_JACK_DURATION);
+    game.stats.palletJackRides++;
+    synth.route();
+    addMessage('PALLET JACK — 30s SPEED + SHIELD', '#ffd054', 2200);
+    saveShift();
+    return true;
+  }
+  function disableEnemyFromPalletJack(attacker, now, forklift = false) {
+    if (!attacker) return;
+    attacker.disabledUntil = now + 30000;
+    attacker.path = [];
+    const exile = tileCenter(randomFloorTile(0, true));
+    attacker.x = exile.x;
+    attacker.y = exile.y;
+    burst(attacker.x, attacker.y, forklift ? '#ffd054' : '#ff7700', forklift ? 15 : 10);
+    addMessage(forklift ? 'PALLET JACK HIT — FORKLIFT DISABLED' : 'PALLET JACK HIT — ROBOT DISABLED', '#ffd054', 1700);
+  }
   function makeRobotAtTile(t, guard = false, index = 0) {
     const p = tileCenter(t);
     return {
@@ -893,14 +968,18 @@
     const start = destinationPosition(game.zones.dock);
     game.player = {
       x: start.x, y: start.y, r: 23, speed: 315, facing: 'down', frame: 0, anim: 0,
-      moving: false, sprinting: false, invulnerableUntil: performance.now() + 2500, action: null
+      moving: false, sprinting: false, invulnerableUntil: performance.now() + 2500, action: null, palletJackUntil: 0
     };
     game.boxes = [];
     game.looseCoffees = [];
     game.kitchenCoffees = [];
+    game.palletJacks = [];
+    game.qsPuzzle = null;
+    game.qsCooldownUntil = 0;
     for (let i = 0; i < activeBoxCount(); i++) spawnBox();
     for (let i = 0; i < activeCoffeeCount(); i++) spawnLooseCoffee();
     placeKitchenCoffees();
+    placePalletJacks();
     spawnEnemies();
     game.routePath = [];
     game.routeUntil = 0;
@@ -1114,7 +1193,7 @@
     game.health = MAX_HEARTS;
     game.coffees = 0;
     const p = destinationPosition(game.zones.dock);
-    game.player = { x: p.x, y: p.y, r: 23, speed: 315, facing: 'down', frame: 0, anim: 0, moving: false, sprinting: false, invulnerableUntil: performance.now() + 3000, action: null };
+    game.player = { x: p.x, y: p.y, r: 23, speed: 315, facing: 'down', frame: 0, anim: 0, moving: false, sprinting: false, invulnerableUntil: performance.now() + 3000, action: null, palletJackUntil: 0 };
     spawnEnemies();
     game.mode = 'play';
     setGameplayControlsVisible(true);
@@ -1255,7 +1334,7 @@
   }
   function startSprint() {
     const p = game.player;
-    if (game.mode !== 'play' || !p || p.action || p.sprinting || !p.moving || game.coffees <= 0) return false;
+    if (game.mode !== 'play' || !p || p.action || p.sprinting || playerRidingPalletJack(performance.now()) || !p.moving || game.coffees <= 0) return false;
     game.coffees -= 1;
     game.stats.coffeeSprints++;
     p.sprinting = true;
@@ -1283,6 +1362,7 @@
   function handleActionPress(now) {
     if (game.mode !== 'play' || !game.player || game.player.action) return false;
     if (openNearbyBox(now)) return true;
+    if (activateNearbyPalletJack(now)) return true;
     if (playerNearDockOffice() && enterDockOffice()) return true;
     if (game.player.moving && game.coffees > 0 && startSprint()) return true;
     return tryJump(now);
@@ -1321,10 +1401,11 @@
       const len = Math.hypot(dx, dy); dx /= len; dy /= len;
       if (Math.abs(dx) > Math.abs(dy)) p.facing = dx > 0 ? 'right' : 'left';
       else p.facing = dy > 0 ? 'down' : 'up';
-      const step = p.speed * (p.sprinting ? 1.72 : 1) * dt;
-      if (canMove(p.x + dx * step, p.y, p.r)) p.x += dx * step;
-      if (canMove(p.x, p.y + dy * step, p.r)) p.y += dy * step;
-      p.anim += dt * (p.sprinting ? 17 : 10);
+      const step = p.speed * (p.sprinting ? 1.72 : (playerRidingPalletJack(now) ? 2 : 1)) * dt;
+      const moveRadius = playerRidingPalletJack(now) ? 18 : p.r;
+      if (canMove(p.x + dx * step, p.y, moveRadius)) p.x += dx * step;
+      if (canMove(p.x, p.y + dy * step, moveRadius)) p.y += dy * step;
+      p.anim += dt * (p.sprinting ? 17 : (playerRidingPalletJack(now) ? 15 : 10));
       p.frame = Math.floor(p.anim) % 5;
     } else p.frame = 0;
 
@@ -1356,6 +1437,7 @@
     // Exit does not require Action, but it is locked until all four task categories have been completed.
     if (pointInsideZone(p, game.zones.exit)) triggerLevelWin();
     if (pointInsideZone(p, game.zones.inventory) && now >= game.inventoryCooldownUntil) startInventoryBriefing();
+    if (pointInsideZone(p, game.zones.quarantine) && now >= game.qsCooldownUntil) startQSPuzzle();
     updateSpecialMusic();
     centerCamera();
   }
@@ -1431,7 +1513,10 @@
     }
     moveAlongPath(enemy, dt);
     enemy.anim = (enemy.anim || 0) + dt * 7;
-    if (!playerInsideSafeZone() && dist(enemy, game.player) < (forklift ? 73 * enemy.scale : 43 * enemy.scale)) damagePlayer(forklift ? 2 : 1, now, forklift ? 'FORKLIFT COLLISION!' : 'ROBOT COLLISION!', enemy);
+    if (!playerInsideSafeZone() && dist(enemy, game.player) < (forklift ? 73 * enemy.scale : 43 * enemy.scale)) {
+      if (playerRidingPalletJack(now)) disableEnemyFromPalletJack(enemy, now, forklift);
+      else damagePlayer(forklift ? 2 : 1, now, forklift ? 'FORKLIFT COLLISION!' : 'ROBOT COLLISION!', enemy);
+    }
   }
   function damagePlayer(amount, now, label, attacker) {
     if (game.mode !== 'play' || game.player.action || now < game.player.invulnerableUntil || playerInsideSafeZone()) return;
@@ -1479,7 +1564,7 @@
   const lootTable = [
     { id: 'heart', weight: 9 }, { id: 'coffee', weight: 13 },
     { id: 'emailTask', weight: 24 }, { id: 'workdayTask', weight: 24 }, { id: 'sopToken', weight: 3 },
-    { id: 'return', weight: 9 }, { id: 'mixed', weight: 7 }, { id: 'mould', weight: 7 }, { id: 'break', weight: 6 },
+    { id: 'return', weight: 9 }, { id: 'mixed', weight: 7 }, { id: 'mould', weight: 7 }, { id: 'qsTask', weight: 6 }, { id: 'break', weight: 6 },
     { id: 'ops', weight: 3 }, { id: 'empty', weight: 8 }
   ];
   const smallBoxLoot = [
@@ -1566,6 +1651,7 @@
       case 'return': game.score += 150; game.stats.returnsProcessed++; teleportTo(game.zones.dock, 'RETURN — SENT TO DOCK  +150', null); break;
       case 'mixed': game.stats.mixedStock++; teleportTo(game.zones.inventory, 'MIXED STOCK — INVENTORY CHECK', 'inventory'); startInventoryBriefing(); break;
       case 'mould': game.stats.mouldyClothes++; teleportTo(game.zones.quarantine, 'MOULDY CLOTHES — QUARANTINE', null); break;
+      case 'qsTask': teleportTo(game.zones.quarantine, 'QUARANTINE SORT — REPORT TO QS', null); break;
       case 'break': game.stats.lunchBreaks++; teleportTo(choice(game.zones.kitchens), 'COFFEE BREAK — SENT TO KITCHEN', 'kitchen'); break;
       case 'ops':
         game.stats.opsFinds++;
@@ -1692,6 +1778,126 @@
     updateBest();
   }
 
+  function randomQSItemType() { return choice(QS_ITEMS); }
+  function qsItemRect(item) { return { x: item.x - item.w / 2, y: item.y - item.h / 2, w: item.w, h: item.h }; }
+  function qsBasketLayout() {
+    const width = 248, height = 124, gap = 24;
+    const total = width * QS_BASKETS.length + gap * (QS_BASKETS.length - 1);
+    const startX = (W - total) / 2;
+    return QS_BASKETS.map((basket, index) => ({ ...basket, x: startX + index * (width + gap), y: H - 170, w: width, h: height }));
+  }
+  function createQSPuzzle() {
+    const current = randomQSItemType();
+    game.qsPuzzle = {
+      until: performance.now() + QS_DURATION,
+      scoreEarned: 0,
+      sorted: 0,
+      misses: 0,
+      dragging: false,
+      pointerId: null,
+      dragOffsetX: 0,
+      dragOffsetY: 0,
+      flashUntil: 0,
+      flashText: '',
+      baskets: qsBasketLayout(),
+      item: { type: current.id, label: current.label, icon: current.icon, x: W / 2, y: 202, w: 118, h: 118, homeX: W / 2, homeY: 202 }
+    };
+    game.mode = 'qsPuzzle';
+  }
+  function startQSPuzzle() {
+    if (game.mode !== 'play' || performance.now() < game.qsCooldownUntil) return;
+    game.mode = 'qsPuzzle';
+    setGameplayControlsVisible(false);
+    keys.clear();
+    game.specialMusic = 'inventory';
+    music.play('inventory', true);
+    createQSPuzzle();
+  }
+  function nextQSItem() {
+    const pz = game.qsPuzzle;
+    if (!pz) return;
+    const next = randomQSItemType();
+    pz.item = { type: next.id, label: next.label, icon: next.icon, x: W / 2, y: 202, w: 118, h: 118, homeX: W / 2, homeY: 202 };
+    pz.dragging = false;
+    pz.pointerId = null;
+  }
+  function finishQSPuzzle() {
+    const pz = game.qsPuzzle;
+    if (!pz) return;
+    const resultText = pz.scoreEarned > 0 ? `QUARANTINE SORT COMPLETE  +${pz.scoreEarned}` : 'QUARANTINE SORT COMPLETE';
+    const exitTile = tileNearZoneEdge(game.zones.quarantine);
+    const pos = tileCenter(exitTile);
+    game.player.x = pos.x;
+    game.player.y = pos.y;
+    game.player.invulnerableUntil = performance.now() + 2300;
+    game.qsCooldownUntil = performance.now() + 30000;
+    game.qsPuzzle = null;
+    game.specialMusic = null;
+    game.mode = 'play';
+    setGameplayControlsVisible(true);
+    centerCamera();
+    music.playGameplay();
+    addMessage(resultText, '#ff7700', 3000);
+    updateBest();
+  }
+  function qsPointerWithinItem(x, y) {
+    const pz = game.qsPuzzle;
+    if (!pz) return false;
+    const rect = qsItemRect(pz.item);
+    return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+  }
+  function qsBasketAt(x, y) {
+    const pz = game.qsPuzzle;
+    if (!pz) return null;
+    return pz.baskets.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) || null;
+  }
+  function handleQSPointerDown(x, y, pointerId = null) {
+    const pz = game.qsPuzzle;
+    if (!pz || !qsPointerWithinItem(x, y)) return false;
+    pz.dragging = true;
+    pz.pointerId = pointerId;
+    pz.dragOffsetX = x - pz.item.x;
+    pz.dragOffsetY = y - pz.item.y;
+    return true;
+  }
+  function handleQSPointerMove(x, y, pointerId = null) {
+    const pz = game.qsPuzzle;
+    if (!pz || !pz.dragging) return false;
+    if (pz.pointerId !== null && pointerId !== null && pz.pointerId !== pointerId) return false;
+    pz.item.x = x - pz.dragOffsetX;
+    pz.item.y = y - pz.dragOffsetY;
+    return true;
+  }
+  function resolveQSItemDrop(targetBasket) {
+    const pz = game.qsPuzzle;
+    if (!pz) return;
+    const correct = !!targetBasket && targetBasket.id === pz.item.type;
+    if (correct) {
+      pz.scoreEarned += 50;
+      pz.sorted++;
+      game.stats.quarantineSorts++;
+      game.score += 50;
+      pz.flashText = '+50  SORTED';
+      synth.points();
+    } else {
+      pz.misses++;
+      pz.flashText = targetBasket ? 'WRONG BASKET' : 'MISSED';
+      synth.note(180, .08, 'square', .03);
+    }
+    pz.flashUntil = performance.now() + 850;
+    updateBest();
+    nextQSItem();
+  }
+  function handleQSPointerUp(x, y, pointerId = null) {
+    const pz = game.qsPuzzle;
+    if (!pz || !pz.dragging) return false;
+    if (pz.pointerId !== null && pointerId !== null && pz.pointerId !== pointerId) return false;
+    pz.dragging = false;
+    pz.pointerId = null;
+    resolveQSItemDrop(qsBasketAt(x, y));
+    return true;
+  }
+
   function triggerLevelWin() {
     if (game.player.action || game.mode !== 'play') return;
     if (!requiredTasksComplete()) {
@@ -1785,6 +1991,11 @@
   function update(dt, now) {
     if (game.mode === 'play') {
       updatePlayer(dt, now);
+      if (game.mode !== 'play') {
+        game.messages = game.messages.filter(message => message.until > now);
+        updateParticles(dt);
+        return;
+      }
       game.enemies.forEach(enemy => updateEnemy(enemy, dt, now, false));
       game.forklifts.forEach(forklift => updateEnemy(forklift, dt, now, true));
       updateTruck(now);
@@ -1793,6 +2004,8 @@
       createInventoryPuzzle();
     } else if (game.mode === 'inventoryPuzzle' && game.inventoryPuzzle && now >= game.inventoryPuzzle.until) {
       finishInventoryPuzzle();
+    } else if (game.mode === 'qsPuzzle' && game.qsPuzzle && now >= game.qsPuzzle.until) {
+      finishQSPuzzle();
     } else if (game.mode === 'dying') {
       updatePlayerAction(now);
       game.messages = game.messages.filter(message => message.until > now);
@@ -2053,11 +2266,45 @@
       ctx.fill();
       ctx.restore();
       drawContain(images.coffee, coffee.x - 27, coffee.y - 48 + bob, 54, 76, 1, true);
+    });    game.palletJacks.forEach(jack => {
+      if (jack.active === false || !onScreenRect(jack.x - 80, jack.y - 62, 160, 110, 35)) return;
+      const bob = Math.sin(now / 260 + jack.bob) * 3;
+      drawPalletJack(jack.x, jack.y + bob, 1);
     });
+  }
+  function drawPalletJack(x, y, alpha = 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (images.palletjack) {
+      drawContain(images.palletjack, x - 86, y - 54, 172, 108, alpha, true);
+      ctx.restore();
+      return;
+    }
+    drawShadow(x - 56, y - 8, 112, 42, .20 * alpha);
+    ctx.fillStyle = '#ff6900';
+    ctx.fillRect(x - 54, y + 8, 66, 8);
+    ctx.fillRect(x - 54, y - 4, 12, 24);
+    ctx.fillRect(x - 22, y - 4, 12, 24);
+    ctx.fillStyle = '#2f3137';
+    ctx.fillRect(x - 2, y - 32, 10, 43);
+    ctx.strokeStyle = '#2f3137';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(x + 4, y - 30);
+    ctx.lineTo(x + 35, y - 48);
+    ctx.lineTo(x + 42, y - 42);
+    ctx.lineTo(x + 11, y - 22);
+    ctx.stroke();
+    ctx.fillStyle = '#555a63';
+    ctx.beginPath(); ctx.arc(x - 44, y + 16, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x - 14, y + 16, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 8, y + 16, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   }
   function drawPlayer(now) {
     const p = game.player;
     if (!p) return;
+    if (playerRidingPalletJack(now)) drawPalletJack(p.x - 2, p.y + 28, .95);
     if (now < p.invulnerableUntil && (!p.action || p.action.type !== 'jump') && Math.floor(now / 100) % 2 === 0 && game.mode === 'play') return;
     if (p.action && p.action.type === 'jump') {
       const progress = clamp((now - p.action.start) / p.action.duration, 0, 1);
@@ -2209,11 +2456,11 @@
     ctx.globalAlpha = 1;
     ctx.font = 'bold 14px Trebuchet MS'; ctx.fillStyle = '#f0c7a0'; ctx.fillText(`${game.health}/${MAX_HEARTS}`, 610, 43);
     drawContain(images.coffee, 660, 14, 26, 43); ctx.font = 'bold 23px Trebuchet MS'; ctx.fillStyle = '#fff3e1'; ctx.fillText(`${game.coffees}/3`, 696, 44);
-    let truckText = 'LEAVE DOCK VIEW FOR CARRIER TIMER';
-    if (game.truck) truckText = 'CARRIER WAITING AT DOCK';
-    else if (game.truckTimer) truckText = `NEXT CARRIER  ${Math.max(0, Math.ceil((game.truckTimer.due - now) / 1000))}s`;
-    ctx.textAlign = 'right'; ctx.fillStyle = game.truck ? '#ff7700' : '#e1c69e'; ctx.font = 'bold 17px Trebuchet MS'; ctx.fillText(truckText, W - 76, 43);
-    ctx.textAlign = 'left';
+    if (playerRidingPalletJack(now)) {
+      ctx.fillStyle = '#ffd054';
+      ctx.font = 'bold 16px Trebuchet MS';
+      ctx.fillText(`PALLET JACK  ${Math.ceil((game.player.palletJackUntil - now) / 1000)}s`, 782, 43);
+    }
     game.messages.forEach((message, index) => {
       const alpha = clamp((message.until - now) / 420, 0, 1);
       ctx.globalAlpha = alpha;
@@ -2267,7 +2514,7 @@
     ctx.fillText(`WAREHOUSES CLEARED  ${game.stats.warehousesCleared}     BEST SCORE  ${formatScore(game.bestScore)}`, W / 2, 337);
 
     const summary = [
-      ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks],
+      ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks], ['QS SORTS', game.stats.quarantineSorts], ['PALLET JACKS', game.stats.palletJackRides],
       ['RETURNS', game.stats.returnsProcessed], ['INVENTORY PAIRS', game.stats.inventoryMatches], ['SHOES FOUND', game.stats.shoesCollected],
       ['BIG BOXES OPENED', game.stats.boxesOpened], ['SMALL BOXES OPENED', game.stats.smallBoxesOpened], ['SOP FOUND', game.stats.sopTokensFound],
       ['ALM TASKS', game.stats.almTasksCompleted], ['SL TASKS', game.stats.slTasksCompleted], ['EMAIL TASKS', game.stats.emailTasksCompleted],
@@ -2357,46 +2604,157 @@
     ctx.restore();
   }
 
+  function drawQSPuzzle(now) {
+    const pz = game.qsPuzzle;
+    if (!pz) return;
+    if (images.qsObj2) drawCoverImage(images.qsObj2, 0, 0, W, H);
+    else if (images.qs) drawCoverImage(images.qs, 0, 0, W, H);
+    else { ctx.fillStyle = '#2b2f35'; ctx.fillRect(0, 0, W, H); }
+    ctx.save();
+    ctx.fillStyle = 'rgba(12,15,18,.42)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(18,20,23,.90)';
+    ctx.fillRect(42, 24, W - 84, 86);
+    ctx.strokeStyle = '#ff6900';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(42, 24, W - 84, 86);
+    ctx.fillStyle = '#fff4df';
+    ctx.font = 'bold 26px Trebuchet MS';
+    ctx.fillText('QUARANTINE SORT', 66, 58);
+    ctx.font = '16px Trebuchet MS';
+    ctx.fillStyle = '#f0c7a0';
+    ctx.fillText('Drag each item into the correct basket before time runs out.', 66, 86);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffd054';
+    ctx.font = 'bold 22px Trebuchet MS';
+    ctx.fillText(`${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, W - 70, 58);
+    ctx.font = 'bold 18px Trebuchet MS';
+    ctx.fillText(`SCORE  ${pz.scoreEarned}`, W - 70, 85);
+    ctx.textAlign = 'left';
+    pz.baskets.forEach(basket => {
+      ctx.fillStyle = 'rgba(16,19,23,.78)';
+      ctx.fillRect(basket.x, basket.y, basket.w, basket.h);
+      ctx.strokeStyle = basket.color;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(basket.x, basket.y, basket.w, basket.h);
+      ctx.font = '44px Arial';
+      ctx.fillText(basket.icon, basket.x + 16, basket.y + 54);
+      ctx.fillStyle = '#fff4df';
+      ctx.font = 'bold 18px Trebuchet MS';
+      ctx.fillText(basket.label, basket.x + 72, basket.y + 40);
+      ctx.font = '14px Trebuchet MS';
+      ctx.fillStyle = '#f0c7a0';
+      ctx.fillText('DROP HERE', basket.x + 72, basket.y + 72);
+    });
+    const item = pz.item;
+    const ix = item.x - item.w / 2, iy = item.y - item.h / 2;
+    ctx.fillStyle = 'rgba(18,20,23,.88)';
+    ctx.fillRect(ix, iy, item.w, item.h);
+    ctx.strokeStyle = '#ff6900';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(ix, iy, item.w, item.h);
+    ctx.font = '54px Arial';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(item.icon, item.x, item.y + 12);
+    ctx.font = 'bold 16px Trebuchet MS';
+    ctx.fillStyle = '#ffd054';
+    ctx.fillText(item.label, item.x, iy + item.h + 26);
+    ctx.textAlign = 'left';
+    if (pz.flashUntil > now) {
+      const alpha = clamp((pz.flashUntil - now) / 850, 0, 1);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = 'rgba(16,18,22,.92)';
+      ctx.fillRect(W / 2 - 140, 118, 280, 42);
+      ctx.strokeStyle = pz.flashText.includes('+50') ? '#71dd8d' : '#ee394d';
+      ctx.strokeRect(W / 2 - 140, 118, 280, 42);
+      ctx.fillStyle = pz.flashText.includes('+50') ? '#71dd8d' : '#fff4df';
+      ctx.font = 'bold 20px Trebuchet MS';
+      ctx.textAlign = 'center';
+      ctx.fillText(pz.flashText, W / 2, 146);
+      ctx.textAlign = 'left';
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
   function officeScreenRect() { return OFFICE_MONITOR; }
   function drawOfficeBase() {
     if (images.officeBase) drawCoverImage(images.officeBase, 0, 0, W, H);
     else { drawCoverImage(images.background, 0, 0, W, H); ctx.fillStyle = 'rgba(22,15,34,.62)'; ctx.fillRect(0, 0, W, H); }
   }
   function drawMonitorImage(img) { const r = officeScreenRect(); if (img) drawCoverImage(img, r.x, r.y, r.width, r.height); }
+  function drawOfficePanel() {
+    const r = officeScreenRect();
+    ctx.save();
+    ctx.fillStyle = '#fbfbfd';
+    ctx.fillRect(r.x, r.y, r.width, r.height);
+    ctx.fillStyle = '#eef1f5';
+    ctx.fillRect(r.x, r.y, r.width, 40);
+    ctx.strokeStyle = '#d4d7de';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(r.x, r.y, r.width, r.height);
+    ctx.fillStyle = '#9aa2b2';
+    ctx.beginPath(); ctx.arc(r.x + 24, r.y + 20, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(r.x + 44, r.y + 20, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(r.x + 64, r.y + 20, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
   function officeButton(x, y, w, h, label, id, active = true) {
-    game.office.hotspots.push({ x, y, w, h, id, active });
-    ctx.save(); ctx.fillStyle = active ? '#ff6900' : '#b9b9b9'; ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = active ? '#d95600' : '#8b8b8b'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
-    ctx.fillStyle = active ? '#fff' : '#eee'; ctx.font = 'bold 15px Trebuchet MS'; ctx.textAlign = 'center'; ctx.fillText(label, x + w / 2, y + h / 2 + 5); ctx.restore();
+    game.office.hotspots.push({ x: x - 8, y: y - 8, w: w + 16, h: h + 16, id, active });
+    ctx.save(); ctx.fillStyle = active ? '#ff6900' : '#d6d6d6'; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = active ? '#d95600' : '#a7a7a7'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = active ? '#fff' : '#f7f7f7'; ctx.font = 'bold 17px Trebuchet MS'; ctx.textAlign = 'center'; ctx.fillText(label, x + w / 2, y + h / 2 + 6); ctx.restore();
+  }
+  function officeCard(x, y, w, h, title, subtitle, id, emoji, accent, enabled = true) {
+    game.office.hotspots.push({ x: x - 8, y: y - 8, w: w + 16, h: h + 16, id, active: enabled });
+    ctx.save();
+    ctx.fillStyle = enabled ? '#ffffff' : '#f2f2f2';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = enabled ? accent : '#d2d2d2';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, w, h);
+    ctx.font = '44px Arial';
+    ctx.fillStyle = enabled ? accent : '#bbbbbb';
+    ctx.fillText(emoji, x + 16, y + 52);
+    ctx.fillStyle = enabled ? '#242832' : '#8f949b';
+    ctx.font = 'bold 22px Trebuchet MS';
+    ctx.fillText(title, x + 16, y + 90);
+    ctx.font = '14px Trebuchet MS';
+    ctx.fillStyle = '#6d7380';
+    ctx.fillText(subtitle, x + 16, y + 118);
+    ctx.restore();
   }
   function drawOfficeMenu() {
     const r = officeScreenRect();
-    drawMonitorImage(images.officeMenu);
-    game.office.hotspots = [
-      { x: r.x + r.width * .075, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-sop', active: true },
-      { x: r.x + r.width * .285, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-jira', active: true },
-      { x: r.x + r.width * .495, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-email', active: true },
-      { x: r.x + r.width * .705, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-workday', active: true }
-    ];
+    drawOfficePanel();
+    drawOfficeHeader('DOCK OFFICE', 'Choose an app. The monitor starts blank so the tools feel clearer.');
+    const cardW = 254, cardH = 124, left = r.x + 42, top = r.y + 106, gap = 18;
+    officeCard(left, top, cardW, cardH, 'SOP SCOUT', `${game.tasks.tokens} token${game.tasks.tokens === 1 ? '' : 's'} ready`, 'app-sop', '🤖', '#ff6900', game.tasks.tokens > 0 && anyTaskReady());
+    officeCard(left + cardW + gap, top, cardW, cardH, 'JIRA', `${taskJobsReady('alm') + taskJobsReady('sl')} ready tasks`, 'app-jira', '📋', '#4c84df', taskJobsReady('alm') || taskJobsReady('sl'));
+    officeCard(left, top + cardH + 18, cardW, cardH, 'EMAIL', `${taskJobsReady('email')} ready tasks`, 'app-email', '✉️', '#8f65d8', taskJobsReady('email') > 0);
+    officeCard(left + cardW + gap, top + cardH + 18, cardW, cardH, 'WORKDAY', `${taskJobsReady('workday')} ready tasks`, 'app-workday', '🗂️', '#42a17d', taskJobsReady('workday') > 0);
   }
   function drawOfficeHeader(title, subtitle = '') {
     const r = officeScreenRect();
     ctx.save();
-    ctx.fillStyle = '#242832'; ctx.font = 'bold 24px Trebuchet MS'; ctx.fillText(title, r.x + 34, r.y + 50);
-    if (subtitle) { ctx.fillStyle = '#5b606b'; ctx.font = '15px Trebuchet MS'; ctx.fillText(subtitle, r.x + 34, r.y + 78); }
-    ctx.strokeStyle = '#f0ede7'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(r.x + 28, r.y + 92); ctx.lineTo(r.x + r.width - 28, r.y + 92); ctx.stroke();
+    ctx.fillStyle = '#242832'; ctx.font = 'bold 26px Trebuchet MS'; ctx.fillText(title, r.x + 30, r.y + 72);
+    if (subtitle) { ctx.fillStyle = '#66707f'; ctx.font = '15px Trebuchet MS'; ctx.fillText(subtitle, r.x + 30, r.y + 98); }
+    ctx.strokeStyle = '#d9dde4'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(r.x + 26, r.y + 114); ctx.lineTo(r.x + r.width - 26, r.y + 114); ctx.stroke();
     ctx.restore();
   }
   function drawOfficeChoice(page, types, title, tokenMode = false) {
     const r = officeScreenRect();
+    drawOfficePanel();
     drawOfficeHeader(title, tokenMode ? 'Choose one ready task for SOP Scout to complete instantly.' : 'Choose the backlog category to process.');
-    types.forEach((type, i) => officeButton(r.x + 38, r.y + 113 + i * 55, r.width - 76, 42, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0)));
-    officeButton(r.x + 38, r.y + r.height - 48, 120, 33, 'BACK', 'office-menu', true);
+    types.forEach((type, i) => officeButton(r.x + 34, r.y + 132 + i * 60, r.width - 68, 48, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0)));
+    officeButton(r.x + 34, r.y + r.height - 52, 140, 38, 'BACK', 'office-menu', true);
   }
   function startOfficePuzzle(type) { if (taskJobsReady(type) < 1) return; const data = TASK_PUZZLES[type], challenge = choice(data.puzzles); game.office.page = 'puzzle'; game.office.selectedType = type; game.office.puzzle = { type, data, challenge, selected: [] }; }
   function submitOfficePuzzle() { const pz = game.office && game.office.puzzle; if (!pz || pz.selected.length !== 3) return; const ok = pz.selected.slice().sort().join('|') === pz.challenge.answer.slice().sort().join('|'); completeTaskUnit(pz.type, false, ok); game.office.puzzle = null; addMessage(ok ? `${TASK_LABELS[pz.type]} TASK COMPLETE  +50` : `${TASK_LABELS[pz.type]} TASK FAILED  +0`, ok ? '#71dd8d' : '#ee394d', 2200); if (taskJobsReady(pz.type) > 0) startOfficePuzzle(pz.type); else game.office.page = 'menu'; }
   function drawOfficePuzzle() {
     const r = officeScreenRect(), pz = game.office.puzzle;
+    drawOfficePanel();
     drawOfficeHeader(pz.data.app, 'SELECT THE THREE MATCHING EMOJIS');
     const slotsX = r.x + 168, slotsY = r.y + 103;
     ctx.save();
@@ -2410,7 +2768,7 @@
     if (line) ctx.fillText(line, r.x + 30, yy);
     ctx.restore();
     pz.data.bank.forEach((emoji, i) => {
-      const x = r.x + 28 + i * 65, y = r.y + 245; game.office.hotspots.push({ x, y, w: 56, h: 50, id: `emoji-${emoji}`, active: true });
+      const x = r.x + 28 + i * 65, y = r.y + 245; game.office.hotspots.push({ x: x - 6, y: y - 6, w: 68, h: 62, id: `emoji-${emoji}`, active: true });
       ctx.save(); ctx.fillStyle = pz.selected.includes(emoji) ? '#ffdfca' : '#f4f4f4'; ctx.fillRect(x, y, 56, 50); ctx.strokeStyle = pz.selected.includes(emoji) ? '#ff6900' : '#bcbcbc'; ctx.lineWidth = 2; ctx.strokeRect(x, y, 56, 50); ctx.font = '30px Arial'; ctx.fillText(emoji, x + 11, y + 36); ctx.restore();
     });
     officeButton(r.x + 232, r.y + r.height - 49, 120, 34, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3);
@@ -2435,6 +2793,7 @@
     else if (game.mode === 'inventoryBriefing') drawInventoryBriefing();
     else if (game.mode === 'inventoryPuzzle') drawInventoryPuzzle(now);
     else if (game.mode === 'office') drawOffice(now);
+    else if (game.mode === 'qsPuzzle') drawQSPuzzle(now);
     else if (game.mode === 'transition') drawTransition(now);
     else if (game.mode === 'gameover') drawGameOver();
   }
@@ -2538,16 +2897,43 @@
   actionControl.addEventListener('pointercancel', releaseActionControl);
   actionControl.addEventListener('pointerleave', releaseActionControl);
 
+  function canvasPoint(event) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: (event.clientX - rect.left) * (canvas.width / rect.width), y: (event.clientY - rect.top) * (canvas.height / rect.height) };
+  }
+
   titleUI.addEventListener('pointerdown', () => { synth.init(); startTitleMusic(); });
   nameInput.addEventListener('focus', () => { synth.init(); startTitleMusic(); });
   canvas.addEventListener('click', event => {
-    const rect = canvas.getBoundingClientRect();
-    const x = (event.clientX - rect.left) * (canvas.width / rect.width);
-    const y = (event.clientY - rect.top) * (canvas.height / rect.height);
+    const { x, y } = canvasPoint(event);
     if (game.mode === 'inventoryPuzzle') handleInventoryClick(x, y);
     else if (game.mode === 'office') handleOfficeClick(x, y);
     else if (game.mode === 'play') { const c = cockpitRect(); if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) openCockpitHelp(); }
   });
+  canvas.addEventListener('pointerdown', event => {
+    if (game.mode !== 'qsPuzzle') return;
+    const { x, y } = canvasPoint(event);
+    if (handleQSPointerDown(x, y, event.pointerId)) {
+      synth.init();
+      canvas.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    }
+  });
+  canvas.addEventListener('pointermove', event => {
+    if (game.mode !== 'qsPuzzle') return;
+    const { x, y } = canvasPoint(event);
+    if (handleQSPointerMove(x, y, event.pointerId)) event.preventDefault();
+  });
+  const releaseQSPointer = event => {
+    if (game.mode !== 'qsPuzzle') return;
+    const { x, y } = canvasPoint(event);
+    if (handleQSPointerUp(x, y, event.pointerId)) {
+      canvas.releasePointerCapture?.(event.pointerId);
+      event.preventDefault();
+    }
+  };
+  canvas.addEventListener('pointerup', releaseQSPointer);
+  canvas.addEventListener('pointercancel', releaseQSPointer);
   introNextButton.addEventListener('click', nextIntroSlide);
   introSkipButton.addEventListener('click', skipIntro);
   nameInput.addEventListener('input', () => nameWarning.classList.add('hidden'));
@@ -2575,6 +2961,10 @@
     }
     if (event.code === 'Escape' && game.mode === 'office') {
       game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return;
+    }
+    if (event.code === 'Escape' && game.mode === 'qsPuzzle') {
+      finishQSPuzzle();
+      return;
     }
     if (event.code === 'Escape') {
       game.mode = 'title';
