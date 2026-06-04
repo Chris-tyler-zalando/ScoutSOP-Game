@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zalando Scout — Warehouse Run</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="game-shell" aria-label="Zalando Scout game">
+    <canvas id="gameCanvas" width="1280" height="720" aria-label="Zalando Scout game canvas"></canvas>
+    <div id="loading" aria-live="polite">Loading warehouse assets…</div>
+
+    <button id="mute-toggle" class="audio-toggle" type="button" aria-label="Open volume control" title="Volume">
+      <span class="speaker-icon" aria-hidden="true">🔊</span>
+      <span class="mute-mark" aria-hidden="true">✕</span>
+    </button>
+    <button id="display-toggle" class="display-toggle" type="button" aria-label="Switch to mobile controls" title="Switch to mobile controls">
+      <span class="display-icon" aria-hidden="true">🖥️</span>
+    </button>
+
+    <div id="volume-panel" class="volume-panel hidden" aria-label="Volume control">
+      <label for="volume-slider">Volume <span id="volume-value">72%</span></label>
+      <input id="volume-slider" type="range" min="0" max="100" value="72">
+    </div>
+
+    <button id="unstuck-button" class="unstuck-button hidden" type="button" aria-label="Stuck? Move to a safe nearby space" title="Stuck? Emergency move">💀</button>
+
+    <section id="play-controls" class="play-controls hidden" aria-label="Gameplay controls">
+      <div class="dpad" aria-label="Movement arrows">
+        <button class="control-button direction up" type="button" data-key="ArrowUp" data-tooltip="Arrow Up / W">▲</button>
+        <button class="control-button direction left" type="button" data-key="ArrowLeft" data-tooltip="Arrow Left / A">◀</button>
+        <button class="control-button direction down" type="button" data-key="ArrowDown" data-tooltip="Arrow Down / S">▼</button>
+        <button class="control-button direction right" type="button" data-key="ArrowRight" data-tooltip="Arrow Right / D">▶</button>
+      </div>
+      <button id="action-control" class="control-button action-control" type="button" data-tooltip="SPACE — Open Box / Accept Truck / Sprint / Jump">ACTION</button>
+    </section>
+
+    <section id="intro-ui" class="intro-overlay hidden" aria-label="Opening story">
+      <img id="intro-image" class="intro-image" alt="Story scene">
+      <div class="intro-vignette" aria-hidden="true"></div>
+      <div class="intro-caption-wrap"><p id="intro-caption" class="intro-caption"></p></div>
+      <div class="intro-controls">
+        <button id="intro-skip" class="dark-button intro-button" type="button">Skip Intro</button>
+        <button id="intro-next" class="orange-button intro-button" type="button">Next</button>
+      </div>
+    </section>
+
+    <section id="title-ui" class="menu-overlay" aria-label="Start shift">
+      <div class="menu-card start-card">
+        <div class="start-row">
+          <label class="input-label" for="player-name">Scout name</label>
+          <input id="player-name" class="name-input" type="text" maxlength="26" autocomplete="nickname" placeholder="Enter your name" aria-label="Player name">
+          <div class="menu-actions">
+            <button id="new-shift" class="orange-button">New Shift</button>
+            <button id="continue-saved" class="dark-button hidden">Continue Shift</button>
+          </div>
+        </div>
+        <p id="name-warning" class="warning hidden">Enter your name to begin your shift.</p>
+      </div>
+    </section>
+
+    <section id="gameover-ui" class="menu-overlay hidden" aria-label="Game over options">
+      <div class="menu-card gameover-card">
+        <button id="continue-shift" class="orange-button">Continue Shift</button>
+        <button id="download-score" class="dark-button">Download Score Card</button>
+        <button id="restart-shift" class="dark-button">New Shift</button>
+      </div>
+    </section>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
