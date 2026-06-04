@@ -404,14 +404,14 @@
     if (!choices.length) return;
     const shelfProps = game.obstacles.filter(prop => /^box[2-7]$/.test(prop.image));
     const scaleChoices = [1, .5, .3];
-    const maxDecor = Math.min(game.level >= 5 ? 900 : 420, Math.max(72, Math.round(shelfProps.length * .48)));
+    const maxDecor = Math.min(game.level >= 5 ? 1800 : 840, Math.max(144, Math.round(shelfProps.length * .96)));
     let placed = 0;
 
-    // The clutter is attached to shelf fronts and gaps rather than thrown across empty walkways.
+    // Denser decorative clutter: keep it attached to shelf fronts and gaps, not stranded in open aisles.
     for (const shelf of shuffle(shelfProps)) {
       if (placed >= maxDecor) break;
-      if (Math.random() < .40) continue;
-      const itemsHere = Math.random() < .18 ? 2 : 1;
+      if (Math.random() < .18) continue;
+      const itemsHere = Math.random() < .42 ? 2 : 1;
       for (let i = 0; i < itemsHere && placed < maxDecor; i++) {
         const image = choice(choices);
         const scale = choice(scaleChoices);
@@ -427,6 +427,33 @@
       }
     }
   }
+  function scatterConeHazards() {
+    if (!images.cone) return;
+    const groupsTarget = game.level >= 5 ? 34 : 18;
+    let groupsPlaced = 0;
+    let attempts = 0;
+    while (groupsPlaced < groupsTarget && attempts < groupsTarget * 45) {
+      attempts++;
+      const count = Math.random() < .55 ? 3 : 4;
+      const horizontal = Math.random() < .5;
+      const start = { x: randInt(3, MAP_W - (horizontal ? count + 3 : 4)), y: randInt(4, MAP_H - (horizontal ? 4 : count + 3)) };
+      const cells = [];
+      let valid = true;
+      for (let i = 0; i < count; i++) {
+        const t = { x: start.x + (horizontal ? i : 0), y: start.y + (horizontal ? 0 : i) };
+        const rect = { left: t.x, top: t.y, width: 1, height: 1 };
+        if (!isFloorTile(t.x, t.y) || tileInAnyZone(t, 2) || tileInsideVisibleScenery(t) || game.zoneProps.some(prop => overlaps(rect, prop))) {
+          valid = false;
+          break;
+        }
+        cells.push(rect);
+      }
+      if (!valid) continue;
+      cells.forEach((rect, i) => addZoneProp('cone', rect, { flipX: i % 2 === 0 }));
+      groupsPlaced++;
+    }
+  }
+
   function setZones() {
     game.zones = {
       quarantine: zone(2, 2, 11, 9, 'QUARANTINE', 6, 7),
@@ -637,6 +664,7 @@
     installExitApproachMaze();
     installSpecialAreaProps();
     sealUnexpectedOpenPatches();
+    scatterConeHazards();
     installWarehouseBorder();
     scatterDecorativeClutter();
     game.floorLogos = generateFloorLogos();
@@ -709,17 +737,20 @@
     return {
       x: p.x, y: p.y, path: [], nextPathAt: 0, speed: 102 + game.level * 8 + rand(0, 15),
       detection: (guard ? 500 : 400) + game.level * 17, facing: 'right', anim: index % 5,
-      wanderingUntil: 0, disabledUntil: 0, guard, scale: rand(0.76, 1.22)
+      wanderingUntil: 0, disabledUntil: 0, guard, scale: rand(0.62, 1.38)
     };
   }
   function spawnEnemies() {
     game.enemies = [];
     let index = 0;
-    [game.zones.quarantine, game.zones.quarantine, game.zones.dock, game.zones.dock, game.zones.dock].forEach(z => {
+    [
+      game.zones.quarantine, game.zones.quarantine, game.zones.quarantine, game.zones.quarantine,
+      game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock
+    ].forEach(z => {
       const t = tileNearZoneEdge(z);
       if (t) game.enemies.push(makeRobotAtTile(t, true, index++));
     });
-    const roamingCount = 2 + Math.floor((game.level - 1) * 0.72);
+    const roamingCount = (2 + Math.floor((game.level - 1) * 0.72)) * 2;
     for (let i = 0; i < roamingCount; i++) game.enemies.push(makeRobotAtTile(randomFloorTile(700, true), false, index++));
 
     // Two forklift threats patrol every warehouse; later levels can add further special hazards.
