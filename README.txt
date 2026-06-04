@@ -1,22 +1,16 @@
-ZALANDO SCOUT — SYSTEM UPDATE V2.16
+ZALANDO SCOUT — SYSTEM UPDATE V2.18 — NO BLANK ZONES
 
-Replace these system files only:
+Replace only these system files beside your existing assets folder:
 - index.html
 - styles.css
 - game.js
 - README.txt
 
-Keep your existing assets folder and add `smallbox3.png` if not already present.
+Changes in V2.18:
+- Rebuilt large warehouse generation as repeated shelf-wall bands across the entire playable map.
+- Narrow, staggered through-points keep navigation possible without creating large bare floor areas.
+- Added a fail-safe density scan: any camera-sized patch without enough visible shelving is automatically filled with a short rack wall and one crossing gap.
+- Keeps grouped/flipped racks and decorative clutter along the shelf fronts.
+- Added versioned CSS/JS references in index.html to reduce stale browser caching while testing updates.
 
-Changes:
-- Warehouses 1–4 are now double the previous map size.
-- From Warehouse 5 onward, the map doubles again.
-- Renderer is camera-limited so the much larger floors do not allocate a massive full-map image layer.
-- Exit is positioned far from the Dock and surrounded by a zig-zag rack approach.
-- Ordered rack lanes extend across the larger warehouse with cross-aisle breaks.
-- Pickup and coffee density scales with map size.
-- `smallbox3.png` added to decorative clutter.
-- Decorative clutter uses only 100%, 50%, or 30% size variants and has no collision.
-
-New optional asset:
-- assets/smallbox3.png
+Keep your assets folder unchanged.

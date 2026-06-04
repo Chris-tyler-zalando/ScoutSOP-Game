@@ -403,14 +403,15 @@
     const choices = ['smallbox', 'smallbox2', 'smallbox3', 'shoe'].filter(key => images[key]);
     if (!choices.length) return;
     const shelfProps = game.obstacles.filter(prop => /^box[2-7]$/.test(prop.image));
-    const densityMultiplier = game.level >= 5 ? 1.42 : 1;
-    const maxDecor = Math.round(Math.min(180, Math.max(44, shelfProps.length * .52)) * densityMultiplier);
     const scaleChoices = [1, .5, .3];
+    const maxDecor = Math.min(game.level >= 5 ? 900 : 420, Math.max(72, Math.round(shelfProps.length * .48)));
     let placed = 0;
+
+    // The clutter is attached to shelf fronts and gaps rather than thrown across empty walkways.
     for (const shelf of shuffle(shelfProps)) {
       if (placed >= maxDecor) break;
-      if (Math.random() < .28) continue;
-      const itemsHere = Math.random() < .23 ? 2 : 1;
+      if (Math.random() < .40) continue;
+      const itemsHere = Math.random() < .18 ? 2 : 1;
       for (let i = 0; i < itemsHere && placed < maxDecor; i++) {
         const image = choice(choices);
         const scale = choice(scaleChoices);
@@ -419,23 +420,11 @@
         const width = baseW * scale;
         const height = baseH * scale;
         const floorTop = shelf.collisionRect ? shelf.collisionRect.top : shelf.top + shelf.height * .72;
-        const frontY = floorTop + rand(.12, .68);
         const left = clamp(shelf.left + rand(.08, Math.max(.14, shelf.width - width - .08)), 1.1, MAP_W - width - 1.1);
-        const top = clamp(frontY, 1.1, MAP_H - height - 1.1);
+        const top = clamp(floorTop + rand(.05, .48), 1.1, MAP_H - height - 1.1);
         addDecorativeProp(image, { left, top, width, height }, Math.random() < .5);
         placed++;
       }
-    }
-    const looseCount = game.level >= 5 ? 30 : 16;
-    for (let i = 0; i < looseCount && placed < maxDecor + looseCount; i++) {
-      const image = choice(choices);
-      const tile = randomFloorTile(0, true);
-      if (!tile) continue;
-      const scale = choice(scaleChoices);
-      const width = (image === 'shoe' ? .92 : .96) * scale;
-      const height = (image === 'shoe' ? .56 : .84) * scale;
-      addDecorativeProp(image, { left: tile.x + rand(-.18, .18), top: tile.y + rand(.12, .38), width, height }, Math.random() < .5);
-      placed++;
     }
   }
   function setZones() {
@@ -550,12 +539,89 @@
   }
   function installExitApproachMaze() {
     const ex = game.zones.exit;
-    // A small zig-zag storage gauntlet protects the exit without blocking it completely.
-    tryPlaceRun('box5', ex.left - 12, ex.top + 1, 3, 3, 2, 0);
-    tryPlaceRun('box6', ex.left - 8, ex.top + 5, 3, 3, 2, 0);
-    tryPlaceRun('box7', ex.left - 13, ex.top + 9, 3, 2, 2, 0);
-    tryPlaceRun('box3', ex.left - 6, ex.top + 11, 3, 2, 2, 0);
-    tryPlaceRun('box6', ex.left - 15, ex.top + 14, 3, 3, 2, 0);
+    // A tighter final set of alternating shelf walls creates a short navigation challenge before the exit.
+    const rows = [
+      { top: ex.top + ex.height + 1, opening: ex.left - 3, image: 'box5' },
+      { top: ex.top + ex.height + 5, opening: ex.left - 12, image: 'box6' },
+      { top: ex.top + ex.height + 9, opening: ex.left - 5, image: 'box5' },
+      { top: ex.top + ex.height + 13, opening: ex.left - 14, image: 'box6' }
+    ];
+    rows.forEach((row, index) => {
+      const minX = Math.max(2, ex.left - 22);
+      const maxX = Math.min(MAP_W - 4, ex.left + ex.width + 2);
+      for (let x = minX; x < maxX; x += 3) {
+        if (x < row.opening + 2 && x + 3 > row.opening) continue;
+        const image = index % 3 === 2 && x % 2 === 0 ? 'box7' : row.image;
+        occupyObstacle({ left: x, top: row.top, width: 3, height: 2 }, image, { floorBand: .30, sideInset: .10 });
+      }
+    });
+  }
+
+  function wallOpeningsForRow(rowIndex) {
+    // One planned crossing per warehouse section: the gaps move between rows so the scout
+    // must navigate through aisles, but no camera-sized view becomes an empty concrete field.
+    const sectionWidth = game.level >= 5 ? 37 : 33;
+    const gaps = [];
+    for (let sectionStart = 4, section = 0; sectionStart < MAP_W - 4; sectionStart += sectionWidth, section++) {
+      const usable = Math.min(sectionWidth - 7, MAP_W - sectionStart - 5);
+      if (usable < 4) continue;
+      const wobble = (rowIndex * 9 + section * 13) % usable;
+      gaps.push(clamp(sectionStart + 3 + wobble, sectionStart + 2, Math.min(MAP_W - 5, sectionStart + sectionWidth - 3)));
+    }
+    return gaps;
+  }
+
+  function installDenseShelfWalls() {
+    // Build the warehouse as repeated visual shelf bands. Each band is almost continuous,
+    // with staggered crossing points. Shelf spacing is intentionally tighter than one
+    // screen-height so a player can never stand in a huge blank expanse of concrete.
+    let rowIndex = 0;
+    const firstRow = 4.1;
+    const lastRow = MAP_H - 5.1;
+    const rowGap = 3.15;
+    const rackW = 3.15;
+    const rackH = 2.48;
+    const rackStep = 3.04;
+    for (let top = firstRow; top <= lastRow; top += rowGap, rowIndex++) {
+      const openings = wallOpeningsForRow(rowIndex);
+      const baseImage = rowIndex % 2 === 0 ? 'box5' : 'box6';
+      const altImage = rowIndex % 4 === 1 ? 'box6' : 'box5';
+      let segmentIndex = 0;
+      for (let x = 1.55; x < MAP_W - 3.4; x += rackStep, segmentIndex++) {
+        const rect = { left: x, top, width: rackW, height: rackH };
+        // A crossing is only a narrow break in the shelf wall, never a broad empty zone.
+        if (openings.some(gap => x < gap + 1.65 && x + rackW > gap - .35)) continue;
+        let image = segmentIndex % 5 === 4 ? altImage : baseImage;
+        // Deliberate short runs of other rack shapes keep repeated walls from looking cloned.
+        if (rowIndex % 6 === 3 && segmentIndex % 11 >= 7 && segmentIndex % 11 <= 9) image = 'box7';
+        if (rowIndex % 7 === 4 && segmentIndex % 13 >= 9 && segmentIndex % 13 <= 11) image = 'box3';
+        occupyObstacle(rect, image, { floorBand: .23, sideInset: .10 });
+      }
+    }
+  }
+
+  function viewportHasShelfCoverage(left, top, width, height) {
+    const view = { left, top, width, height };
+    return game.obstacles.filter(o => /^box[2-7]$/.test(o.image) && overlaps(view, o)).length >= 2;
+  }
+
+  function sealUnexpectedOpenPatches() {
+    // Failsafe: scan overlapping camera-sized patches and add a short shelf wall if any
+    // section still has too little visible warehouse storage because a special-zone clearance
+    // or placement rejection left it bare.
+    const patchW = Math.max(10, Math.ceil(W / TILE) + 2);
+    const patchH = Math.max(7, Math.ceil((H - 70) / TILE) + 1);
+    for (let top = 2; top < MAP_H - patchH - 1; top += Math.max(3, Math.floor(patchH / 2))) {
+      for (let left = 2; left < MAP_W - patchW - 1; left += Math.max(5, Math.floor(patchW / 2))) {
+        if (viewportHasShelfCoverage(left, top, patchW, patchH)) continue;
+        const y = top + Math.floor(patchH / 2) - .6;
+        const centreGap = left + Math.floor(patchW / 2);
+        for (let x = left; x < left + patchW - 2; x += 3.02) {
+          if (x < centreGap + 1.25 && x + 3.12 > centreGap - .35) continue;
+          occupyObstacle({ left: x, top: y, width: 3.12, height: 2.42 }, ((Math.floor(x) + Math.floor(y)) % 2 === 0 ? 'box5' : 'box6'), { floorBand: .23, sideInset: .10 });
+        }
+      }
+    }
   }
   function buildWarehouseLayout() {
     game.map = makeFloorGrid();
@@ -566,35 +632,11 @@
     game.colliders = [];
     setZones();
 
-    // Long warehouse rack lanes with breaks and alternating openings between each band.
-    const startY = 12;
-    const endY = MAP_H - 17;
-    let rowIndex = 0;
-    for (let top = startY; top <= endY; top += 4) {
-      const image = rowIndex % 2 === 0 ? 'box5' : 'box6';
-      const altImage = rowIndex % 2 === 0 ? 'box6' : 'box5';
-      const groupCount = rowIndex % 3 === 0 ? 4 : 3;
-      const breakWidth = rowIndex % 2 === 0 ? 4 : 5;
-      const shift = rowIndex % 2 === 0 ? 2 : 5;
-      let x = shift;
-      let groupIndex = 0;
-      while (x + groupCount * 3 < MAP_W - 3) {
-        const selected = groupIndex % 3 === 2 ? altImage : image;
-        tryPlaceRun(selected, x, top, groupCount, 3, 2, 0);
-        x += groupCount * 3 + breakWidth + ((groupIndex + rowIndex) % 2);
-        groupIndex++;
-      }
-      rowIndex++;
-    }
-
-    // Shorter end-cap shelf lanes add variation while remaining grouped and ordered.
-    for (let top = 10, index = 0; top < MAP_H - 14; top += 12, index++) {
-      const left = 28 + ((index % 4) * 13);
-      if (left < MAP_W - 14) tryPlaceRun(index % 2 ? 'box3' : 'box7', left, top, 3, 2, 2, 0);
-    }
-
+    // Expanded warehouses must contain expanded storage, not empty concrete.
+    installDenseShelfWalls();
     installExitApproachMaze();
     installSpecialAreaProps();
+    sealUnexpectedOpenPatches();
     installWarehouseBorder();
     scatterDecorativeClutter();
     game.floorLogos = generateFloorLogos();
