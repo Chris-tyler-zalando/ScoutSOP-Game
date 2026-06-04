@@ -10,6 +10,9 @@
   const gameoverUI = document.getElementById('gameover-ui');
   const nameInput = document.getElementById('player-name');
   const nameWarning = document.getElementById('name-warning');
+  const profilesPanel = document.getElementById('profiles-panel');
+  const profileSlots = document.getElementById('profile-slots');
+  const profileWarning = document.getElementById('profile-warning');
   const newShiftButton = document.getElementById('new-shift');
   const continueSavedButton = document.getElementById('continue-saved');
   const continueShiftButton = document.getElementById('continue-shift');
@@ -49,12 +52,15 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.27';
+  const VERSION = 'V2.28';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
+  const PROFILES_KEY = 'zalandoScoutProfilesV1';
+  const ACTIVE_PROFILE_KEY = 'zalandoScoutActiveProfileV1';
+  const MAX_PROFILES = 3;
   const BEST_KEY = 'zalandoScoutBest';
   const MUTE_KEY = 'zalandoScoutAudioMuted';
   const VOLUME_KEY = 'zalandoScoutAudioVolume';
@@ -170,6 +176,7 @@
     adminEscapeUntil: 0,
     lastPuzzleIndex: { alm: -1, sl: -1, email: -1, workday: -1 },
     playerName: localStorage.getItem(NAME_KEY) || '',
+    selectedProfileId: localStorage.getItem(ACTIVE_PROFILE_KEY) || '',
     level: 1,
     score: 0,
     bestScore: Number(localStorage.getItem(BEST_KEY) || 0),
@@ -1006,6 +1013,92 @@
     game.particles = [];
     game.specialMusic = null;
   }
+  function profileId() { return `shift-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
+  function profileAvatarFor(name) {
+    const avatars = ['😀','🤖','📦','🧡','🚚','☕'];
+    const total = String(name || '').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+    return avatars[total % avatars.length];
+  }
+  function readProfiles() {
+    let profiles = [];
+    try { profiles = JSON.parse(localStorage.getItem(PROFILES_KEY) || '[]'); } catch (_) { profiles = []; }
+    if (!Array.isArray(profiles)) profiles = [];
+    if (!profiles.length) {
+      let legacy = null;
+      try { legacy = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (_) { legacy = null; }
+      if (legacy && legacy.playerName) {
+        const migrated = { id: profileId(), name: legacy.playerName, avatar: profileAvatarFor(legacy.playerName), save: legacy };
+        profiles = [migrated];
+        localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+        localStorage.setItem(ACTIVE_PROFILE_KEY, migrated.id);
+        game.selectedProfileId = migrated.id;
+      }
+    }
+    return profiles.slice(0, MAX_PROFILES);
+  }
+  function writeProfiles(profiles) {
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles.slice(0, MAX_PROFILES)));
+  }
+  function selectedProfile() {
+    const profiles = readProfiles();
+    return profiles.find(profile => profile.id === game.selectedProfileId) || null;
+  }
+  function showProfileWarning(message = '') {
+    if (!message) { profileWarning.classList.add('hidden'); profileWarning.textContent = ''; return; }
+    profileWarning.textContent = message;
+    profileWarning.classList.remove('hidden');
+  }
+  function selectProfile(id) {
+    const profile = readProfiles().find(item => item.id === id);
+    if (!profile) return;
+    game.selectedProfileId = profile.id;
+    game.playerName = profile.name;
+    localStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
+    localStorage.setItem(NAME_KEY, profile.name);
+    nameInput.value = profile.name;
+    showProfileWarning();
+    refreshSavedButton();
+  }
+  function deleteProfile(id) {
+    const profiles = readProfiles();
+    const profile = profiles.find(item => item.id === id);
+    if (!profile || !window.confirm(`Delete the saved shift for ${profile.name}?`)) return;
+    const updated = profiles.filter(item => item.id !== id);
+    writeProfiles(updated);
+    if (game.selectedProfileId === id) {
+      game.selectedProfileId = updated[0] ? updated[0].id : '';
+      localStorage.setItem(ACTIVE_PROFILE_KEY, game.selectedProfileId);
+      game.playerName = updated[0] ? updated[0].name : '';
+      nameInput.value = game.playerName;
+    }
+    showProfileWarning();
+    refreshSavedButton();
+  }
+  function renderProfiles() {
+    const profiles = readProfiles();
+    profileSlots.innerHTML = '';
+    if (!profiles.length) {
+      const empty = document.createElement('div');
+      empty.className = 'profile-empty';
+      empty.textContent = 'No saved shifts yet — enter a name below to begin.';
+      profileSlots.appendChild(empty);
+      return;
+    }
+    profiles.forEach(profile => {
+      const card = document.createElement('div');
+      card.className = `profile-slot${profile.id === game.selectedProfileId ? ' is-selected' : ''}`;
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'profile-select'; button.setAttribute('aria-label', `Select saved shift for ${profile.name}`);
+      const avatar = document.createElement('span'); avatar.className = 'profile-avatar'; avatar.textContent = profile.avatar || profileAvatarFor(profile.name);
+      const copy = document.createElement('span'); copy.className = 'profile-copy';
+      const name = document.createElement('strong'); name.className = 'profile-name'; name.textContent = profile.name;
+      const progress = document.createElement('small'); progress.className = 'profile-progress';
+      progress.textContent = profile.save ? `Warehouse ${profile.save.level || 1}  ·  ${formatScore(profile.save.score || 0)} pts` : 'New shift';
+      copy.append(name, progress); button.append(avatar, copy); button.addEventListener('click', () => selectProfile(profile.id));
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'profile-delete'; remove.textContent = '✕'; remove.title = `Delete ${profile.name}`; remove.addEventListener('click', () => deleteProfile(profile.id));
+      card.append(button, remove); profileSlots.appendChild(card);
+    });
+  }
   function requireName() {
     const value = nameInput.value.trim();
     if (!value) { nameWarning.classList.remove('hidden'); nameInput.focus(); return null; }
@@ -1013,6 +1106,25 @@
     game.playerName = value;
     localStorage.setItem(NAME_KEY, value);
     return value;
+  }
+  function prepareProfileForNewShift(name) {
+    const profiles = readProfiles();
+    let profile = profiles.find(item => item.name.toLowerCase() === name.toLowerCase());
+    if (!profile && profiles.length >= MAX_PROFILES) {
+      showProfileWarning('You already have 3 saved games. Delete one of your old games before creating a new one.');
+      return false;
+    }
+    if (!profile) {
+      profile = { id: profileId(), name, avatar: profileAvatarFor(name), save: null };
+      profiles.push(profile);
+      writeProfiles(profiles);
+    }
+    game.selectedProfileId = profile.id;
+    game.playerName = profile.name;
+    localStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
+    localStorage.setItem(NAME_KEY, profile.name);
+    renderProfiles();
+    return true;
   }
   function performNewShift() {
     game.adminMode = false;
@@ -1025,15 +1137,18 @@
     buildLevel(game.level);
     music.playGameplay(true);
     addMessage(`WELCOME, ${game.playerName.toUpperCase()} — FIND THE EXIT`, '#ff7700', 3000);
+    saveShift();
   }
   function loadSavedShift() {
-    try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (_) { return null; }
+    const profile = selectedProfile();
+    return profile && profile.save ? profile.save : null;
   }
   function performContinueSavedShift() {
     game.adminMode = false;
     showAdminPanel(false);
     const save = loadSavedShift();
     if (!save) { performNewShift(); return; }
+    game.playerName = save.playerName || game.playerName;
     game.level = Number(save.level) || 1;
     game.score = Number(save.score) || 0;
     game.health = clamp(Number(save.health) || MAX_HEARTS, 1, MAX_HEARTS);
@@ -1052,14 +1167,20 @@
     return introSlides.length > 0 && introSlides.every(slide => String(slide.text || slide.topText || slide.bottomText || '').trim().length > 0);
   }
   function startNewShift() {
-    if (!requireName()) return;
+    const name = requireName();
+    if (!name || !prepareProfileForNewShift(name)) return;
     synth.init();
     pendingShiftStart = 'new';
     if (introIsReady()) startIntro();
     else completePendingShiftStart();
   }
   function continueSavedShift() {
-    if (!requireName()) return;
+    const name = requireName();
+    if (!name) return;
+    const profiles = readProfiles();
+    const matched = profiles.find(item => item.name.toLowerCase() === name.toLowerCase());
+    if (!matched) { showProfileWarning('Select a saved shift above, or choose New Shift to create this scout.'); return; }
+    selectProfile(matched.id);
     synth.init();
     pendingShiftStart = 'continue';
     if (introIsReady()) startIntro();
@@ -1216,14 +1337,29 @@
   function saveShift() {
     if (game.adminMode || !game.playerName || game.mode === 'title') return;
     const save = { playerName: game.playerName, level: game.level, score: game.score, health: game.health, coffees: game.coffees, tasks: game.tasks, stats: game.stats };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+    const profiles = readProfiles();
+    let profile = profiles.find(item => item.id === game.selectedProfileId);
+    if (!profile) {
+      profile = profiles.find(item => item.name.toLowerCase() === game.playerName.toLowerCase());
+      if (!profile && profiles.length < MAX_PROFILES) { profile = { id: profileId(), name: game.playerName, avatar: profileAvatarFor(game.playerName), save: null }; profiles.push(profile); }
+    }
+    if (!profile) return;
+    profile.name = game.playerName;
+    profile.avatar = profile.avatar || profileAvatarFor(profile.name);
+    profile.save = save;
+    game.selectedProfileId = profile.id;
+    localStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
+    writeProfiles(profiles);
     refreshSavedButton();
   }
   function refreshSavedButton() {
-    nameInput.value = game.playerName;
-    const save = loadSavedShift();
-    continueSavedButton.classList.toggle('hidden', !save);
-    if (save) continueSavedButton.textContent = `Continue Shift — Warehouse ${save.level} / ${formatScore(save.score)}`;
+    const profiles = readProfiles();
+    if (!game.selectedProfileId && profiles[0]) { game.selectedProfileId = profiles[0].id; localStorage.setItem(ACTIVE_PROFILE_KEY, game.selectedProfileId); }
+    const profile = profiles.find(item => item.id === game.selectedProfileId) || null;
+    if (profile && (document.activeElement !== nameInput || !nameInput.value.trim())) { game.playerName = profile.name; nameInput.value = profile.name; }
+    renderProfiles();
+    continueSavedButton.classList.toggle('hidden', !(profile && profile.save));
+    if (profile && profile.save) continueSavedButton.textContent = `Continue ${profile.name} — W${profile.save.level || 1} / ${formatScore(profile.save.score || 0)}`;
   }
   function updateBest() {
     if (game.adminMode) return;
@@ -1799,8 +1935,8 @@
       baseX: rand(70, W - 70),
       x: 0,
       y: -72,
-      w: randInt(56, 74),
-      h: randInt(62, 84),
+      w: randInt(112, 148),
+      h: randInt(124, 168),
       speed: rand(178, 224),
       phase: rand(0, Math.PI * 2),
       drift: rand(14, 33),
@@ -1822,7 +1958,7 @@
       missedCount: 0,
       flashUntil: 0,
       flashText: '',
-      basket: { x: W / 2, y: H - 90, w: 298, h: 105, speed: 720, dragging: false, pointerId: null, offsetX: 0 }
+      basket: { x: W / 2, y: H - 111, w: 596, h: 210, speed: 720, dragging: false, pointerId: null, offsetX: 0 }
     };
     game.mode = 'qsPuzzle';
   }
@@ -1850,7 +1986,7 @@
       pz.items.push(createQSItem(now));
       pz.nextSpawnAt += qsSpawnInterval(elapsed);
     }
-    const basketTop = b.y - b.h / 2 + 18;
+    const basketTop = b.y - b.h / 2 + 34;
     for (let i = pz.items.length - 1; i >= 0; i--) {
       const item = pz.items[i];
       item.y += item.speed * dt;
@@ -2306,14 +2442,17 @@
     });
   }
   function drawZoneSign(text, z, width = 300, height = 78) {
-    const x = z.left * TILE + z.width * TILE / 2 - width / 2;
-    const y = z.top * TILE + 8;
+    const x = z.left * TILE + z.width * TILE / 2;
+    const y = z.top * TILE + height * .63;
     ctx.save();
-    ctx.drawImage(images.sign, x, y, width, height);
-    ctx.font = 'bold 23px Trebuchet MS';
+    ctx.font = 'bold 27px Trebuchet MS';
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#29231d';
-    ctx.fillText(text, x + width / 2, y + height * .63);
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = 'rgba(255,244,223,.94)';
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = '#ff6900';
+    ctx.fillText(text, x, y);
     ctx.restore();
   }
   function drawDock(z) {
@@ -2404,7 +2543,7 @@
   function positionFireOverlay(now) {
     if (!fireAnimationOverlay || !game.fire || fireAnimationOverlay.dataset.failed === '1') return false;
     const pulse = 1 + Math.sin(now / 130) * .05;
-    const fireW = 248 * pulse, fireH = 320 * pulse;
+    const fireW = 496 * pulse, fireH = 640 * pulse;
     if (!onScreenRect(game.fire.x - fireW / 2, game.fire.y - fireH * .78, fireW, fireH, 90)) {
       hideFireOverlay();
       return true;
@@ -2418,16 +2557,33 @@
     fireAnimationOverlay.classList.remove('hidden');
     return true;
   }
+  function drawExtinguisherStation(now) {
+    if (!game.fire || game.fire.hasExtinguisher || !game.fire.station) return;
+    const station = game.fire.station.pos;
+    if (!onScreenRect(station.x - 54, station.y - 108, 108, 126, 90)) return;
+    const bob = Math.sin(now / 220) * 5;
+    ctx.save();
+    ctx.globalAlpha = .28 + .12 * (1 + Math.sin(now / 150)) / 2;
+    ctx.fillStyle = '#ffd054';
+    ctx.beginPath(); ctx.ellipse(station.x, station.y + 14, 45, 20, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    if (images.fireExtinguisher) drawContain(images.fireExtinguisher, station.x - 39, station.y - 101 + bob, 78, 112, 1, true);
+    else { ctx.save(); ctx.font = '65px Arial'; ctx.textAlign = 'center'; ctx.fillText('🧯', station.x, station.y - 30 + bob); ctx.restore(); }
+    ctx.save();
+    ctx.font = 'bold 13px Trebuchet MS'; ctx.textAlign = 'center'; ctx.fillStyle = '#ffd054';
+    ctx.fillText('PRESS ACTION', station.x, station.y + 37);
+    ctx.restore();
+  }
   function drawFireWorld(now) {
     if (!game.fire) { hideFireOverlay(); return; }
-    if (positionFireOverlay(now)) return;
-    if (onScreenRect(game.fire.x - 132, game.fire.y - 260, 264, 340, 90)) {
-      const pulse = 1 + Math.sin(now / 130) * .05;
-      if (images.fireAnim) drawContain(images.fireAnim, game.fire.x - 124 * pulse, game.fire.y - 250 * pulse, 248 * pulse, 320 * pulse, 1, true);
-      else {
-        ctx.save(); ctx.font = '180px Arial'; ctx.textAlign = 'center'; ctx.fillText('🔥', game.fire.x, game.fire.y); ctx.restore();
-      }
+    const pulse = 1 + Math.sin(now / 130) * .05;
+    const fireW = 496 * pulse, fireH = 640 * pulse;
+    if (onScreenRect(game.fire.x - fireW / 2, game.fire.y - fireH * .78, fireW, fireH, 90)) {
+      if (images.fireAnim) drawContain(images.fireAnim, game.fire.x - fireW / 2, game.fire.y - fireH * .78, fireW, fireH, .75, true);
+      else { ctx.save(); ctx.globalAlpha = .75; ctx.font = '300px Arial'; ctx.textAlign = 'center'; ctx.fillText('🔥', game.fire.x, game.fire.y); ctx.restore(); }
     }
+    positionFireOverlay(now);
+    drawExtinguisherStation(now);
   }
   function drawFireAlarm(now) {
     if (!game.fire) return;
@@ -2899,7 +3055,7 @@
     const buttonStyle = page === 'jira' ? 'jira' : 'default';
     drawOfficeHeader(title, tokenMode ? 'Choose one ready task for SOP Scout to complete instantly.' : 'Choose the backlog category to process.');
     types.forEach((type, i) => officeButton(r.x + 24, r.y + 92 + i * 46, r.width - 48, 36, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0), buttonStyle));
-    officeButton(r.x + 24, r.y + r.height - 39, 101, 27, 'BACK', 'office-menu', true, buttonStyle);
+    officeButton(r.x + r.width - 125, r.y + r.height - 39, 101, 27, 'BACK', 'office-menu', true, buttonStyle);
   }
   function startOfficePuzzle(type) {
     if (taskJobsReady(type) < 1) return;
@@ -3012,8 +3168,9 @@
       if (locked) { ctx.font = '11px Arial'; ctx.fillText('🔒', x + 28, y + 11); }
       ctx.restore();
     });
-    officeButton(r.x + 20, r.y + r.height - 39, 158, 28, 'BUY HINT  -100', 'buy-hint', game.score >= HINT_COST, jira ? 'jira' : 'default');
-    officeButton(r.x + r.width - 133, r.y + r.height - 39, 112, 28, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3, jira ? 'jira' : 'default');
+    const actionsRight = r.x + r.width - 20;
+    officeButton(actionsRight - 284, r.y + r.height - 39, 158, 28, 'BUY HINT  -100', 'buy-hint', game.score >= HINT_COST, jira ? 'jira' : 'default');
+    officeButton(actionsRight - 112, r.y + r.height - 39, 112, 28, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3, jira ? 'jira' : 'default');
   }
   function drawOffice(now) {
     drawOfficeBase();
@@ -3187,7 +3344,17 @@
   canvas.addEventListener('pointercancel', releaseQSPointer);
   introNextButton.addEventListener('click', nextIntroSlide);
   introSkipButton.addEventListener('click', skipIntro);
-  nameInput.addEventListener('input', () => nameWarning.classList.add('hidden'));
+  nameInput.addEventListener('input', () => {
+    nameWarning.classList.add('hidden');
+    showProfileWarning();
+    const value = nameInput.value.trim().toLowerCase();
+    const match = readProfiles().find(profile => profile.name.toLowerCase() === value);
+    game.selectedProfileId = match ? match.id : '';
+    localStorage.setItem(ACTIVE_PROFILE_KEY, game.selectedProfileId);
+    renderProfiles();
+    continueSavedButton.classList.toggle('hidden', !(match && match.save));
+    if (match && match.save) continueSavedButton.textContent = `Continue ${match.name} — W${match.save.level || 1} / ${formatScore(match.save.score || 0)}`;
+  });
   nameInput.addEventListener('keydown', event => {
     if (event.key === 'Enter') startNewShift();
   });
