@@ -33,6 +33,10 @@
   const closeCockpitHelpButton = document.getElementById('close-cockpit-help');
   const introNextButton = document.getElementById('intro-next');
   const introSkipButton = document.getElementById('intro-skip');
+  const fireAnimationOverlay = document.getElementById('fire-animation-overlay');
+  const adminPanel = document.getElementById('admin-panel');
+  const adminExitButton = document.getElementById('admin-exit');
+  const adminButtons = Array.from(document.querySelectorAll('[data-admin]'));
 
   const W = canvas.width;
   const H = canvas.height;
@@ -45,7 +49,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.26';
+  const VERSION = 'V2.27';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -65,8 +69,9 @@
   const TASK_TYPES = ['alm', 'sl', 'email', 'workday'];
   const TASK_LABELS = { alm: 'ALM', sl: 'SL', email: 'EMAIL', workday: 'WORKDAY' };
   const QS_SPAWN_PHASES = [2000, 1500, 1200, 1000, 800, 500];
-  const OFFICE_MENU_MONITOR = { x: 86, y: 56, width: 608, height: 392 };
-  const OFFICE_APP_MONITOR = { x: 108, y: 77, width: 558, height: 345 };
+  const OFFICE_MENU_MONITOR = { x: 99, y: 48, width: 581, height: 372 };
+  const OFFICE_APP_MONITOR = { x: 130, y: 92, width: 498, height: 302 };
+  const HINT_COST = 100;
   const keys = new Set();
 
   const TASK_PUZZLES = {
@@ -160,6 +165,10 @@
 
   const game = {
     mode: 'title',
+    adminMode: false,
+    adminEscapeCount: 0,
+    adminEscapeUntil: 0,
+    lastPuzzleIndex: { alm: -1, sl: -1, email: -1, workday: -1 },
     playerName: localStorage.getItem(NAME_KEY) || '',
     level: 1,
     score: 0,
@@ -213,7 +222,7 @@
   };
 
   function freshStats() {
-    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, opsFinds: 0, inventoryChecks: 0, quarantineSorts: 0, coffeeSprints: 0, palletJackRides: 0, firesExtinguished: 0, firePoints: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, taskFailures: 0 };
+    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, opsFinds: 0, inventoryChecks: 0, quarantineSorts: 0, coffeeSprints: 0, palletJackRides: 0, firesExtinguished: 0, firePoints: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, hintsBought: 0, taskFailures: 0 };
   }
   function freshTasks() { return { alm: 0, sl: 0, email: 0, workday: 0, tokens: 0, completed: { alm: false, sl: false, email: false, workday: false } }; }
   function taskJobsReady(type) { return Math.floor((game.tasks[type] || 0) / 5); }
@@ -1006,6 +1015,8 @@
     return value;
   }
   function performNewShift() {
+    game.adminMode = false;
+    showAdminPanel(false);
     resetRun();
     game.mode = 'play';
     titleUI.classList.add('hidden');
@@ -1019,6 +1030,8 @@
     try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (_) { return null; }
   }
   function performContinueSavedShift() {
+    game.adminMode = false;
+    showAdminPanel(false);
     const save = loadSavedShift();
     if (!save) { performNewShift(); return; }
     game.level = Number(save.level) || 1;
@@ -1201,7 +1214,7 @@
     saveShift();
   }
   function saveShift() {
-    if (!game.playerName || game.mode === 'title') return;
+    if (game.adminMode || !game.playerName || game.mode === 'title') return;
     const save = { playerName: game.playerName, level: game.level, score: game.score, health: game.health, coffees: game.coffees, tasks: game.tasks, stats: game.stats };
     localStorage.setItem(SAVE_KEY, JSON.stringify(save));
     refreshSavedButton();
@@ -1213,6 +1226,7 @@
     if (save) continueSavedButton.textContent = `Continue Shift — Warehouse ${save.level} / ${formatScore(save.score)}`;
   }
   function updateBest() {
+    if (game.adminMode) return;
     if (game.score > game.bestScore) {
       game.bestScore = game.score;
       localStorage.setItem(BEST_KEY, String(game.score));
@@ -1329,7 +1343,7 @@
   }
   function startSprint() {
     const p = game.player;
-    if (game.mode !== 'play' || !p || p.action || p.sprinting || playerRidingPalletJack(performance.now()) || !p.moving || game.coffees <= 0) return false;
+    if (game.mode !== 'play' || !p || p.action || p.sprinting || game.fire || playerRidingPalletJack(performance.now()) || !p.moving || game.coffees <= 0) return false;
     game.coffees -= 1;
     game.stats.coffeeSprints++;
     p.sprinting = true;
@@ -1397,11 +1411,12 @@
       const len = Math.hypot(dx, dy); dx /= len; dy /= len;
       if (Math.abs(dx) > Math.abs(dy)) p.facing = dx > 0 ? 'right' : 'left';
       else p.facing = dy > 0 ? 'down' : 'up';
-      const step = p.speed * (p.sprinting ? 1.72 : (playerRidingPalletJack(now) ? 2 : 1)) * dt;
+      const responseSpeed = game.fire ? 2 : 1;
+      const step = p.speed * (playerRidingPalletJack(now) ? 2 : (p.sprinting ? 1.72 : responseSpeed)) * dt;
       const moveRadius = playerRidingPalletJack(now) ? 18 : p.r;
       if (canMove(p.x + dx * step, p.y, moveRadius)) p.x += dx * step;
       if (canMove(p.x, p.y + dy * step, moveRadius)) p.y += dy * step;
-      p.anim += dt * (p.sprinting ? 17 : (playerRidingPalletJack(now) ? 15 : 10));
+      p.anim += dt * (playerRidingPalletJack(now) || game.fire ? 15 : (p.sprinting ? 17 : 10));
       p.frame = Math.floor(p.anim) % 5;
     } else p.frame = 0;
 
@@ -1948,6 +1963,7 @@
       game.stats.firePoints += reward;
       burst(game.fire.x, game.fire.y, '#ffd054', 28);
       game.fire = null;
+      hideFireOverlay();
       scheduleNextFire(now);
       synth.points();
       addMessage(`FIRE EXTINGUISHED  +${reward}`, '#71dd8d', 3500);
@@ -2048,6 +2064,86 @@
   function addMessage(text, color, duration) {
     game.messages.unshift({ text, color, until: performance.now() + duration });
     game.messages = game.messages.slice(0, 4);
+  }
+
+  function showAdminPanel(show) {
+    adminPanel.classList.toggle('hidden', !show);
+  }
+  function adminReturnToWarehouse() {
+    game.mode = 'play';
+    game.office = null;
+    game.inventoryPuzzle = null;
+    game.qsPuzzle = null;
+    game.fire = null;
+    hideFireOverlay();
+    game.nextFireAt = performance.now() + 9999999;
+    game.specialMusic = null;
+    keys.clear();
+    setGameplayControlsVisible(true);
+    cockpitHelpUI.classList.add('hidden');
+    gameoverUI.classList.add('hidden');
+    music.playGameplay();
+  }
+  function enterAdminMode() {
+    if (game.mode !== 'title') return;
+    game.adminMode = true;
+    game.adminEscapeCount = 0;
+    game.playerName = 'ADMIN TESTER';
+    resetRun();
+    game.score = 2000;
+    game.tasks.tokens = 3;
+    game.mode = 'play';
+    titleUI.classList.add('hidden');
+    gameoverUI.classList.add('hidden');
+    setGameplayControlsVisible(true);
+    buildLevel(1);
+    game.score = 2000;
+    game.tasks.tokens = 3;
+    showAdminPanel(true);
+    music.playGameplay(true);
+    addMessage('ADMIN TEST MODE — SCORES NOT SAVED', '#ffd054', 3200);
+  }
+  function exitAdminMode() {
+    game.adminMode = false;
+    showAdminPanel(false);
+    hideFireOverlay();
+    game.fire = null;
+    game.mode = 'title';
+    pendingShiftStart = null;
+    keys.clear();
+    music.stop();
+    setGameplayControlsVisible(false);
+    titleUI.classList.remove('hidden');
+    gameoverUI.classList.add('hidden');
+    refreshSavedButton();
+    startTitleMusic();
+  }
+  function adminDirectPuzzle(type) {
+    adminReturnToWarehouse();
+    game.tasks[type] = Math.max(game.tasks[type], 5);
+    game.mode = 'office';
+    game.office = { page: 'menu', selectedType: null, puzzle: null, hotspots: [], result: null };
+    setGameplayControlsVisible(false);
+    startOfficePuzzle(type);
+  }
+  function handleAdminAction(action) {
+    if (!game.adminMode) return;
+    const now = performance.now();
+    if (action === 'points') { game.score += 500; addMessage('ADMIN +500 POINTS', '#ffd054', 1400); return; }
+    if (action === 'token') { game.tasks.tokens++; addMessage('ADMIN +1 SOP TOKEN', '#ffd054', 1400); return; }
+    if (action === 'hearts') { game.health = MAX_HEARTS; addMessage('ADMIN HEARTS RESTORED', '#ffd054', 1400); return; }
+    if (action === 'inventory') { adminReturnToWarehouse(); game.inventoryCooldownUntil = 0; startInventoryBriefing(); return; }
+    if (action === 'qs') { adminReturnToWarehouse(); game.qsCooldownUntil = 0; startQSPuzzle(); return; }
+    if (action === 'fire') { adminReturnToWarehouse(); game.fire = null; startFireEvent(now); return; }
+    if (action === 'office') { adminReturnToWarehouse(); game.tasks.alm = Math.max(game.tasks.alm, 5); game.tasks.sl = Math.max(game.tasks.sl, 5); game.tasks.email = Math.max(game.tasks.email, 5); game.tasks.workday = Math.max(game.tasks.workday, 5); game.mode = 'office'; game.office = { page: 'menu', selectedType: null, puzzle: null, hotspots: [], result: null }; setGameplayControlsVisible(false); return; }
+    if (action === 'alm' || action === 'sl' || action === 'email' || action === 'workday') { adminDirectPuzzle(action); return; }
+    if (action === 'sop') { adminReturnToWarehouse(); game.tasks.email = Math.max(game.tasks.email, 5); game.tasks.tokens = Math.max(game.tasks.tokens, 1); game.mode = 'office'; game.office = { page: 'sop', selectedType: null, puzzle: null, hotspots: [], result: null }; setGameplayControlsVisible(false); return; }
+    if (action === 'truck') { adminReturnToWarehouse(); game.truck = { until: now + 30000, phase: 'waiting', arriveStarted: now }; addMessage('ADMIN: CARRIER AT DOCK — 30 SECONDS!', '#ff7700', 3000); return; }
+    if (action === 'pallet') { adminReturnToWarehouse(); game.player.palletJackUntil = now + PALLET_JACK_DURATION; addMessage('ADMIN: PALLET JACK ACTIVE — 30s', '#ffd054', 2200); return; }
+    if (action === 'exitLocked') { adminReturnToWarehouse(); game.tasks = freshTasks(); const pos = destinationPosition(game.zones.exit); game.player.x = pos.x; game.player.y = pos.y; centerCamera(); triggerLevelWin(); return; }
+    if (action === 'exitOpen') { adminReturnToWarehouse(); TASK_TYPES.forEach(type => game.tasks.completed[type] = true); const pos = destinationPosition(game.zones.exit); game.player.x = pos.x; game.player.y = pos.y; centerCamera(); triggerLevelWin(); return; }
+    if (action === 'gameover') { adminReturnToWarehouse(); game.health = 0; triggerDeath(); return; }
+    if (action === 'next') { adminReturnToWarehouse(); game.level++; buildLevel(game.level); addMessage(`ADMIN: WAREHOUSE ${game.level}`, '#ffd054', 2300); return; }
   }
 
   function update(dt, now) {
@@ -2302,13 +2398,34 @@
     });
     ctx.restore();
   }
+  function hideFireOverlay() {
+    if (fireAnimationOverlay) fireAnimationOverlay.classList.add('hidden');
+  }
+  function positionFireOverlay(now) {
+    if (!fireAnimationOverlay || !game.fire || fireAnimationOverlay.dataset.failed === '1') return false;
+    const pulse = 1 + Math.sin(now / 130) * .05;
+    const fireW = 248 * pulse, fireH = 320 * pulse;
+    if (!onScreenRect(game.fire.x - fireW / 2, game.fire.y - fireH * .78, fireW, fireH, 90)) {
+      hideFireOverlay();
+      return true;
+    }
+    const screenX = game.fire.x - game.camera.x - fireW / 2;
+    const screenY = game.fire.y - game.camera.y - fireH * .78;
+    fireAnimationOverlay.style.left = `${screenX / W * 100}%`;
+    fireAnimationOverlay.style.top = `${screenY / H * 100}%`;
+    fireAnimationOverlay.style.width = `${fireW / W * 100}%`;
+    fireAnimationOverlay.style.height = `${fireH / H * 100}%`;
+    fireAnimationOverlay.classList.remove('hidden');
+    return true;
+  }
   function drawFireWorld(now) {
-    if (!game.fire) return;
-    if (onScreenRect(game.fire.x - 74, game.fire.y - 102, 148, 160, 60)) {
-      const pulse = 1 + Math.sin(now / 130) * .06;
-      if (images.fireAnim) drawContain(images.fireAnim, game.fire.x - 62 * pulse, game.fire.y - 120 * pulse, 124 * pulse, 160 * pulse, 1, true);
+    if (!game.fire) { hideFireOverlay(); return; }
+    if (positionFireOverlay(now)) return;
+    if (onScreenRect(game.fire.x - 132, game.fire.y - 260, 264, 340, 90)) {
+      const pulse = 1 + Math.sin(now / 130) * .05;
+      if (images.fireAnim) drawContain(images.fireAnim, game.fire.x - 124 * pulse, game.fire.y - 250 * pulse, 248 * pulse, 320 * pulse, 1, true);
       else {
-        ctx.save(); ctx.font = '96px Arial'; ctx.textAlign = 'center'; ctx.fillText('🔥', game.fire.x, game.fire.y); ctx.restore();
+        ctx.save(); ctx.font = '180px Arial'; ctx.textAlign = 'center'; ctx.fillText('🔥', game.fire.x, game.fire.y); ctx.restore();
       }
     }
   }
@@ -2608,7 +2725,7 @@
     ctx.fillText(`WAREHOUSES CLEARED  ${game.stats.warehousesCleared}     BEST SCORE  ${formatScore(game.bestScore)}`, W / 2, 337);
 
     const summary = [
-      ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks], ['QS SORTS', game.stats.quarantineSorts], ['FIRES OUT', game.stats.firesExtinguished], ['PALLET JACKS', game.stats.palletJackRides],
+      ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks], ['QS SORTS', game.stats.quarantineSorts], ['FIRES OUT', game.stats.firesExtinguished], ['HINTS BOUGHT', game.stats.hintsBought], ['PALLET JACKS', game.stats.palletJackRides],
       ['RETURNS', game.stats.returnsProcessed], ['INVENTORY PAIRS', game.stats.inventoryMatches], ['SHOES FOUND', game.stats.shoesCollected],
       ['BIG BOXES OPENED', game.stats.boxesOpened], ['SMALL BOXES OPENED', game.stats.smallBoxesOpened], ['SOP FOUND', game.stats.sopTokensFound],
       ['ALM TASKS', game.stats.almTasksCompleted], ['SL TASKS', game.stats.slTasksCompleted], ['EMAIL TASKS', game.stats.emailTasksCompleted],
@@ -2741,21 +2858,32 @@
     if (images.officeBase) drawCoverImage(images.officeBase, 0, 0, W, H);
     else { drawCoverImage(images.background, 0, 0, W, H); ctx.fillStyle = 'rgba(22,15,34,.62)'; ctx.fillRect(0, 0, W, H); }
   }
-  function drawMonitorImage(img) { const r = OFFICE_MENU_MONITOR; if (img) drawCoverImage(img, r.x, r.y, r.width, r.height); }
-  function officeButton(x, y, w, h, label, id, active = true) {
+  function drawMonitorImage(img) { const r = OFFICE_MENU_MONITOR; if (img) drawCoverImage(img, r.x, r.y - 13, r.width, r.height + 13); }
+  function officeRoundRect(x, y, w, h, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y); ctx.lineTo(x + w - radius, y); ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+    ctx.lineTo(x + w, y + h - radius); ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+    ctx.lineTo(x + radius, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+    ctx.lineTo(x, y + radius); ctx.quadraticCurveTo(x, y, x + radius, y); ctx.closePath();
+  }
+  function officeButton(x, y, w, h, label, id, active = true, style = 'default') {
+    const jira = style === 'jira';
     game.office.hotspots.push({ x: x - 8, y: y - 8, w: w + 16, h: h + 16, id, active });
-    ctx.save(); ctx.fillStyle = active ? '#ff6900' : '#d6d6d6'; ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = active ? '#d95600' : '#a7a7a7'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+    ctx.save();
+    const fill = active ? (jira ? '#1268d6' : '#ff6900') : '#d6d6d6';
+    const stroke = active ? (jira ? '#084baf' : '#d95600') : '#a7a7a7';
+    officeRoundRect(x, y, w, h, jira ? 10 : 5);
+    ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = active ? '#fff' : '#f7f7f7'; ctx.font = 'bold 15px Trebuchet MS'; ctx.textAlign = 'center'; ctx.fillText(label, x + w / 2, y + h / 2 + 5); ctx.restore();
   }
   function drawOfficeMenu() {
     const r = OFFICE_MENU_MONITOR;
     drawMonitorImage(images.officeMenu);
     game.office.hotspots = [
-      { x: r.x + r.width * .075, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-sop', active: true },
-      { x: r.x + r.width * .285, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-jira', active: true },
-      { x: r.x + r.width * .495, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-email', active: true },
-      { x: r.x + r.width * .705, y: r.y + r.height * .30, w: r.width * .18, h: r.height * .27, id: 'app-workday', active: true }
+      { x: r.x + r.width * .075, y: r.y + r.height * .27, w: r.width * .18, h: r.height * .27, id: 'app-sop', active: true },
+      { x: r.x + r.width * .285, y: r.y + r.height * .27, w: r.width * .18, h: r.height * .27, id: 'app-jira', active: true },
+      { x: r.x + r.width * .495, y: r.y + r.height * .27, w: r.width * .18, h: r.height * .27, id: 'app-email', active: true },
+      { x: r.x + r.width * .705, y: r.y + r.height * .27, w: r.width * .18, h: r.height * .27, id: 'app-workday', active: true }
     ];
   }
   function drawOfficeHeader(title, subtitle = '') {
@@ -2768,14 +2896,58 @@
   }
   function drawOfficeChoice(page, types, title, tokenMode = false) {
     const r = OFFICE_APP_MONITOR;
+    const buttonStyle = page === 'jira' ? 'jira' : 'default';
     drawOfficeHeader(title, tokenMode ? 'Choose one ready task for SOP Scout to complete instantly.' : 'Choose the backlog category to process.');
-    types.forEach((type, i) => officeButton(r.x + 24, r.y + 95 + i * 48, r.width - 48, 38, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0)));
-    officeButton(r.x + 24, r.y + r.height - 42, 106, 29, 'BACK', 'office-menu', true);
+    types.forEach((type, i) => officeButton(r.x + 24, r.y + 92 + i * 46, r.width - 48, 36, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0), buttonStyle));
+    officeButton(r.x + 24, r.y + r.height - 39, 101, 27, 'BACK', 'office-menu', true, buttonStyle);
   }
   function startOfficePuzzle(type) {
     if (taskJobsReady(type) < 1) return;
-    const data = TASK_PUZZLES[type], challenge = choice(data.puzzles);
-    game.office.page = 'puzzle'; game.office.selectedType = type; game.office.puzzle = { type, data, challenge, selected: [] }; game.office.result = null;
+    const data = TASK_PUZZLES[type];
+    let index = randInt(0, data.puzzles.length - 1);
+    if (data.puzzles.length > 1) {
+      while (index === game.lastPuzzleIndex[type]) index = randInt(0, data.puzzles.length - 1);
+    }
+    game.lastPuzzleIndex[type] = index;
+    const challenge = data.puzzles[index];
+    game.office.page = 'puzzle';
+    game.office.selectedType = type;
+    game.office.puzzle = { type, data, challenge, selected: [], locked: [], hintText: '', hintColor: '#1268d6', hintUntil: 0 };
+    game.office.result = null;
+  }
+  function buyOfficeHint() {
+    const pz = game.office && game.office.puzzle;
+    if (!pz) return;
+    if (game.score < HINT_COST) {
+      pz.hintText = 'NOT ENOUGH POINTS — A HINT COSTS 100.';
+      pz.hintColor = '#bd2837';
+      pz.hintUntil = performance.now() + 2600;
+      return;
+    }
+    game.score -= HINT_COST;
+    game.stats.hintsBought++;
+    const wrong = pz.selected.filter(emoji => !pz.challenge.answer.includes(emoji));
+    if (wrong.length) {
+      const display = wrong.join(' · ');
+      const verb = wrong.length === 1 ? 'IS' : 'ARE';
+      pz.hintText = `HINT: ${display} ${verb} NOT USED IN THIS TASK.`;
+      pz.hintColor = '#bd2837';
+    } else {
+      const missing = pz.challenge.answer.filter(emoji => !pz.selected.includes(emoji));
+      if (missing.length) {
+        const reveal = missing[0];
+        pz.selected.push(reveal);
+        pz.locked.push(reveal);
+        pz.hintText = `HINT: ${reveal} IS USED AND HAS BEEN LOCKED IN.`;
+        pz.hintColor = '#1268d6';
+      } else {
+        pz.hintText = 'HINT: ALL YOUR SELECTIONS ARE USED — SUBMIT.';
+        pz.hintColor = '#1268d6';
+      }
+    }
+    pz.hintUntil = performance.now() + 3300;
+    synth.pickup();
+    updateBest();
   }
   function submitOfficePuzzle() {
     const pz = game.office && game.office.puzzle;
@@ -2805,23 +2977,43 @@
   }
   function drawOfficePuzzle() {
     const r = OFFICE_APP_MONITOR, pz = game.office.puzzle;
-    drawOfficeHeader(pz.data.app, 'SELECT THE THREE MATCHING EMOJIS');
-    const slotsX = r.x + 142, slotsY = r.y + 86;
+    const jira = pz.type === 'alm' || pz.type === 'sl';
+    const accent = jira ? '#1268d6' : '#ff6900';
+    drawOfficeHeader(pz.data.app, 'SELECT THE THREE MATCHING EMOJIS — ORDER DOES NOT MATTER');
+    const slotsX = r.x + 143, slotsY = r.y + 80;
     ctx.save();
     for (let i = 0; i < 3; i++) {
-      ctx.fillStyle = '#f2f3f5'; ctx.fillRect(slotsX + i * 66, slotsY, 54, 43); ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; ctx.strokeRect(slotsX + i * 66, slotsY, 54, 43);
-      ctx.font = '27px Arial'; if (pz.selected[i]) ctx.fillText(pz.selected[i], slotsX + i * 66 + 11, slotsY + 31);
+      const sx = slotsX + i * 60;
+      officeRoundRect(sx, slotsY, 49, 38, jira ? 8 : 4);
+      ctx.fillStyle = '#f2f3f5'; ctx.fill(); ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.stroke();
+      ctx.font = '25px Arial';
+      if (pz.selected[i]) {
+        ctx.fillText(pz.selected[i], sx + 9, slotsY + 28);
+        if (pz.locked.includes(pz.selected[i])) { ctx.font = '12px Arial'; ctx.fillText('🔒', sx + 31, slotsY + 12); }
+      }
     }
-    ctx.fillStyle = '#242832'; ctx.font = 'bold 12px Trebuchet MS';
-    const words = pz.challenge.clue.split(' '); let line = '', yy = r.y + 156;
-    words.forEach(word => { const test = line ? `${line} ${word}` : word; if (ctx.measureText(test).width > r.width - 46) { ctx.fillText(line, r.x + 22, yy); yy += 17; line = word; } else line = test; });
-    if (line) ctx.fillText(line, r.x + 22, yy);
+    ctx.fillStyle = '#242832'; ctx.font = 'bold 11px Trebuchet MS';
+    const words = pz.challenge.clue.split(' '); let line = '', yy = r.y + 137;
+    words.forEach(word => { const test = line ? `${line} ${word}` : word; if (ctx.measureText(test).width > r.width - 42) { ctx.fillText(line, r.x + 20, yy); yy += 15; line = word; } else line = test; });
+    if (line) ctx.fillText(line, r.x + 20, yy);
+    if (pz.hintText && performance.now() < pz.hintUntil) {
+      ctx.fillStyle = pz.hintColor; ctx.font = 'bold 11px Trebuchet MS'; ctx.fillText(pz.hintText, r.x + 20, r.y + 194);
+    }
     ctx.restore();
     pz.data.bank.forEach((emoji, i) => {
-      const x = r.x + 21 + i * 63, y = r.y + 214; game.office.hotspots.push({ x: x - 5, y: y - 5, w: 58, h: 51, id: `emoji-${emoji}`, active: true });
-      ctx.save(); ctx.fillStyle = pz.selected.includes(emoji) ? '#ffdfca' : '#f4f4f4'; ctx.fillRect(x, y, 49, 41); ctx.strokeStyle = pz.selected.includes(emoji) ? '#ff6900' : '#bcbcbc'; ctx.lineWidth = 2; ctx.strokeRect(x, y, 49, 41); ctx.font = '25px Arial'; ctx.fillText(emoji, x + 9, y + 29); ctx.restore();
+      const x = r.x + 15 + i * 59, y = r.y + 205;
+      game.office.hotspots.push({ x: x - 4, y: y - 4, w: 54, h: 47, id: `emoji-${emoji}`, active: true });
+      ctx.save();
+      const selected = pz.selected.includes(emoji), locked = pz.locked.includes(emoji);
+      officeRoundRect(x, y, 46, 38, jira ? 8 : 4);
+      ctx.fillStyle = selected ? (jira ? '#dbeafe' : '#ffdfca') : '#f4f4f4'; ctx.fill();
+      ctx.strokeStyle = selected ? accent : '#bcbcbc'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.font = '24px Arial'; ctx.fillText(emoji, x + 8, y + 27);
+      if (locked) { ctx.font = '11px Arial'; ctx.fillText('🔒', x + 28, y + 11); }
+      ctx.restore();
     });
-    officeButton(r.x + 205, r.y + r.height - 43, 112, 30, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3);
+    officeButton(r.x + 20, r.y + r.height - 39, 158, 28, 'BUY HINT  -100', 'buy-hint', game.score >= HINT_COST, jira ? 'jira' : 'default');
+    officeButton(r.x + r.width - 133, r.y + r.height - 39, 112, 28, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3, jira ? 'jira' : 'default');
   }
   function drawOffice(now) {
     drawOfficeBase();
@@ -2837,8 +3029,9 @@
     drawTokenCelebration(now);
   }
 
-  function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskJobsReady('alm') || taskJobsReady('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskJobsReady('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskJobsReady('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) chosen.splice(idx, 1); else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
+  function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskJobsReady('alm') || taskJobsReady('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskJobsReady('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskJobsReady('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id === 'buy-hint') { buyOfficeHint(); return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) { if (!game.office.puzzle.locked.includes(emoji)) chosen.splice(idx, 1); } else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
   function draw(now) {
+    if (game.mode !== 'play' && game.mode !== 'cockpitHelp') hideFireOverlay();
     ctx.clearRect(0, 0, W, H);
     if (game.mode === 'title' || game.mode === 'intro') drawTitle();
     else if (game.mode === 'play' || game.mode === 'dying' || game.mode === 'cockpitHelp') drawWorld(now);
@@ -2871,7 +3064,9 @@
       [`Lunch breaks`, game.stats.lunchBreaks], [`Returns`, game.stats.returnsProcessed],
       [`Inventory pairs`, game.stats.inventoryMatches], [`Shoes collected`, game.stats.shoesCollected],
       [`Big boxes opened`, game.stats.boxesOpened], [`Small boxes opened`, game.stats.smallBoxesOpened],
+      [`QS sorted`, game.stats.quarantineSorts], [`Fires extinguished`, game.stats.firesExtinguished],
       [`SOP tokens found`, game.stats.sopTokensFound], [`SOP tokens used`, game.stats.sopTokensUsed],
+      [`Hints bought`, game.stats.hintsBought], [`Task failures`, game.stats.taskFailures],
       [`ALM tasks`, game.stats.almTasksCompleted], [`SL tasks`, game.stats.slTasksCompleted],
       [`Email tasks`, game.stats.emailTasksCompleted], [`Workday tasks`, game.stats.workdayTasksCompleted]
     ];
@@ -2954,6 +3149,10 @@
     return { x: (event.clientX - rect.left) * (canvas.width / rect.width), y: (event.clientY - rect.top) * (canvas.height / rect.height) };
   }
 
+  fireAnimationOverlay.addEventListener('error', () => { fireAnimationOverlay.dataset.failed = '1'; fireAnimationOverlay.classList.add('hidden'); });
+  adminExitButton.addEventListener('click', exitAdminMode);
+  adminButtons.forEach(button => button.addEventListener('click', () => handleAdminAction(button.dataset.admin)));
+
   titleUI.addEventListener('pointerdown', () => { synth.init(); startTitleMusic(); });
   nameInput.addEventListener('focus', () => { synth.init(); startTitleMusic(); });
   canvas.addEventListener('click', event => {
@@ -2998,6 +3197,13 @@
   document.addEventListener('keydown', event => {
     const prevent = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code);
     if (prevent && (game.mode === 'play' || game.mode === 'qsPuzzle')) event.preventDefault();
+    if (event.code === 'Escape' && game.mode === 'title') {
+      const now = performance.now();
+      game.adminEscapeCount = now <= game.adminEscapeUntil ? game.adminEscapeCount + 1 : 1;
+      game.adminEscapeUntil = now + 4000;
+      if (game.adminEscapeCount >= 5) enterAdminMode();
+      return;
+    }
     if (document.activeElement === nameInput) return;
     synth.init();
     const directionButton = controlButtonForCode(event.code);
@@ -3019,6 +3225,7 @@
       return;
     }
     if (event.code === 'Escape') {
+      if (game.adminMode) { exitAdminMode(); return; }
       game.mode = 'title';
       pendingShiftStart = null;
       stopIntroTyping();

@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Zalando Scout — Warehouse Run</title>
-  <link rel="stylesheet" href="styles.css?v=2.26">
+  <link rel="stylesheet" href="styles.css?v=2.27">
 </head>
 <body>
   <main id="game-shell" aria-label="Zalando Scout game">
     <canvas id="gameCanvas" width="1280" height="720" aria-label="Zalando Scout game canvas"></canvas>
+    <img id="fire-animation-overlay" class="fire-animation-overlay hidden" src="assets/fire.webp" alt="" aria-hidden="true">
     <div id="loading" aria-live="polite">Loading warehouse assets…</div>
 
     <button id="mute-toggle" class="audio-toggle" type="button" aria-label="Open volume control" title="Volume">
@@ -25,6 +26,33 @@
     </div>
 
     <button id="unstuck-button" class="unstuck-button hidden" type="button" aria-label="Stuck? Move to a safe nearby space" title="Stuck? Emergency move">💀</button>
+
+    <aside id="admin-panel" class="admin-panel hidden" aria-label="Admin test panel">
+      <header class="admin-header"><strong>ADMIN TEST MODE</strong><button id="admin-exit" class="admin-exit" type="button" aria-label="Exit admin mode">✕</button></header>
+      <p>Launch modules directly. Test points are not saved.</p>
+      <div class="admin-quick">
+        <button type="button" data-admin="points">+500 Points</button>
+        <button type="button" data-admin="token">+SOP Token</button>
+        <button type="button" data-admin="hearts">Restore Hearts</button>
+      </div>
+      <div class="admin-modules">
+        <button type="button" data-admin="inventory">Inventory Check</button>
+        <button type="button" data-admin="qs">Quarantine Chaos</button>
+        <button type="button" data-admin="fire">Fire Event</button>
+        <button type="button" data-admin="office">Office Menu</button>
+        <button type="button" data-admin="alm">ALM Puzzle</button>
+        <button type="button" data-admin="sl">SL Puzzle</button>
+        <button type="button" data-admin="email">Email Puzzle</button>
+        <button type="button" data-admin="workday">Workday Puzzle</button>
+        <button type="button" data-admin="sop">SOP Scout</button>
+        <button type="button" data-admin="truck">Delivery Truck</button>
+        <button type="button" data-admin="pallet">Pallet Jack</button>
+        <button type="button" data-admin="exitLocked">Exit Locked</button>
+        <button type="button" data-admin="exitOpen">Exit Unlocked</button>
+        <button type="button" data-admin="gameover">Game Over</button>
+        <button type="button" data-admin="next">Next Warehouse</button>
+      </div>
+    </aside>
 
     <section id="play-controls" class="play-controls hidden" aria-label="Gameplay controls">
       <div class="dpad" aria-label="Movement arrows">
@@ -84,6 +112,6 @@
       </div>
     </section>
   </main>
-  <script src="game.js?v=2.26"></script>
+  <script src="game.js?v=2.27"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-ZALANDO SCOUT — SYSTEM UPDATE V2.26
+ZALANDO SCOUT — SYSTEM UPDATE V2.27
 ====================================
 
 This ZIP contains the system files only:
@@ -14,7 +14,7 @@ Keep your existing assets folder beside these files. The new version expects the
 - fire.png (extinguisher)
 - fire.webp (animated fire)
 
-Changes in V2.26
+Changes in V2.27
 ----------------
 - Restored the original pcmenu.jpg image for the Dock Office home screen. The game no longer redraws its own replacement app menu.
 - Once an app is clicked, only the menu image is removed and the Jira / Email / Workday / SOP Scout content is drawn on the blank monitor in baseoffice.jpg.
@@ -31,3 +31,12 @@ Retained from earlier builds
 ----------------------------
 - Pallet jacks, including one near the Dock, with 30-second speed/protection effect.
 - Cockpit help modal, safe zones, task-gated exit, Inventory Check, mobile controls, coffee sprint, score download, carrier toast and increased enemies.
+
+
+V2.27 additions and corrections:
+- Office home screen keeps pcmenu.jpg, moved upward and resized to prevent clipping/white strip.
+- Jira interaction buttons are blue with rounded corners.
+- Office task puzzles now have an optional 100-point hint system with locked revealed answers or incorrect-selection explanations.
+- Task riddles avoid immediately repeating the previous riddle of the same type.
+- Fire uses a doubled-size animated DOM WebP overlay for reliable animation and enables automatic 2x emergency response movement while active.
+- Hidden Admin Test Mode: press Escape five times from the title screen to launch modules directly without saving test scores.

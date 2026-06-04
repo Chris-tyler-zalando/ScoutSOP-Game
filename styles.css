@@ -463,3 +463,63 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
 .help-grid p { margin: 0; color: #f7e7cf; font-size: 14px; line-height: 1.34; }
 .help-close { display: block; margin: 17px auto 0; min-width: 150px; flex: none; }
 @media (max-width: 760px) { .help-grid { grid-template-columns: 1fr; } .cockpit-help-card { padding: 17px; } }
+
+
+/* V2.27: animated fire overlay and hidden admin/test panel */
+.fire-animation-overlay {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 12px rgba(0,0,0,.34));
+}
+.admin-panel {
+  position: absolute;
+  z-index: 44;
+  right: 12px;
+  top: 72px;
+  width: 228px;
+  max-height: calc(100% - 86px);
+  overflow-y: auto;
+  padding: 10px;
+  border: 2px solid rgba(255,105,0,.9);
+  border-radius: 10px;
+  background: rgba(12,15,18,.96);
+  color: #fff4df;
+  box-shadow: 0 10px 32px rgba(0,0,0,.62);
+}
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #ffd054;
+  font-size: 14px;
+  letter-spacing: .05em;
+  margin-bottom: 6px;
+}
+.admin-exit {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 14px;
+  border-radius: 6px;
+  color: #fff4df;
+  background: #2b3138;
+  border: 1px solid rgba(255,105,0,.55);
+}
+.admin-panel p { margin: 0 0 9px; font-size: 11px; line-height: 1.3; color: #e8c999; }
+.admin-quick, .admin-modules { display: grid; gap: 5px; }
+.admin-quick { grid-template-columns: 1fr; padding-bottom: 9px; margin-bottom: 9px; border-bottom: 1px solid rgba(255,105,0,.34); }
+.admin-panel button[data-admin] {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12px;
+  text-align: left;
+  border-radius: 6px;
+  color: #fff4df;
+  background: #282e35;
+  border: 1px solid rgba(255,105,0,.4);
+}
+.admin-panel button[data-admin]:hover { background: #3a4149; }
+.admin-quick button[data-admin] { color: #ffe2b0; border-color: rgba(255,171,74,.64); }
