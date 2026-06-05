@@ -1,4 +1,4 @@
-ZALANDO SCOUT — SYSTEM UPDATE V2.47a
+ZALANDO SCOUT — SYSTEM UPDATE V2.48
 ====================================
 
 This ZIP contains the system files only:
@@ -14,7 +14,7 @@ Keep your existing assets folder beside these files. The new version expects the
 - fire.png (extinguisher)
 - fire.webp (animated fire)
 
-Changes in V2.47a
+Changes in V2.48
 ----------------
 - Restored the original pcmenu.jpg image for the Dock Office home screen. The game no longer redraws its own replacement app menu.
 - Once an app is clicked, only the menu image is removed and the Jira / Email / Workday / SOP Scout content is drawn on the blank monitor in baseoffice.jpg.
@@ -33,7 +33,7 @@ Retained from earlier builds
 - Cockpit help modal, safe zones, task-gated exit, Inventory Check, mobile controls, coffee sprint, score download, carrier toast and increased enemies.
 
 
-V2.47a additions and corrections:
+V2.48 additions and corrections:
 - Office home screen keeps pcmenu.jpg, moved upward and resized to prevent clipping/white strip.
 - Jira interaction buttons are blue with rounded corners.
 - Office task puzzles now have an optional 100-point hint system with locked revealed answers or incorrect-selection explanations.
@@ -42,7 +42,7 @@ V2.47a additions and corrections:
 - Hidden Admin Test Mode: press Escape five times from the title screen to launch modules directly without saving test scores.
 
 
-V2.47a updates:
+V2.48 updates:
 - QS falling articles and the sorting crate are twice as large.
 - Removed the black sign backing so warehouse labels render cleanly without sign panels.
 - Fire event now displays an extinguisher pickup in the guided collection area.
@@ -51,7 +51,7 @@ V2.47a updates:
 - Added up to three separate saved scout profiles with select, continue and delete controls on the title screen.
 
 
-V2.47a updates:
+V2.48 updates:
 - Saved-shift profile cards now continue that save directly when clicked.
 - Removed the redundant Continue button from the title screen.
 - Combined Saved Shifts and Scout Name into one title-screen panel and removed the grey saved-shift backing.
@@ -59,7 +59,7 @@ V2.47a updates:
 - Added even collectible shoe rotation using shoe.png, shoe1.png, shoe2.png and shoe3.png when available.
 
 
-V2.47a updates:
+V2.48 updates:
 - Dock is pinned to the top-left and the map size is reduced by roughly 25%.
 - Added lane-style light/dark floor overlays.
 - Added central elevator using elevator.png with rotating destination labels.
@@ -70,17 +70,17 @@ V2.47a updates:
 - Wrong office task answers show error.jpg inside the computer monitor for 2 seconds before the failure message.
 
 
-V2.47a:
+V2.48:
 - Reworked title panel into a compact two-line layout.
 - Removed Saved Shifts / Max 3 text from visible title UI.
 - Start button now spans both rows and says Start.
 - Empty save slots now appear as 1, 2, 3.
 
 
-V2.47a:
+V2.48:
 - Moved the compact title panel down so the empty space below it is not stupidly large.
 
-V2.47a:
+V2.48:
 - Office/dock collision restored with a forgiving inset footprint instead of being fully removed.
 - Inventory Check now runs 60 seconds, uses a 6x5 grid, larger cells, and one-click neighbour-only swaps.
 - Quarantine Chaos now runs 60 seconds, lets the crate move half off-screen so each side can reach the screen edge, and removes extra drawn Dispose/Destroy labels.
@@ -88,21 +88,21 @@ V2.47a:
 - Conveyors added to the top/bottom of QS and Inventory zones so those areas read as side-entry work zones.
 - Fire extinguishing now plays a spray noise, shows a spray effect, fades the fire out, and shows the fire-extinguished points toast.
 
-V2.47a:
+V2.48:
 - Space / Action no longer opens the office from anywhere in the Dock; it only opens near the office door.
 - Dock start position moved away from the conveyor/collision area.
 - Dock conveyor shifted so it does not trap the starting point.
 - Light/dark walking-path overlays made more visible.
 - Conveyor pieces now draw with drop shadows too.
 
-V2.47a:
+V2.48:
 - Elevator visual/navigation hub reduced to about half size while preserving the 2:1 elevator image ratio.
 - Shelf placement rules tightened: shelves now snap to aligned aisle rows.
 - Shelf runs are placed as whole groups of 4–6 shelves, with deliberate lane gaps only between groups.
 - Removed the previous orphan/staggered partial shelf dividers that caused random out-of-line shelves.
 - Empty-patch filler now adds aligned shelf runs instead of scattered loose shelves.
 
-V2.47a:
+V2.48:
 - Locked map rules from the sketch.
 - Tile size is now 100px.
 - Standard map size is now fixed at 80 x 50 tiles.
@@ -114,7 +114,7 @@ V2.47a:
 - Pickups now prefer the light walkable corridor cells.
 - Shelf runs remain aligned rather than scattered.
 
-V2.47a:
+V2.48:
 - Dock driveway extends left off-map, with truck entering/leaving from the left.
 - Dock office/building is about 25% larger and positioned at the far-right of the driveway.
 - Dock driveway has traffic cone guide rows with gaps.
@@ -126,7 +126,7 @@ V2.47a:
 - Area pod dark fill removed; only a very faint outline remains.
 - Cone guides added along open walking lanes where shelves are not present.
 
-V2.47a:
+V2.48:
 - Cleared shelf/border boxes and clutter from the left-side Dock driveway/road.
 - Dock driveway is now treated as a safe zone; robots/forklifts should not enter or path through it.
 - Elevator pod is now treated as a safe zone; robots/forklifts should not enter or path through it.
@@ -135,7 +135,7 @@ V2.47a:
 - Elevator destination labels are now drawn inside the black label boxes above the doors.
 - Future note locked: when boss levels are added, there should be a boss every 3 levels, and defeating a boss should add an extra heart capacity.
 
-V2.47a:
+V2.48:
 - Added No EAN on Shipping Notice scanner mini-game.
 - Box loot can now trigger the No EAN scanner task.
 - Uses welcome3.jpg as the briefing screen.
@@ -147,17 +147,17 @@ V2.47a:
 - Wrong hits flash the screen red and do not remove the wrong item.
 - Added Admin Test button for No EAN Scanner.
 
-V2.47a:
+V2.48:
 - No EAN Scanner briefing still uses welcome3.jpg.
 - No EAN Scanner gameplay now prioritizes conveyor.jpg as the background image.
 - Removed welcome3.jpg as the gameplay background fallback so the instruction image is not accidentally used during play.
 
-V2.47a:
+V2.48:
 - Fixed No EAN scanner sprite aspect ratio. scanner.png is 229x500, so it is now drawn tall instead of squashed.
 - Replaced the long horizontal No EAN stats box with a narrow vertical HUD in the left-side open space.
 - Moved the start target toast lower so it does not fight the HUD.
 
-V2.47a:
+V2.48:
 - Rebuilt the No EAN item path against conveyor.jpg using a 1672x941 coordinate base.
 - Items now follow the visible conveyor belt centreline instead of sliding through the open floor.
 - Added item visual offsets so shoes/clothes sit on the belt surface more naturally.
@@ -165,14 +165,14 @@ V2.47a:
 - Scanner beam origin now uses the top centre of the tall scanner sprite.
 - Scanner start and movement limits now follow the 1672x941 movement-band spec.
 
-V2.47a:
+V2.48:
 - No EAN scanner now uses dedicated category sprite cards: shoes.webp, tops.webp, pants.webp.
 - Removed the max-active item cap for No EAN so the conveyor does not get empty gaps as the 60-second round accelerates.
 - Spawning now uses a tighter path-gap rule instead of a hard item limit.
 - Spawn intervals are denser across the whole round.
 - Spawn mix is balanced so each round gets plenty of target items and distractors.
 
-V2.47a:
+V2.48:
 - Fixed No EAN sprite-card slicing for shoes.webp, tops.webp and pants.webp.
 - No EAN sprite cards now use a fixed 4x3 grid with alpha-bounds cropping, so items are not cut from the wrong grid.
 - Added a stronger dark drop shadow behind No EAN clothes/shoe sprites.
@@ -181,7 +181,7 @@ V2.47a:
 - conveyor2.png flips when it is on the left side so the machine faces into the conveyor.
 - Moving conveyor items now use the extended conveyor path including the conveyor2 end-cap area.
 
-V2.47a:
+V2.48:
 - Added minimap.webp support, scaled into a top-right minimap HUD.
 - Minimap markers: flashing player, fire, extinguisher, active truck, and optional debug robots.
 - Added Ctrl+Shift+Space debug overlay: red collision boxes and green interaction/click zones.
@@ -199,7 +199,7 @@ V2.47a:
 - Quarantine Chaos renamed to Sperrlager: Items in bad condition and falling items are about 20% faster.
 - No EAN target selection avoids immediate repeats, and the right-side conveyor path is pulled left.
 
-V2.47a:
+V2.48:
 - Added level-based required task counts: warehouse 1 requires any 2 tasks, warehouse 2 requires any 3 tasks, warehouse 3+ requires all 4 task types.
 - Reworked box rewards into a filtered loot table so cooldown tasks cannot be awarded while unavailable.
 - Operational Excellence now unlocks the exit route and shows the new message.
@@ -210,7 +210,16 @@ V2.47a:
 - Minimap marker drawing is more visible and live-state focused.
 - Conveyor draw alignment moved slightly down and No EAN right-side path pulled left.
 
-V2.47a Startup Hotfix:
-- score.png is now optional, so a missing scoreboard image cannot block the game from loading.
-- Added safer zone guards around safe-zone/dock/elevator checks to prevent startup crashes if a zone is not initialised yet.
-- Copied any locally available assets into the ZIP asset folder to reduce missing-file startup problems.
+V2.48:
+- Added Crazy Ivan boss fight after every third warehouse.
+- Added it2.jpg intro flow, bossbg.jpg scrolling arena, boss1.webp animated boss, fireball.webp projectiles, car.webp battle vehicle, car.png victory car, bossbg1.jpg victory background, and actionssprite.png win animation support.
+- Boss has 6 hearts. Vertical forklift rams deal 2 damage. Unlimited thrown offline-stock shoes deal 1 damage and spin while travelling upward.
+- Player enters the boss fight with full current max-heart capacity.
+- Defeating Ivan grants +1 max heart capacity and shows a score-board style summary with the extra-heart reward.
+- boss.mp3, robot1.mp3, robot2.mp3, robot3.mp3, and success.mp3 are supported when present in assets.
+
+V2.48a:
+- Fixed startup/gameplay freeze caused by old MAX_HEARTS references after maxHearts was introduced.
+- Saved shifts now preserve maxHearts.
+- Name input no longer swallows gameplay movement keys after the intro.
+- Starting/continuing a shift blurs the title input and clears stuck keys.
