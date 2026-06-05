@@ -751,3 +751,19 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
     min-height: 44px;
   }
 }
+
+
+/* V2.33: move compact title panel down so it sits in the usable lower-middle space */
+.combined-start-card {
+  top: 64% !important;
+  width: min(1080px, 86%) !important;
+  padding: 12px 16px !important;
+  border-radius: 18px !important;
+  background: rgba(14, 17, 21, .62) !important;
+}
+
+@media (max-width: 900px) {
+  .combined-start-card {
+    top: 64% !important;
+  }
+}
