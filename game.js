@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.47';
+  const VERSION = 'V2.47a';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -143,7 +143,7 @@
     noEanShoes: ['shoes.webp'], noEanTops: ['tops.webp'], noEanPants: ['pants.webp'],
     minimap: ['minimap.webp', 'minimap.png', 'minimap.jpg']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap', 'score']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -429,7 +429,7 @@
       cement: ctx.createPattern(images.cement, 'repeat'),
       qs: ctx.createPattern(images.qs, 'repeat'),
       tiles: ctx.createPattern(images.tiles, 'repeat'),
-      carpet: ctx.createPattern(images.carpet, 'repeat')
+      carpet: ctx.createPattern(images.carpet || images.cement, 'repeat')
     };
     loading.classList.add('hidden');
     refreshSavedButton();
@@ -1793,13 +1793,16 @@
     addMessage('EMERGENCY MOVE — SAFE AISLE REACHED', '#ffd054', 2200);
   }
   function tileInsideZone(t, z) {
+    if (!t || !z) return false;
     return t.x >= z.left && t.x < z.left + z.width && t.y >= z.top && t.y < z.top + z.height;
   }
   function pointInsideZone(p, z) {
+    if (!p || !z) return false;
     return tileInsideZone(worldToTile(p.x, p.y), z);
   }
   function dockDrivewayRect() {
-    const d = game.zones.dock;
+    const d = game.zones && game.zones.dock;
+    if (!d) return { left: -9999, top: -9999, width: 0, height: 0 };
     return { left: 0, top: d.top + 4.35, width: d.left + d.width + 3.0, height: 2.95 };
   }
   function tileInsideDockDriveway(t) {
@@ -1810,23 +1813,26 @@
     return tileInsideDockDriveway(worldToTile(p.x, p.y));
   }
   function isSafeZone(t) {
-    if (!t) return false;
+    if (!t || !game.zones) return false;
+    const kitchens = Array.isArray(game.zones.kitchens) ? game.zones.kitchens : [];
     return tileInsideZone(t, game.zones.dock) ||
       tileInsideZone(t, game.zones.elevator) ||
       tileInsideDockDriveway(t) ||
       tileInsideTemplatePath(t) ||
       tileInsideZone(t, game.zones.inventory) ||
       tileInsideZone(t, game.zones.quarantine) ||
-      game.zones.kitchens.some(k => tileInsideZone(t, k));
+      kitchens.some(k => tileInsideZone(t, k));
   }
   function tileInsideSafeZone(t) { return isSafeZone(t); }
   function playerInsideSafeZone() {
-    return !!game.player && (
-      pointInsideZone(game.player, game.zones.dock) ||
+    if (!game.player || !game.zones) return false;
+    const kitchens = Array.isArray(game.zones.kitchens) ? game.zones.kitchens : [];
+    return pointInsideZone(game.player, game.zones.dock) ||
       pointInsideZone(game.player, game.zones.elevator) ||
       pointInsideDockDriveway(game.player) ||
-      game.zones.kitchens.some(k => pointInsideZone(game.player, k))
-    );
+      pointInsideZone(game.player, game.zones.inventory) ||
+      pointInsideZone(game.player, game.zones.quarantine) ||
+      kitchens.some(k => pointInsideZone(game.player, k));
   }
   function updateSpecialMusic() {
     let wanted = null;
