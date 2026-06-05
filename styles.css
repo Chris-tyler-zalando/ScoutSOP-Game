@@ -785,3 +785,5 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
 /* V2.41 No EAN gameplay background uses conveyor.jpg */
 
 /* V2.42 No EAN scanner aspect + HUD fix */
+
+/* V2.43 No EAN conveyor path + HUD placement fix */

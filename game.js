@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.42';
+  const VERSION = 'V2.43';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -2386,7 +2386,7 @@
 
   function createNoEanPuzzle() {
     const now = performance.now();
-    const scannerY = H * .795;
+    const scannerY = H * (748 / 941);
     const target = choice(NOEAN_TARGETS);
     game.noEanPuzzle = {
       startedAt: now,
@@ -2397,7 +2397,7 @@
       nextSpawnAt: now + 1000,
       items: [],
       path: makeNoEanPath(),
-      scanner: { x: W / 2, y: scannerY, minX: W * .062, maxX: W * .784, speed: 540, angle: 90, lastAngleStepAt: 0 },
+      scanner: { x: W * (836 / 1672), y: scannerY, minX: W * (104 / 1672), maxX: W * (1311 / 1672), speed: 540, angle: 90, lastAngleStepAt: 0 },
       beam: null,
       feedback: null,
       wrongFlashUntil: 0,
@@ -2415,30 +2415,40 @@
     return rand(1000, 1400);
   }
   function makeNoEanPath() {
-    const sx = W / 1280, sy = H / 720;
+    // V2.43: aligned to conveyor.jpg in its 1672 x 941 design coordinate space.
+    // These points are the visual centreline of the baked conveyor belts.
+    const DESIGN_W = 1672, DESIGN_H = 941;
+    const sx = W / DESIGN_W, sy = H / DESIGN_H;
     const points = [];
     const add = (x, y) => points.push({ x: x * sx, y: y * sy });
-    const addLine = (a, b, steps = 18) => {
+    const addLine = (a, b, steps = 32) => {
       for (let i = points.length ? 1 : 0; i <= steps; i++) {
-        const t = i / steps; add(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t);
+        const t = i / steps;
+        add(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t);
       }
     };
-    const addQuad = (a, c, b, steps = 14) => {
+    const addQuad = (a, c, b, steps = 24) => {
       for (let i = 1; i <= steps; i++) {
         const t = i / steps, mt = 1 - t;
         add(mt * mt * a[0] + 2 * mt * t * c[0] + t * t * b[0], mt * mt * a[1] + 2 * mt * t * c[1] + t * t * b[1]);
       }
     };
-    addLine([150, 118], [1040, 118], 28);
-    addQuad([1040, 118], [1160, 130], [1122, 242], 16);
-    addLine([1122, 242], [275, 303], 26);
-    addQuad([275, 303], [130, 365], [205, 430], 16);
-    addLine([205, 430], [1035, 482], 26);
-    addQuad([1035, 482], [1165, 505], [1118, 600], 16);
-    addLine([1118, 600], [1118, 765], 14);
+
+    // Feeder/top-left -> top belt -> right curve -> middle belt -> left U-turn -> lower belt -> lower-right exit.
+    addLine([330, 118], [1448, 118], 42);
+    addQuad([1448, 118], [1630, 130], [1582, 301], 28);
+    addLine([1582, 301], [312, 301], 48);
+    addQuad([312, 301], [118, 390], [258, 510], 34);
+    addLine([258, 510], [1450, 510], 44);
+    addQuad([1450, 510], [1628, 548], [1556, 675], 28);
+    addLine([1556, 675], [1556, 970], 24);
+
     const lengths = [0];
     let total = 0;
-    for (let i = 1; i < points.length; i++) { total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y); lengths.push(total); }
+    for (let i = 1; i < points.length; i++) {
+      total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+      lengths.push(total);
+    }
     return { points, lengths, total };
   }
   function pointOnNoEanPath(path, distance) {
@@ -2449,6 +2459,26 @@
     const span = Math.max(1, (path.lengths[i] || 0) - (path.lengths[i - 1] || 0));
     const t = clamp((d - (path.lengths[i - 1] || 0)) / span, 0, 1);
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+  }
+  function tangentOnNoEanPath(path, distance) {
+    const ahead = pointOnNoEanPath(path, distance + 18);
+    const behind = pointOnNoEanPath(path, distance - 18);
+    const dx = ahead.x - behind.x, dy = ahead.y - behind.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: dx / len, y: dy / len };
+  }
+  function noEanItemVisualOffset(item, path) {
+    const tangent = tangentOnNoEanPath(path, item.distance || 0);
+    const normal = { x: -tangent.y, y: tangent.x };
+    const mostlyVertical = Math.abs(tangent.y) > Math.abs(tangent.x);
+    if (mostlyVertical) return { x: 0, y: 0 };
+    const amount = item.category === 'shoes' ? -10 : (item.category === 'pants' ? -5 : -7);
+    return { x: normal.x * amount, y: normal.y * amount };
+  }
+  function noEanPathPosition(item, path) {
+    const p = pointOnNoEanPath(path, item.distance || 0);
+    const offset = noEanItemVisualOffset(item, path);
+    return { x: p.x + offset.x, y: p.y + offset.y };
   }
   function noEanClothingFrame(category) {
     const tops = [2, 3, 5, 7, 9, 11];
@@ -2494,7 +2524,8 @@
   function scannerBeamOrigin(scanner) {
     const rad = scanner.angle * Math.PI / 180;
     const dx = Math.cos(rad), dy = -Math.sin(rad);
-    return { x: scanner.x + dx * 42, y: scanner.y + dy * 42, dx, dy };
+    const scannerDrawH = 178;
+    return { x: scanner.x + dx * (scannerDrawH / 2), y: scanner.y + dy * (scannerDrawH / 2), dx, dy };
   }
   function distancePointToRay(px, py, ray) {
     const vx = px - ray.x, vy = py - ray.y;
@@ -2569,8 +2600,11 @@
     const elapsed = now - pz.startedAt;
     if (now >= pz.nextSpawnAt && now < pz.until && pz.items.length < 5) {
       const last = pz.items[pz.items.length - 1];
-      if (!last || last.distance > 165) {
-        pz.items.push(createNoEanItem(now));
+      if (!last || last.distance > 205) {
+        const item = createNoEanItem(now);
+        const pos = noEanPathPosition(item, pz.path);
+        item.x = pos.x; item.y = pos.y;
+        pz.items.push(item);
         pz.nextSpawnAt = now + noEanSpawnInterval(elapsed);
       } else pz.nextSpawnAt = now + 260;
     }
@@ -2581,7 +2615,7 @@
         continue;
       }
       item.distance += item.speed * dt;
-      const point = pointOnNoEanPath(pz.path, item.distance);
+      const point = noEanPathPosition(item, pz.path);
       item.x = point.x; item.y = point.y;
       if (item.distance >= pz.path.total) {
         if (item.category === pz.target) applyNoEanPenalty(pz, now, 'missed');
@@ -2696,31 +2730,31 @@
     drawNoEanScannerSprite(pz, now);
     ctx.save();
     // Narrow vertical mini-game HUD, centered in the left-side open space instead of a long top box.
-    const hudX = 46, hudY = 92, hudW = 210, hudH = 218;
+    const hudW = 184, hudH = 206, hudX = 40, hudY = Math.round((H - hudH) * .52);
     ctx.fillStyle = 'rgba(12,15,18,.82)';
     roundRect(hudX, hudY, hudW, hudH, 12, true, false);
     ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2;
     roundRect(hudX, hudY, hudW, hudH, 12, false, true);
     ctx.textAlign = 'left';
     ctx.fillStyle = '#fff4df';
-    ctx.font = 'bold 19px Trebuchet MS';
+    ctx.font = 'bold 18px Trebuchet MS';
     ctx.fillText('SCORE', hudX + 22, hudY + 42);
-    ctx.fillText(formatScore(game.score), hudX + 112, hudY + 42);
+    ctx.fillText(formatScore(game.score), hudX + 96, hudY + 42);
     ctx.fillText('HEARTS', hudX + 22, hudY + 84);
-    ctx.fillText('♥'.repeat(Math.max(0, game.health)), hudX + 112, hudY + 84);
+    ctx.fillText('♥'.repeat(Math.max(0, game.health)), hudX + 96, hudY + 84);
     ctx.fillText('TIME', hudX + 22, hudY + 126);
-    ctx.fillText(`${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, hudX + 112, hudY + 126);
+    ctx.fillText(`${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, hudX + 96, hudY + 126);
     ctx.fillStyle = '#ffd054';
     ctx.font = 'bold 17px Trebuchet MS';
     ctx.fillText('TARGET', hudX + 22, hudY + 168);
     ctx.fillText(pz.targetLabel, hudX + 22, hudY + 196);
     if (now < pz.toastUntil) {
       ctx.fillStyle = 'rgba(15,18,22,.88)';
-      roundRect(55, 340, 320, 64, 12, true, false);
+      roundRect(42, Math.round(H * .72), 300, 60, 12, true, false);
       ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2;
-      roundRect(55, 340, 320, 64, 12, false, true);
+      roundRect(42, Math.round(H * .72), 300, 60, 12, false, true);
       ctx.fillStyle = '#ffd054'; ctx.font = 'bold 25px Trebuchet MS'; ctx.textAlign = 'center';
-      ctx.fillText(`SHOOT ALL ${pz.targetLabel}`, 215, 381);
+      ctx.fillText(`SHOOT ALL ${pz.targetLabel}`, 192, Math.round(H * .72) + 38);
     }
     if (pz.wrongFlashUntil && now < pz.wrongFlashUntil) {
       ctx.globalAlpha = clamp((pz.wrongFlashUntil - now) / 300, 0, 1) * .35;
