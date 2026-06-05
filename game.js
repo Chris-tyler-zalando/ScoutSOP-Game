@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.28';
+  const VERSION = 'V2.31';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -122,14 +122,16 @@
     screens: ['screens.jpg'], sign: ['sign.png'], tiles: ['tiles.jpeg'], carpet: ['carpet.jpg', 'cement.jpeg'],
     inventorybg: ['inventory.png', 'inventory.jpg', 'inventorycheck.jpg', 'meeting.jpg'],
     table: ['table.png'], table2: ['table2.png'], table3: ['table3.png'], zalandologo: ['zalandologo.png'],
-    smallbox: ['smallbox.png'], smallbox2: ['smallbox2.png'], smallbox3: ['smallbox3.png'], shoe: ['shoe.png'],
+    smallbox: ['smallbox.png'], smallbox2: ['smallbox2.png'], smallbox3: ['smallbox3.png'],
+    shoe: ['shoe.png'], shoe1: ['shoe1.png'], shoe2: ['shoe2.png'], shoe3: ['shoe3.png'],
     title: ['title.png'], truck: ['truck.png'], walksprite: ['walksprite.png'],
     officeBase: ['baseoffice.jpg'], officeFrame: ['officeframe.webp'], officeMenu: ['pcmenu.jpg'],
     palletjack: ['palletjack.png'], clothesDamaged: ['clothesdamaged.png'], slbox: ['slbox.png'],
     qsBg: ['qs2.jpg', 'qs2.png'], fireExtinguisher: ['fire.png'], fireAnim: ['fire.webp'],
+    elevator: ['elevator.png'], conveyor: ['conveyor.png'], conveyorBox: ['box.png'],
     jiraScreen: ['jira.jpg'], errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorBox']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -177,6 +179,7 @@
     lastPuzzleIndex: { alm: -1, sl: -1, email: -1, workday: -1 },
     playerName: localStorage.getItem(NAME_KEY) || '',
     selectedProfileId: localStorage.getItem(ACTIVE_PROFILE_KEY) || '',
+    shoeCycleIndex: 0,
     level: 1,
     score: 0,
     bestScore: Number(localStorage.getItem(BEST_KEY) || 0),
@@ -190,6 +193,8 @@
     zoneProps: [],
     borderProps: [],
     decorativeProps: [],
+    conveyors: [],
+    movingConveyorItems: [],
     colliders: [],
     zones: {},
     boxes: [],
@@ -405,15 +410,15 @@
   }
 
   function configureMapSize(level) {
-    // Warehouses 1–4 are twice the original area; from warehouse 5 onward the playable floor doubles again.
-    const scale = level >= 5 ? 4 : 2;
-    MAP_W = BASE_MAP_W * scale;
-    MAP_H = BASE_MAP_H * scale;
+    // V2.30: around 25% smaller than the oversized v2.29 maps, while keeping level 5+ as the larger challenge tier.
+    const scale = level >= 5 ? 3 : 1.5;
+    MAP_W = Math.round(BASE_MAP_W * scale);
+    MAP_H = Math.round(BASE_MAP_H * scale);
     WORLD_W = MAP_W * TILE;
     WORLD_H = MAP_H * TILE;
   }
-  function activeBoxCount() { return game.level >= 5 ? 432 : 228; }
-  function activeCoffeeCount() { return game.level >= 5 ? 156 : 90; }
+  function activeBoxCount() { return game.level >= 5 ? 260 : 140; }
+  function activeCoffeeCount() { return game.level >= 5 ? 95 : 54; }
   function makeFloorGrid() { return Array.from({ length: MAP_H }, () => Array(MAP_W).fill(0)); }
   function rectTiles(rect) {
     const tiles = [];
@@ -433,7 +438,7 @@
     return rect.left >= 1 && rect.top >= 1 && rect.left + rect.width <= MAP_W - 1 && rect.top + rect.height <= MAP_H - 1;
   }
   function isZoneBlocked(rect, pad = 1) {
-    const zones = [game.zones.quarantine, game.zones.dock, game.zones.inventory, game.zones.exit, ...game.zones.kitchens];
+    const zones = [game.zones.quarantine, game.zones.dock, game.zones.inventory, game.zones.exit, game.zones.elevator, ...game.zones.kitchens].filter(Boolean);
     return zones.some(z => overlaps(rect, paddedRect(z, pad)));
   }
   function markBlocked(rect) {
@@ -495,29 +500,50 @@
     if (!images[image]) return;
     game.borderProps.push({ ...rect, image, flipX, collisionRect: null, border: true });
   }
+  function shoeImageKeys() {
+    return ['shoe', 'shoe1', 'shoe2', 'shoe3'].filter(key => images[key]);
+  }
+  function nextShoeImage() {
+    const pool = shoeImageKeys();
+    if (!pool.length) return null;
+    game.shoeCycleIndex = (game.shoeCycleIndex || 0) % pool.length;
+    const key = pool[game.shoeCycleIndex];
+    game.shoeCycleIndex = (game.shoeCycleIndex + 1) % pool.length;
+    return key;
+  }
+  function isShoeImage(image) { return /^shoe\d*$/.test(image); }
   function addDecorativeProp(image, rect, flipX = false) {
-    if (!images[image]) return;
-    game.decorativeProps.push({ ...rect, image, flipX, collisionRect: null, decorative: true, collectible: image === 'shoe', interactive: /^smallbox/.test(image), bob: rand(0, Math.PI * 2) });
+    if (!images[image]) return false;
+    const candidate = { ...rect, image, flipX, collisionRect: null, decorative: true, collectible: isShoeImage(image), interactive: /^smallbox/.test(image), bob: rand(0, Math.PI * 2) };
+    const centre = decorativeCenter(candidate);
+    const tile = worldToTile(centre.x, centre.y);
+    if (!isFloorTile(tile.x, tile.y) || tileInAnyZone(tile, 0) || tileInsideVisibleScenery(tile)) return false;
+    if (game.decorativeProps.some(prop => dist(centre, decorativeCenter(prop)) < TILE * 1.20)) return false;
+    game.decorativeProps.push(candidate);
+    return true;
   }
   function spawnShelfFrontProp(image) {
     if (!images[image]) return;
     const shelfProps = game.obstacles.filter(prop => /^box[2-7]$/.test(prop.image));
     if (!shelfProps.length) return;
     const shelf = choice(shelfProps), scale = choice([1, .5, .3]);
-    const width = (image === 'shoe' ? .98 : 1.0) * scale, height = (image === 'shoe' ? .62 : .88) * scale;
+    const actualImage = image === 'shoe' ? (nextShoeImage() || 'shoe') : image;
+    if (!images[actualImage]) return;
+    const width = (isShoeImage(actualImage) ? .98 : 1.0) * scale, height = (isShoeImage(actualImage) ? .62 : .88) * scale;
     const floorTop = shelf.collisionRect ? shelf.collisionRect.top : shelf.top + shelf.height * .72;
     const left = clamp(shelf.left + rand(.08, Math.max(.14, shelf.width - width - .08)), 1.1, MAP_W - width - 1.1);
     const top = clamp(floorTop + rand(.05, .48), 1.1, MAP_H - height - 1.1);
-    addDecorativeProp(image, { left, top, width, height }, Math.random() < .5);
+    addDecorativeProp(actualImage, { left, top, width, height }, Math.random() < .5);
   }
   function decorativeCenter(prop) { return { x: (prop.left + prop.width / 2) * TILE, y: (prop.top + prop.height / 2) * TILE }; }
   function scatterDecorativeClutter() {
     game.decorativeProps = [];
-    const choices = ['smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe', 'shoe'].filter(key => images[key]);
-    if (!choices.length) return;
+    const choices = ['smallbox', 'smallbox2', 'smallbox3'].filter(key => images[key]);
+    const shoePool = shoeImageKeys();
+    if (!choices.length && !shoePool.length) return;
     const shelfProps = game.obstacles.filter(prop => /^box[2-7]$/.test(prop.image));
     const scaleChoices = [1, .5, .3];
-    const maxDecor = Math.min(game.level >= 5 ? 3200 : 1500, Math.max(240, Math.round(shelfProps.length * 1.62)));
+    const maxDecor = Math.min(game.level >= 5 ? 720 : 360, Math.max(90, Math.round(shelfProps.length * .42)));
     let placed = 0;
 
     // Denser decorative clutter: keep it attached to shelf fronts and gaps, not stranded in open aisles.
@@ -526,17 +552,19 @@
       if (Math.random() < .07) continue;
       const itemsHere = Math.random() < .32 ? 3 : (Math.random() < .72 ? 2 : 1);
       for (let i = 0; i < itemsHere && placed < maxDecor; i++) {
-        const image = choice(choices);
+        let image;
+        if (shoePool.length && (!choices.length || Math.random() < .50)) image = nextShoeImage();
+        else image = choice(choices);
+        if (!image || !images[image]) continue;
         const scale = choice(scaleChoices);
-        const baseW = image === 'shoe' ? .98 : 1.0;
-        const baseH = image === 'shoe' ? .62 : .88;
+        const baseW = isShoeImage(image) ? .98 : 1.0;
+        const baseH = isShoeImage(image) ? .62 : .88;
         const width = baseW * scale;
         const height = baseH * scale;
         const floorTop = shelf.collisionRect ? shelf.collisionRect.top : shelf.top + shelf.height * .72;
         const left = clamp(shelf.left + rand(.08, Math.max(.14, shelf.width - width - .08)), 1.1, MAP_W - width - 1.1);
         const top = clamp(floorTop + rand(.05, .48), 1.1, MAP_H - height - 1.1);
-        addDecorativeProp(image, { left, top, width, height }, Math.random() < .5);
-        placed++;
+        if (addDecorativeProp(image, { left, top, width, height }, Math.random() < .5)) placed++;
       }
     }
   }
@@ -568,12 +596,15 @@
   }
 
   function setZones() {
+    const elevatorLeft = Math.max(24, Math.floor(MAP_W / 2) - 5);
+    const elevatorTop = Math.max(14, Math.floor(MAP_H / 2) - 3);
     game.zones = {
-      quarantine: zone(2, 2, 11, 9, 'QUARANTINE', 6, 7),
-      inventory: zone(MAP_W - 17, 13, 14, 12, 'INVENTORY CHECK', 6, 6),
-      dock: zone(2, MAP_H - 15, 20, 12, 'DOCK', 16, 9),
+      dock: zone(2, 2, 20, 12, 'DOCK', 8, 9),
+      quarantine: zone(2, MAP_H - 13, 12, 9, 'QUARANTINE', 6, 7),
+      inventory: zone(MAP_W - 18, MAP_H - 15, 14, 12, 'INVENTORY CHECK', 6, 6),
       exit: zone(MAP_W - 14, 3, 10, 7, 'EXIT', 8, 5),
-      kitchens: [zone(MAP_W - 13, MAP_H - 10, 8, 5, 'KITCHEN', 7, 4), zone(18, 3, 8, 5, 'KITCHEN', 7, 4)]
+      elevator: zone(elevatorLeft, elevatorTop, 10, 6, 'ELEVATOR', 5, 5),
+      kitchens: [zone(MAP_W - 13, MAP_H - 10, 8, 5, 'KITCHEN', 7, 4), zone(26, 3, 8, 5, 'KITCHEN', 7, 4)]
     };
   }
   function installSpecialAreaProps() {
@@ -605,10 +636,8 @@
     // Kitchen artwork is visible, with the reduced inner footprint used for collision.
     game.zones.kitchens.forEach(k => addZoneProp('kitchen', { left: k.left + 0, top: k.top + 1, width: 6, height: 3 }, { collisionRect: { left: k.left + 0, top: k.top + 1, width: 6, height: 3 }, collisionInset: 0.20, flipX: false }));
     const d = game.zones.dock;
-    const dockBuilding = { left: d.left + 1, top: d.top + 1, width: 9, height: 4 };
-    const dockFootprint = sceneryFootprint(dockBuilding, 'dock-building');
-    markBlocked(dockFootprint);
-    addCollider(dockFootprint, 'dock-building', .04);
+    // Dock entrance is visual-only so the scout can walk right up to the office door.
+    // The dock safe zone still works, but the office door is no longer blocked by building collision.
     if (images.cone) {
       // Never block the Dock spawn point at d.left + 7, d.top + 6.
       for (let i = 0; i < 4; i++) addZoneProp('cone', { left: d.left + 8 + i, top: d.top + 4, width: 1, height: 1 }, { flipX: i % 2 === 0 });
@@ -762,6 +791,88 @@
     return game.obstacles.filter(o => /^box[2-7]$/.test(o.image) && overlaps(view, o)).length >= 6;
   }
 
+  function addConveyorRun(left, top, count, options = {}) {
+    if (!images.conveyor || count <= 0) return false;
+    const width = 3.05, height = 1.04, gap = 0.08;
+    const totalW = count * width + Math.max(0, count - 1) * gap;
+    const rect = { left, top, width: totalW, height };
+    if (!withinMap(rect) || isZoneBlocked(rect, .25) || game.obstacles.some(o => overlaps(rect, o)) || game.zoneProps.some(o => overlaps(rect, o)) || (game.zones.elevator && overlaps(rect, paddedRect(game.zones.elevator, 1)))) return false;
+    markBlocked({ left, top: top + .35, width: totalW, height: .52 });
+    addCollider({ left, top: top + .35, width: totalW, height: .52 }, 'conveyor', .02);
+    const conveyor = { left, top, width: totalW, height, pieces: count, moving: [] };
+    const itemCount = clamp(Math.floor(count * 1.35), 2, 7);
+    for (let i = 0; i < itemCount; i++) {
+      const collectible = shoeImageKeys().length && Math.random() < .18;
+      const image = collectible ? (nextShoeImage() || 'shoe') : 'conveyorBox';
+      const size = collectible ? rand(.62, .88) : rand(.42, .78);
+      const item = {
+        conveyor, image, collectible, size,
+        minX: (left + .45) * TILE, maxX: (left + totalW - .45) * TILE,
+        x: (left + .7 + Math.random() * Math.max(.4, totalW - 1.4)) * TILE,
+        y: (top + .42 + Math.random() * .12) * TILE,
+        dir: Math.random() < .5 ? -1 : 1, speed: rand(28, 68)
+      };
+      conveyor.moving.push(item);
+      game.movingConveyorItems.push(item);
+    }
+    game.conveyors.push(conveyor);
+    return true;
+  }
+
+  function installConveyors() {
+    if (!images.conveyor) return;
+    const special = [
+      { z: game.zones.dock, dx: 1, dy: 9, count: 3 },
+      { z: game.zones.inventory, dx: -1, dy: -2, count: 4 },
+      { z: game.zones.quarantine, dx: 1, dy: -2, count: 3 }
+    ];
+    special.forEach(cfg => addConveyorRun(cfg.z.left + cfg.dx, cfg.z.top + cfg.dy, cfg.count));
+    const target = game.level >= 5 ? 18 : 10;
+    let attempts = 0;
+    while (game.conveyors.length < target && attempts++ < target * 40) {
+      const count = randInt(2, 5);
+      const x = randInt(3, Math.max(4, MAP_W - count * 3 - 4));
+      const y = randInt(5, Math.max(6, MAP_H - 6));
+      addConveyorRun(x, y, count);
+    }
+  }
+
+  function elevatorDestinations() {
+    const dests = [
+      { label: 'DOCK / OFFICE', zone: game.zones.dock },
+      { label: 'INVENTORY', zone: game.zones.inventory },
+      { label: 'QUARANTINE', zone: game.zones.quarantine },
+      { label: 'KITCHEN', zone: game.zones.kitchens[0] }
+    ];
+    if (requiredTasksComplete()) dests.push({ label: 'EXIT', zone: game.zones.exit });
+    return dests;
+  }
+  function currentElevatorDestinations(now = performance.now()) {
+    const dests = elevatorDestinations();
+    if (!dests.length) return [];
+    const rotation = Math.floor(now / 30000);
+    return [0, 1, 2].map(i => dests[(rotation + i) % dests.length]);
+  }
+  function elevatorChangeFlashing(now = performance.now()) { return now % 30000 >= 25000; }
+  function elevatorDoorIndexFromPlayer() {
+    if (!game.player || !game.zones.elevator) return -1;
+    const e = game.zones.elevator;
+    const px = game.player.x / TILE;
+    const py = game.player.y / TILE;
+    if (px < e.left - .5 || px > e.left + e.width + .5 || py < e.top - .4 || py > e.top + e.height + 1.2) return -1;
+    const rel = clamp((px - e.left) / e.width, 0, .999);
+    return clamp(Math.floor(rel * 3), 0, 2);
+  }
+  function tryUseElevator(now) {
+    const index = elevatorDoorIndexFromPlayer();
+    if (index < 0) return false;
+    const dest = currentElevatorDestinations(now)[index];
+    if (!dest || !dest.zone) return false;
+    teleportTo(dest.zone, `ELEVATOR → ${dest.label}`, null);
+    synth.teleport();
+    return true;
+  }
+
   function sealUnexpectedOpenPatches() {
     // Failsafe: scan overlapping camera-sized patches and add a short shelf wall if any
     // section still has too little visible warehouse storage because a special-zone clearance
@@ -786,6 +897,8 @@
     game.zoneProps = [];
     game.borderProps = [];
     game.decorativeProps = [];
+    game.conveyors = [];
+    game.movingConveyorItems = [];
     game.colliders = [];
     setZones();
 
@@ -795,13 +908,14 @@
     installSpecialAreaProps();
     sealUnexpectedOpenPatches();
     scatterConeHazards();
+    installConveyors();
     installWarehouseBorder();
     scatterDecorativeClutter();
     game.floorLogos = generateFloorLogos();
   }
 
   function isFloorTile(x, y) { return x >= 0 && x < MAP_W && y >= 0 && y < MAP_H && game.map[y][x] === 0; }
-  function allZones() { return [game.zones.quarantine, game.zones.dock, game.zones.inventory, game.zones.exit, ...game.zones.kitchens]; }
+  function allZones() { return [game.zones.quarantine, game.zones.dock, game.zones.inventory, game.zones.exit, game.zones.elevator, ...game.zones.kitchens].filter(Boolean); }
   function tileInAnyZone(t, margin = 0) {
     return allZones().some(z => t.x >= z.left - margin && t.x < z.left + z.width + margin && t.y >= z.top - margin && t.y < z.top + z.height + margin);
   }
@@ -821,9 +935,19 @@
   }
   function destinationPosition(z) { return tileCenter({ x: z.x, y: z.y }); }
   function occupiedAt(p, includeEnemies = true) {
-    const objects = [...game.boxes, ...game.looseCoffees, ...game.kitchenCoffees.filter(coffee => coffee.available), ...game.palletJacks.filter(jack => jack.active !== false), ...(includeEnemies ? game.enemies : [])];
+    const decor = game.decorativeProps
+      .filter(prop => prop.collectible || prop.interactive)
+      .map(prop => decorativeCenter(prop));
+    const movingShoes = (game.movingConveyorItems || [])
+      .filter(item => item.collectible)
+      .map(item => ({ x: item.x, y: item.y }));
+    const objects = [
+      ...game.boxes, ...game.looseCoffees, ...game.kitchenCoffees.filter(coffee => coffee.available),
+      ...game.palletJacks.filter(jack => jack.active !== false), ...decor, ...movingShoes,
+      ...(includeEnemies ? game.enemies : [])
+    ];
     if (includeEnemies && game.forklifts.length) objects.push(...game.forklifts);
-    return objects.some(o => dist(p, o) < TILE * 0.78);
+    return objects.some(o => dist(p, o) < TILE * 1.35);
   }
   function randomFloorTile(minDistance = 0, excludeZones = true, avoidScenery = true) {
     for (let attempt = 0; attempt < 160; attempt++) {
@@ -983,6 +1107,7 @@
     game.looseCoffees = [];
     game.kitchenCoffees = [];
     game.palletJacks = [];
+    game.movingConveyorItems = game.movingConveyorItems || [];
     game.qsPuzzle = null;
     game.qsCooldownUntil = 0;
     game.fire = null;
@@ -1048,7 +1173,7 @@
     profileWarning.textContent = message;
     profileWarning.classList.remove('hidden');
   }
-  function selectProfile(id) {
+  function selectProfile(id, autoContinue = false) {
     const profile = readProfiles().find(item => item.id === id);
     if (!profile) return;
     game.selectedProfileId = profile.id;
@@ -1058,6 +1183,10 @@
     nameInput.value = profile.name;
     showProfileWarning();
     refreshSavedButton();
+    if (autoContinue && profile.save) {
+      synth.init();
+      performContinueSavedShift();
+    }
   }
   function deleteProfile(id) {
     const profiles = readProfiles();
@@ -1094,8 +1223,8 @@
       const name = document.createElement('strong'); name.className = 'profile-name'; name.textContent = profile.name;
       const progress = document.createElement('small'); progress.className = 'profile-progress';
       progress.textContent = profile.save ? `Warehouse ${profile.save.level || 1}  ·  ${formatScore(profile.save.score || 0)} pts` : 'New shift';
-      copy.append(name, progress); button.append(avatar, copy); button.addEventListener('click', () => selectProfile(profile.id));
-      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'profile-delete'; remove.textContent = '✕'; remove.title = `Delete ${profile.name}`; remove.addEventListener('click', () => deleteProfile(profile.id));
+      copy.append(name, progress); button.append(avatar, copy); button.addEventListener('click', () => selectProfile(profile.id, true));
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'profile-delete'; remove.textContent = '✕'; remove.title = `Delete ${profile.name}`; remove.addEventListener('click', event => { event.stopPropagation(); deleteProfile(profile.id); });
       card.append(button, remove); profileSlots.appendChild(card);
     });
   }
@@ -1180,7 +1309,7 @@
     const profiles = readProfiles();
     const matched = profiles.find(item => item.name.toLowerCase() === name.toLowerCase());
     if (!matched) { showProfileWarning('Select a saved shift above, or choose New Shift to create this scout.'); return; }
-    selectProfile(matched.id);
+    selectProfile(matched.id, false);
     synth.init();
     pendingShiftStart = 'continue';
     if (introIsReady()) startIntro();
@@ -1358,8 +1487,7 @@
     const profile = profiles.find(item => item.id === game.selectedProfileId) || null;
     if (profile && (document.activeElement !== nameInput || !nameInput.value.trim())) { game.playerName = profile.name; nameInput.value = profile.name; }
     renderProfiles();
-    continueSavedButton.classList.toggle('hidden', !(profile && profile.save));
-    if (profile && profile.save) continueSavedButton.textContent = `Continue ${profile.name} — W${profile.save.level || 1} / ${formatScore(profile.save.score || 0)}`;
+    continueSavedButton.classList.add('hidden');
   }
   function updateBest() {
     if (game.adminMode) return;
@@ -1507,6 +1635,7 @@
   function handleActionPress(now) {
     if (game.mode !== 'play' || !game.player || game.player.action) return false;
     if (tryFireAction(now)) return true;
+    if (tryUseElevator(now)) return true;
     if (openNearbyBox(now)) return true;
     if (activateNearbyPalletJack(now)) return true;
     if (playerNearDockOffice() && enterDockOffice()) return true;
@@ -1574,11 +1703,20 @@
     });
     for (let i = game.decorativeProps.length - 1; i >= 0; i--) {
       const prop = game.decorativeProps[i];
-      if (prop.image === 'shoe' && dist(p, decorativeCenter(prop)) < TILE * .48) {
+      if (isShoeImage(prop.image) && dist(p, decorativeCenter(prop)) < TILE * .48) {
         game.decorativeProps.splice(i, 1);
         game.stats.shoesCollected++;
         addTaskProgress(Math.random() < .5 ? 'alm' : 'sl', 1, 'SHOE FOUND');
         spawnShelfFrontProp('shoe');
+      }
+    }
+    for (let i = game.movingConveyorItems.length - 1; i >= 0; i--) {
+      const item = game.movingConveyorItems[i];
+      if (item.collectible && dist(p, item) < TILE * .52) {
+        game.movingConveyorItems.splice(i, 1);
+        if (item.conveyor && item.conveyor.moving) item.conveyor.moving = item.conveyor.moving.filter(m => m !== item);
+        game.stats.shoesCollected++;
+        addTaskProgress(Math.random() < .5 ? 'alm' : 'sl', 1, 'CONVEYOR SHOE');
       }
     }
     // Exit does not require Action, but it is locked until all four task categories have been completed.
@@ -2282,6 +2420,15 @@
     if (action === 'next') { adminReturnToWarehouse(); game.level++; buildLevel(game.level); addMessage(`ADMIN: WAREHOUSE ${game.level}`, '#ffd054', 2300); return; }
   }
 
+  function updateConveyorItems(dt) {
+    if (!game.movingConveyorItems || !game.movingConveyorItems.length) return;
+    game.movingConveyorItems.forEach(item => {
+      item.x += item.dir * item.speed * dt;
+      if (item.x < item.minX) { item.x = item.minX; item.dir = 1; }
+      if (item.x > item.maxX) { item.x = item.maxX; item.dir = -1; }
+    });
+  }
+
   function update(dt, now) {
     if (game.mode === 'play') {
       updatePlayer(dt, now);
@@ -2294,6 +2441,7 @@
       game.forklifts.forEach(forklift => updateEnemy(forklift, dt, now, true));
       updateTruck(now);
       updateFireEvent(now);
+      updateConveyorItems(dt);
       game.messages = game.messages.filter(message => message.until > now);
     } else if (game.mode === 'inventoryBriefing' && now >= game.inventoryBriefUntil) {
       createInventoryPuzzle();
@@ -2396,23 +2544,47 @@
     if (isZoneVisible(game.zones.quarantine, 50)) drawPatternRect(patterns.qs, game.zones.quarantine.left * TILE, game.zones.quarantine.top * TILE, game.zones.quarantine.width * TILE, game.zones.quarantine.height * TILE);
     if (isZoneVisible(game.zones.inventory, 50)) drawPatternRect(patterns.carpet, game.zones.inventory.left * TILE, game.zones.inventory.top * TILE, game.zones.inventory.width * TILE, game.zones.inventory.height * TILE);
     game.zones.kitchens.forEach(k => { if (isZoneVisible(k, 50)) drawPatternRect(patterns.tiles, k.left * TILE, k.top * TILE, k.width * TILE, k.height * TILE); });
+    // Subtle walkable-lane overlay: light aisles, darker shelf/blocked cells.
+    const left = Math.max(0, Math.floor(view.x / TILE));
+    const top = Math.max(0, Math.floor(view.y / TILE));
+    const right = Math.min(MAP_W, Math.ceil((view.x + view.width) / TILE));
+    const bottom = Math.min(MAP_H, Math.ceil((view.y + view.height) / TILE));
     ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,.055)';
-    ctx.fillRect(view.x, view.y, view.width, view.height);
+    for (let y = top; y < bottom; y++) {
+      for (let x = left; x < right; x++) {
+        ctx.fillStyle = game.map[y] && game.map[y][x] === 1 ? 'rgba(0,0,0,.045)' : 'rgba(255,255,255,.030)';
+        ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+      }
+    }
     ctx.restore();
   }
   function drawSceneryProp(prop, shadow = true) {
     if (!prop || !images[prop.image]) return;
     if (!onScreenRect(prop.left * TILE, prop.top * TILE, prop.width * TILE, prop.height * TILE, 100)) return;
-    const inset = prop.image === 'box5' || prop.image === 'box6' ? 2 : 5;
+    const inset = prop.image === 'conveyor' ? 0 : (prop.image === 'box5' || prop.image === 'box6' ? 2 : 5);
     let width = prop.width * TILE - inset * 2;
     let height = prop.height * TILE - inset * 2;
     if (prop.image === 'cone') { width *= .78; height *= .86; }
     drawContain(images[prop.image], prop.left * TILE + inset, prop.top * TILE + inset, width, height, 1, shadow, !!prop.flipX);
   }
+  function drawConveyors(now = performance.now()) {
+    game.conveyors.forEach(conveyor => {
+      if (!images.conveyor || !onScreenRect(conveyor.left * TILE, conveyor.top * TILE, conveyor.width * TILE, conveyor.height * TILE, 80)) return;
+      for (let i = 0; i < conveyor.pieces; i++) {
+        drawContain(images.conveyor, (conveyor.left + i * 3.13) * TILE, conveyor.top * TILE, 3.05 * TILE, conveyor.height * TILE, 1, false);
+      }
+    });
+    game.movingConveyorItems.forEach(item => {
+      if (!images[item.image] || !onScreenRect(item.x - 90, item.y - 70, 180, 120, 80)) return;
+      const w = (item.collectible ? 126 : 170) * item.size;
+      const h = (item.collectible ? 80 : 100) * item.size;
+      drawContain(images[item.image], item.x - w / 2, item.y - h * .62, w, h, 1, true);
+    });
+  }
   function drawObstacles() {
     game.borderProps.forEach(prop => drawSceneryProp(prop, true));
     game.obstacles.forEach(o => drawSceneryProp(o, true));
+    drawConveyors(performance.now());
   }
   function propNeedsForegroundLayer(prop) {
     if (!game.player || !prop || !prop.collisionRect || prop.image === 'cone') return false;
@@ -2471,12 +2643,36 @@
     drawContain(images.entrance, z.left * TILE + 18, z.top * TILE + 64, TILE * 8.1, TILE * 3.0, .96, true);
     // Truck is drawn dynamically above the cached warehouse layer when it arrives.
   }
+  function drawElevator(now = performance.now()) {
+    const e = game.zones.elevator;
+    if (!e || !isZoneVisible(e, 140)) return;
+    const x = e.left * TILE, y = e.top * TILE;
+    if (images.elevator) drawContain(images.elevator, x, y, e.width * TILE, e.height * TILE, .98, true);
+    else { ctx.save(); ctx.fillStyle = '#b7c0cb'; ctx.fillRect(x, y, e.width * TILE, e.height * TILE); ctx.restore(); }
+    const labels = currentElevatorDestinations(now);
+    const flash = elevatorChangeFlashing(now) && Math.floor(now / 250) % 2 === 0;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 18px Trebuchet MS';
+    labels.forEach((dest, i) => {
+      if (!dest) return;
+      const tx = x + (i + .5) * (e.width * TILE / 3);
+      const ty = y + TILE * .52;
+      ctx.fillStyle = flash ? '#d3ffb5' : '#58d34c';
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(0,0,0,.82)';
+      ctx.strokeText(dest.label, tx, ty);
+      ctx.fillText(dest.label, tx, ty);
+    });
+    ctx.restore();
+  }
   function drawZones() {
     const q = game.zones.quarantine, inv = game.zones.inventory, ex = game.zones.exit;
     if (isZoneVisible(q, 120)) drawZoneSign('QUARANTINE STORAGE', q, 560, 84);
     if (isZoneVisible(game.zones.dock, 120)) drawDock(game.zones.dock);
     if (isZoneVisible(inv, 120)) drawZoneSign('INVENTORY CHECK', inv, 490, 84);
     game.zones.kitchens.forEach(k => { if (isZoneVisible(k, 120)) drawZoneSign('KITCHEN', k, 300, 80); });
+    drawElevator(performance.now());
     game.zoneProps.forEach(prop => drawSceneryProp(prop, true));
 
     if (!isZoneVisible(ex, 120)) return;
@@ -2855,9 +3051,8 @@
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff4df'; ctx.font = 'bold 29px Trebuchet MS'; ctx.fillText(`WAREHOUSE RUN  •  ${VERSION}`, W / 2, 328);
     ctx.fillStyle = '#f6e8ce'; ctx.font = '18px Trebuchet MS';
-    ctx.fillText('WASD / ARROWS  MOVE     SPACE  ACTION / COFFEE SPRINT     M  MUTE', W / 2, 572);
-    ctx.fillText('Reach the exit. Collect points. Survive the warehouse.', W / 2, 610);
-    ctx.font = 'bold 19px Trebuchet MS'; ctx.fillStyle = '#ffd054'; ctx.fillText(`BEST SCORE  ${formatScore(game.bestScore)}`, W / 2, 650);
+    ctx.fillText('WASD / ARROWS  MOVE     SPACE  ACTION / COFFEE SPRINT     M  MUTE', W / 2, 598);
+    ctx.font = 'bold 19px Trebuchet MS'; ctx.fillStyle = '#ffd054'; ctx.fillText(`BEST SCORE  ${formatScore(game.bestScore)}`, W / 2, 652);
     ctx.restore();
   }
   function drawTransition(now) {
@@ -2881,11 +3076,11 @@
     ctx.fillText(`WAREHOUSES CLEARED  ${game.stats.warehousesCleared}     BEST SCORE  ${formatScore(game.bestScore)}`, W / 2, 337);
 
     const summary = [
-      ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks], ['QS SORTS', game.stats.quarantineSorts], ['FIRES OUT', game.stats.firesExtinguished], ['HINTS BOUGHT', game.stats.hintsBought], ['PALLET JACKS', game.stats.palletJackRides],
-      ['RETURNS', game.stats.returnsProcessed], ['INVENTORY PAIRS', game.stats.inventoryMatches], ['SHOES FOUND', game.stats.shoesCollected],
-      ['BIG BOXES OPENED', game.stats.boxesOpened], ['SMALL BOXES OPENED', game.stats.smallBoxesOpened], ['SOP FOUND', game.stats.sopTokensFound],
-      ['ALM TASKS', game.stats.almTasksCompleted], ['SL TASKS', game.stats.slTasksCompleted], ['EMAIL TASKS', game.stats.emailTasksCompleted],
-      ['WORKDAY TASKS', game.stats.workdayTasksCompleted], ['SOP USED', game.stats.sopTokensUsed], ['TASKS FAILED', game.stats.taskFailures]
+      ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks],
+      ['ARTICLES IN BAD CONDITION', game.stats.quarantineSorts], ['FIRES OUT', game.stats.firesExtinguished], ['CNR RETURN', game.stats.returnsProcessed],
+      ['INVENTORY PAIRS', game.stats.inventoryMatches], ['ALM TICKETS', game.stats.almTasksCompleted], ['SL TICKETS', game.stats.slTasksCompleted],
+      ['EMAIL TASKS', game.stats.emailTasksCompleted], ['WORKDAY TASKS', game.stats.workdayTasksCompleted], ['SOP USED', game.stats.sopTokensUsed],
+      ['TASKS FAILED', game.stats.taskFailures]
     ];
     ctx.fillStyle = 'rgba(15,18,21,.76)'; ctx.fillRect(128, 350, 1024, 205);
     ctx.strokeStyle = 'rgba(255,105,0,.74)'; ctx.lineWidth = 2; ctx.strokeRect(128, 350, 1024, 205);
@@ -3110,13 +3305,18 @@
     if (!pz || pz.selected.length !== 3) return;
     const ok = pz.selected.slice().sort().join('|') === pz.challenge.answer.slice().sort().join('|');
     completeTaskUnit(pz.type, false, ok);
-    game.office.result = { ok, type: pz.type, until: performance.now() + 1600 };
+    const now = performance.now();
+    game.office.result = { ok, type: pz.type, flashUntil: ok ? now : now + 2000, until: ok ? now + 1600 : now + 3600 };
     game.office.puzzle = null;
     game.office.page = 'result';
   }
   function drawOfficeResult(now) {
     const r = OFFICE_APP_MONITOR, result = game.office.result;
     if (!result) { game.office.page = 'menu'; return; }
+    if (!result.ok && images.errorScreen && now < result.flashUntil) {
+      drawCoverImage(images.errorScreen, r.x, r.y, r.width, r.height);
+      return;
+    }
     drawOfficeHeader(TASK_LABELS[result.type] + ' TASK RESULT');
     ctx.save(); ctx.textAlign = 'center';
     ctx.fillStyle = result.ok ? '#1b8b4c' : '#bd2837';
@@ -3218,14 +3418,12 @@
     rc.fillStyle = '#ffd054'; rc.font = 'bold 23px Trebuchet MS'; rc.fillText(`WAREHOUSES CLEARED  ${game.stats.warehousesCleared}`, report.width / 2, 366);
     const lines = [
       [`Deliveries`, game.stats.trucksCompleted], [`Coffees`, game.stats.coffeesCollected],
-      [`Lunch breaks`, game.stats.lunchBreaks], [`Returns`, game.stats.returnsProcessed],
-      [`Inventory pairs`, game.stats.inventoryMatches], [`Shoes collected`, game.stats.shoesCollected],
-      [`Big boxes opened`, game.stats.boxesOpened], [`Small boxes opened`, game.stats.smallBoxesOpened],
-      [`QS sorted`, game.stats.quarantineSorts], [`Fires extinguished`, game.stats.firesExtinguished],
-      [`SOP tokens found`, game.stats.sopTokensFound], [`SOP tokens used`, game.stats.sopTokensUsed],
-      [`Hints bought`, game.stats.hintsBought], [`Task failures`, game.stats.taskFailures],
-      [`ALM tasks`, game.stats.almTasksCompleted], [`SL tasks`, game.stats.slTasksCompleted],
-      [`Email tasks`, game.stats.emailTasksCompleted], [`Workday tasks`, game.stats.workdayTasksCompleted]
+      [`Lunch breaks`, game.stats.lunchBreaks], [`CNR Return`, game.stats.returnsProcessed],
+      [`Inventory pairs`, game.stats.inventoryMatches], [`Articles in bad condition`, game.stats.quarantineSorts],
+      [`Fires extinguished`, game.stats.firesExtinguished], [`SOP tokens used`, game.stats.sopTokensUsed],
+      [`Task failures`, game.stats.taskFailures], [`ALM Tickets`, game.stats.almTasksCompleted],
+      [`SL Tickets`, game.stats.slTasksCompleted], [`Email tasks`, game.stats.emailTasksCompleted],
+      [`Workday tasks`, game.stats.workdayTasksCompleted]
     ];
     rc.font = 'bold 15px Trebuchet MS'; rc.textAlign = 'left';
     lines.forEach(([label, value], i) => {
@@ -3352,8 +3550,7 @@
     game.selectedProfileId = match ? match.id : '';
     localStorage.setItem(ACTIVE_PROFILE_KEY, game.selectedProfileId);
     renderProfiles();
-    continueSavedButton.classList.toggle('hidden', !(match && match.save));
-    if (match && match.save) continueSavedButton.textContent = `Continue ${match.name} — W${match.save.level || 1} / ${formatScore(match.save.score || 0)}`;
+    continueSavedButton.classList.add('hidden');
   });
   nameInput.addEventListener('keydown', event => {
     if (event.key === 'Enter') startNewShift();

@@ -49,3 +49,22 @@ V2.28 updates:
 - Fire is rendered using a large 75%-opacity base layer plus the animated WebP screen-blend layer.
 - Office bottom actions have been shifted to the centre/right to avoid the chair overlap.
 - Added up to three separate saved scout profiles with select, continue and delete controls on the title screen.
+
+
+V2.29 updates:
+- Saved-shift profile cards now continue that save directly when clicked.
+- Removed the redundant Continue button from the title screen.
+- Combined Saved Shifts and Scout Name into one title-screen panel and removed the grey saved-shift backing.
+- Removed the title-screen tagline.
+- Added even collectible shoe rotation using shoe.png, shoe1.png, shoe2.png and shoe3.png when available.
+
+
+V2.31 updates:
+- Dock is pinned to the top-left and the map size is reduced by roughly 25%.
+- Added lane-style light/dark floor overlays.
+- Added central elevator using elevator.png with rotating destination labels.
+- Added horizontal conveyors using conveyor.png, with moving box.png parcels and occasional moving shoe pickups.
+- Improved pickup spacing to prevent stacked clutter.
+- Dock office entrance collision is opened up.
+- End summary labels cleaned up and renamed.
+- Wrong office task answers show error.jpg inside the computer monitor for 2 seconds before the failure message.
