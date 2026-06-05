@@ -44,15 +44,15 @@
   const W = canvas.width;
   const H = canvas.height;
   const DRAW_MARGIN = 150;
-  const TILE = 118;
-  const BASE_MAP_W = 50;
-  const BASE_MAP_H = 36;
+  const TILE = 100;
+  const BASE_MAP_W = 80;
+  const BASE_MAP_H = 50;
   let MAP_W = BASE_MAP_W;
   let MAP_H = BASE_MAP_H;
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.35';
+  const VERSION = 'V2.37';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -432,15 +432,14 @@
   }
 
   function configureMapSize(level) {
-    // V2.30: around 25% smaller than the oversized v2.29 maps, while keeping level 5+ as the larger challenge tier.
-    const scale = level >= 5 ? 3 : 1.5;
-    MAP_W = Math.round(BASE_MAP_W * scale);
-    MAP_H = Math.round(BASE_MAP_H * scale);
+    // V2.37 locked map rule: 100px tiles, standard warehouse 80 x 50.
+    MAP_W = BASE_MAP_W;
+    MAP_H = BASE_MAP_H;
     WORLD_W = MAP_W * TILE;
     WORLD_H = MAP_H * TILE;
   }
-  function activeBoxCount() { return game.level >= 5 ? 260 : 140; }
-  function activeCoffeeCount() { return game.level >= 5 ? 95 : 54; }
+  function activeBoxCount() { return game.level >= 5 ? 170 : 120; }
+  function activeCoffeeCount() { return game.level >= 5 ? 70 : 48; }
   function makeFloorGrid() { return Array.from({ length: MAP_H }, () => Array(MAP_W).fill(0)); }
   function rectTiles(rect) {
     const tiles = [];
@@ -449,6 +448,53 @@
   }
   function zone(left, top, width, height, name, arrivalX = Math.floor(width / 2), arrivalY = Math.floor(height / 2)) {
     return { left, top, width, height, x: left + arrivalX, y: top + arrivalY, name, tiles: rectTiles({ left, top, width, height }) };
+  }
+  function templatePathRects() {
+    // Locked V2.37 layout skeleton: outer walk ring, two vertical lane spines, and two horizontal lane spines.
+    return [
+      { left: 1, top: 1, width: 78, height: 3 },
+      { left: 1, top: 46, width: 78, height: 3 },
+      { left: 1, top: 1, width: 3, height: 48 },
+      { left: 76, top: 1, width: 3, height: 48 },
+      { left: 24, top: 1, width: 4, height: 48 },
+      { left: 52, top: 1, width: 4, height: 48 },
+      { left: 1, top: 15, width: 78, height: 4 },
+      { left: 1, top: 31, width: 78, height: 4 }
+    ];
+  }
+  function templateAreaSlots() {
+    // Dock and elevator are fixed. Other pods rotate between the named areas.
+    return [
+      { id: 'topMiddle', left: 30, top: 4, width: 14, height: 8 },
+      { id: 'topRight', left: 60, top: 4, width: 14, height: 8 },
+      { id: 'middleLeft', left: 6, top: 20, width: 14, height: 8 },
+      { id: 'middleRight', left: 60, top: 20, width: 14, height: 8 },
+      { id: 'bottomLeft', left: 6, top: 36, width: 14, height: 8 },
+      { id: 'bottomMiddle', left: 30, top: 36, width: 14, height: 8 },
+      { id: 'bottomRight', left: 60, top: 36, width: 14, height: 8 }
+    ];
+  }
+  function rectTouchesTemplatePath(rect, pad = 0) {
+    const test = paddedRect(rect, pad);
+    return templatePathRects().some(path => overlaps(test, path));
+  }
+  function tileInsideTemplatePath(t) {
+    return templatePathRects().some(path => t.x >= path.left && t.x < path.left + path.width && t.y >= path.top && t.y < path.top + path.height);
+  }
+  function randomTemplatePathTile(minDistance = 0) {
+    const candidates = [];
+    templatePathRects().forEach(path => {
+      for (let y = path.top; y < path.top + path.height; y++) {
+        for (let x = path.left; x < path.left + path.width; x++) {
+          if (isFloorTile(x, y) && !tileInAnyZone({ x, y }, 0) && !tileInsideVisibleScenery({ x, y })) candidates.push({ x, y });
+        }
+      }
+    });
+    for (const t of shuffle(candidates)) {
+      const p = tileCenter(t);
+      if ((!game.player || dist(p, game.player) >= minDistance) && !occupiedAt(p)) return t;
+    }
+    return null;
   }
   function paddedRect(rect, pad = 0) {
     return { left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 };
@@ -461,7 +507,7 @@
   }
   function isZoneBlocked(rect, pad = 1) {
     const zones = [game.zones.quarantine, game.zones.dock, game.zones.inventory, game.zones.exit, game.zones.elevator, ...game.zones.kitchens].filter(Boolean);
-    return zones.some(z => overlaps(rect, paddedRect(z, pad)));
+    return rectTouchesTemplatePath(rect, .05) || zones.some(z => overlaps(rect, paddedRect(z, pad)));
   }
   function markBlocked(rect) {
     const left = Math.max(0, Math.floor(rect.left));
@@ -565,7 +611,7 @@
     if (!choices.length && !shoePool.length) return;
     const shelfProps = game.obstacles.filter(prop => /^box[2-7]$/.test(prop.image));
     const scaleChoices = [1, .5, .3];
-    const maxDecor = Math.min(game.level >= 5 ? 720 : 360, Math.max(90, Math.round(shelfProps.length * .42)));
+    const maxDecor = Math.min(game.level >= 5 ? 280 : 190, Math.max(70, Math.round(shelfProps.length * .30)));
     let placed = 0;
 
     // Denser decorative clutter: keep it attached to shelf fronts and gaps, not stranded in open aisles.
@@ -618,15 +664,26 @@
   }
 
   function setZones() {
-    const elevatorLeft = Math.max(24, Math.floor(MAP_W / 2) - 5);
-    const elevatorTop = Math.max(14, Math.floor(MAP_H / 2) - 3);
+    const slots = shuffle(templateAreaSlots());
+    const take = () => slots.shift();
+
+    const invSlot = take();
+    const qsSlot = take();
+    const exitSlot = take();
+    const kitchenSlot = take();
+    const kitchen2Slot = take();
+
     game.zones = {
-      dock: zone(2, 2, 20, 12, 'DOCK', 10, 7),
-      quarantine: zone(2, MAP_H - 13, 12, 9, 'QUARANTINE', 6, 7),
-      inventory: zone(MAP_W - 18, MAP_H - 15, 14, 12, 'INVENTORY CHECK', 6, 6),
-      exit: zone(MAP_W - 14, 3, 10, 7, 'EXIT', 8, 5),
-      elevator: zone(elevatorLeft, elevatorTop, 10, 6, 'ELEVATOR', 5, 5),
-      kitchens: [zone(MAP_W - 13, MAP_H - 10, 8, 5, 'KITCHEN', 7, 4), zone(26, 3, 8, 5, 'KITCHEN', 7, 4)]
+      dock: zone(4, 4, 14, 8, 'DOCK', 7, 6),
+      elevator: zone(33, 20, 14, 8, 'ELEVATOR', 7, 5),
+      inventory: zone(invSlot.left, invSlot.top, invSlot.width, invSlot.height, 'INVENTORY CHECK', 7, 6),
+      quarantine: zone(qsSlot.left, qsSlot.top, qsSlot.width, qsSlot.height, 'QUARANTINE', 7, 6),
+      exit: zone(exitSlot.left, exitSlot.top, Math.min(10, exitSlot.width), Math.min(7, exitSlot.height), 'EXIT', 7, 5),
+      kitchens: [
+        zone(kitchenSlot.left + 1, kitchenSlot.top + 1, 10, 6, 'KITCHEN', 7, 4),
+        zone(kitchen2Slot.left + 1, kitchen2Slot.top + 1, 10, 6, 'KITCHEN', 7, 4)
+      ],
+      areaSlots: slots
     };
   }
   function installSpecialAreaProps() {
@@ -762,50 +819,58 @@
     return gaps;
   }
 
-  function installDenseShelfWalls() {
-    // A warehouse maze made from shelf-wall aisles. Each horizontal band is visible shelving,
-    // broken by regular one-square crossings; no shelf wall runs for more than six rack units
-    // without a clear passage. The gaps move between rows so crossing the building takes navigation.
-    const rackW = 2.42;
-    const rackH = 2.30;
-    const pieceStep = 2.32;
-    const crossingGap = 1.25;
-    const rowStep = 4.02;
-    const rows = [];
-    for (let y = 3.05; y <= MAP_H - 4.2; y += rowStep) rows.push(y);
+  function canPlaceObstacleRect(rect, pad = .35) {
+    return withinMap(rect) && !isZoneBlocked(rect, pad) && !game.obstacles.some(o => overlaps(rect, o));
+  }
 
-    rows.forEach((top, rowIndex) => {
-      let x = 1.40;
-      let groupIndex = 0;
-      while (x < MAP_W - rackW - 1.35) {
-        const runLength = 3 + ((rowIndex * 5 + groupIndex * 3) % 4); // 3 to 6 units per wall run.
-        for (let piece = 0; piece < runLength && x < MAP_W - rackW - 1.35; piece++) {
-          let image;
-          if ((groupIndex + rowIndex) % 8 === 5 && piece >= Math.max(0, runLength - 3)) image = 'box7';
-          else if ((groupIndex + rowIndex) % 9 === 6 && piece >= Math.max(0, runLength - 3)) image = 'box3';
-          else image = (rowIndex + Math.floor(piece / 2) + groupIndex) % 2 === 0 ? 'box5' : 'box6';
-          occupyObstacle({ left: x, top, width: rackW, height: rackH }, image, { floorBand: .24, sideInset: .08 });
-          x += pieceStep;
-        }
-        // The player gets a visible crossing between every rack run.
-        x += crossingGap;
-        groupIndex++;
-      }
+  function placeAlignedShelfRun(left, top, count, options = {}) {
+    const rackW = options.rackW ?? 2.50;
+    const rackH = options.rackH ?? 2.20;
+    const rects = [];
+    for (let i = 0; i < count; i++) rects.push({ left: left + i * rackW, top, width: rackW, height: rackH });
+    if (!rects.every(rect => canPlaceObstacleRect(rect))) return false;
+    rects.forEach((rect, i) => {
+      const image = options.image || (i % 2 === 0 ? 'box5' : 'box6');
+      occupyObstacle(rect, image, { floorBand: .24, sideInset: .08, flipX: false });
     });
+    return true;
+  }
 
-    // Vertical partial shelf dividers interrupt long straight aisles while keeping open turns.
-    // Their alternating position makes the route feel like warehouse corridors, not a blank grid.
-    for (let sectionX = 10.2, section = 0; sectionX < MAP_W - 7; sectionX += 12.5, section++) {
-      for (let row = 0; row < rows.length - 1; row++) {
-        if ((row + section) % 3 === 1) continue;
-        const corridorTop = rows[row] + rackH + .22;
-        const available = rows[row + 1] - corridorTop - .24;
-        if (available < 1.12) continue;
-        const x = sectionX + (((row + section) % 2) ? 1.75 : -1.10);
-        const image = (row + section) % 2 === 0 ? 'box7' : 'box3';
-        occupyObstacle({ left: x, top: corridorTop, width: 1.55, height: Math.min(1.38, available) }, image, { floorBand: .26, sideInset: .11 });
-      }
-    }
+  function templateMazeRegions() {
+    return [
+      { left: 4, top: 4, width: 20, height: 11 },
+      { left: 28, top: 4, width: 24, height: 11 },
+      { left: 56, top: 4, width: 20, height: 11 },
+      { left: 4, top: 19, width: 20, height: 12 },
+      { left: 28, top: 19, width: 24, height: 12 },
+      { left: 56, top: 19, width: 20, height: 12 },
+      { left: 4, top: 35, width: 20, height: 11 },
+      { left: 28, top: 35, width: 24, height: 11 },
+      { left: 56, top: 35, width: 20, height: 11 }
+    ];
+  }
+
+  function installDenseShelfWalls() {
+    // V2.37 locked layout: the walk-lane skeleton stays clear, and each grey block gets aligned maze shelf runs.
+    const rackW = 2.50;
+    const rackH = 2.20;
+    const regions = templateMazeRegions();
+
+    regions.forEach((region, regionIndex) => {
+      const yRows = [];
+      for (let y = region.top + 1.15; y < region.top + region.height - rackH - .55; y += 3.9) yRows.push(y);
+      yRows.forEach((top, rowIndex) => {
+        let x = region.left + 1.0 + ((rowIndex + regionIndex) % 2 ? 1.3 : 0);
+        let run = 0;
+        while (x < region.left + region.width - rackW * 3.2) {
+          const runLength = 3 + ((regionIndex + rowIndex + run) % 3); // 3-5 shelves.
+          const image = (regionIndex + rowIndex + run) % 2 === 0 ? 'box5' : 'box6';
+          placeAlignedShelfRun(x, top, runLength, { rackW, rackH, image });
+          x += runLength * rackW + 2.6;
+          run++;
+        }
+      });
+    });
   }
 
   function viewportHasShelfCoverage(left, top, width, height) {
@@ -903,22 +968,8 @@
   }
 
   function sealUnexpectedOpenPatches() {
-    // Failsafe: scan overlapping camera-sized patches and add a short shelf wall if any
-    // section still has too little visible warehouse storage because a special-zone clearance
-    // or placement rejection left it bare.
-    const patchW = Math.max(10, Math.ceil(W / TILE) + 2);
-    const patchH = Math.max(7, Math.ceil((H - 70) / TILE) + 1);
-    for (let top = 2; top < MAP_H - patchH - 1; top += Math.max(3, Math.floor(patchH / 2))) {
-      for (let left = 2; left < MAP_W - patchW - 1; left += Math.max(5, Math.floor(patchW / 2))) {
-        if (viewportHasShelfCoverage(left, top, patchW, patchH)) continue;
-        const y = top + Math.floor(patchH / 2) - .7;
-        const centreGap = left + Math.floor(patchW / 2);
-        for (let x = left; x < left + patchW - 2; x += 2.42) {
-          if (x < centreGap + .85 && x + 2.42 > centreGap - .25) continue;
-          occupyObstacle({ left: x, top: y, width: 2.42, height: 2.30 }, ((Math.floor(x) + Math.floor(y)) % 2 === 0 ? 'box5' : 'box6'), { floorBand: .24, sideInset: .08 });
-        }
-      }
-    }
+    // V2.37: the template regions already provide the warehouse structure.
+    // Do not add random emergency shelves across the corridor skeleton.
   }
   function buildWarehouseLayout() {
     game.map = makeFloorGrid();
@@ -979,6 +1030,10 @@
     return objects.some(o => dist(p, o) < TILE * 1.35);
   }
   function randomFloorTile(minDistance = 0, excludeZones = true, avoidScenery = true) {
+    // Prefer the guaranteed light walking lanes for pickups, so collectables do not hide in shelf blocks.
+    const laneTile = randomTemplatePathTile(minDistance);
+    if (laneTile) return laneTile;
+
     for (let attempt = 0; attempt < 160; attempt++) {
       const t = { x: randInt(1, MAP_W - 2), y: randInt(1, MAP_H - 2) };
       if (!isFloorTile(t.x, t.y)) continue;
@@ -2605,7 +2660,9 @@
     ctx.save();
     for (let y = top; y < bottom; y++) {
       for (let x = left; x < right; x++) {
-        ctx.fillStyle = game.map[y] && game.map[y][x] === 1 ? 'rgba(0,0,0,.115)' : 'rgba(255,255,255,.075)';
+        const onPath = tileInsideTemplatePath({ x, y });
+        const blocked = game.map[y] && game.map[y][x] === 1;
+        ctx.fillStyle = onPath ? 'rgba(255,255,255,.105)' : (blocked ? 'rgba(0,0,0,.145)' : 'rgba(0,0,0,.070)');
         ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
       }
     }
@@ -2709,11 +2766,11 @@
     const flash = elevatorChangeFlashing(now) && Math.floor(now / 250) % 2 === 0;
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.font = 'bold 18px Trebuchet MS';
+    ctx.font = 'bold 13px Trebuchet MS';
     labels.forEach((dest, i) => {
       if (!dest) return;
       const tx = x + (i + .5) * (e.width * TILE / 3);
-      const ty = y + TILE * .52;
+      const ty = y + TILE * .42;
       ctx.fillStyle = flash ? '#d3ffb5' : '#58d34c';
       ctx.lineWidth = 5;
       ctx.strokeStyle = 'rgba(0,0,0,.82)';
@@ -2722,7 +2779,18 @@
     });
     ctx.restore();
   }
+  function drawZonePod(z) {
+    if (!z || !isZoneVisible(z, 80)) return;
+    ctx.save();
+    ctx.fillStyle = 'rgba(40,47,55,.18)';
+    ctx.fillRect(z.left * TILE, z.top * TILE, z.width * TILE, z.height * TILE);
+    ctx.strokeStyle = 'rgba(255,255,255,.10)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(z.left * TILE + 4, z.top * TILE + 4, z.width * TILE - 8, z.height * TILE - 8);
+    ctx.restore();
+  }
   function drawZones() {
+    [game.zones.dock, game.zones.quarantine, game.zones.inventory, game.zones.exit, game.zones.elevator, ...game.zones.kitchens].forEach(drawZonePod);
     const q = game.zones.quarantine, inv = game.zones.inventory, ex = game.zones.exit;
     if (isZoneVisible(q, 120)) drawZoneSign('QUARANTINE STORAGE', q, 560, 84);
     if (isZoneVisible(game.zones.dock, 120)) drawDock(game.zones.dock);
