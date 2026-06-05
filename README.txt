@@ -1,4 +1,4 @@
-ZALANDO SCOUT — SYSTEM UPDATE V2.28
+ZALANDO SCOUT — SYSTEM UPDATE V2.35
 ====================================
 
 This ZIP contains the system files only:
@@ -14,7 +14,7 @@ Keep your existing assets folder beside these files. The new version expects the
 - fire.png (extinguisher)
 - fire.webp (animated fire)
 
-Changes in V2.28
+Changes in V2.35
 ----------------
 - Restored the original pcmenu.jpg image for the Dock Office home screen. The game no longer redraws its own replacement app menu.
 - Once an app is clicked, only the menu image is removed and the Jira / Email / Workday / SOP Scout content is drawn on the blank monitor in baseoffice.jpg.
@@ -33,7 +33,7 @@ Retained from earlier builds
 - Cockpit help modal, safe zones, task-gated exit, Inventory Check, mobile controls, coffee sprint, score download, carrier toast and increased enemies.
 
 
-V2.28 additions and corrections:
+V2.35 additions and corrections:
 - Office home screen keeps pcmenu.jpg, moved upward and resized to prevent clipping/white strip.
 - Jira interaction buttons are blue with rounded corners.
 - Office task puzzles now have an optional 100-point hint system with locked revealed answers or incorrect-selection explanations.
@@ -42,7 +42,7 @@ V2.28 additions and corrections:
 - Hidden Admin Test Mode: press Escape five times from the title screen to launch modules directly without saving test scores.
 
 
-V2.28 updates:
+V2.35 updates:
 - QS falling articles and the sorting crate are twice as large.
 - Removed the black sign backing so warehouse labels render cleanly without sign panels.
 - Fire event now displays an extinguisher pickup in the guided collection area.
@@ -51,7 +51,7 @@ V2.28 updates:
 - Added up to three separate saved scout profiles with select, continue and delete controls on the title screen.
 
 
-V2.29 updates:
+V2.35 updates:
 - Saved-shift profile cards now continue that save directly when clicked.
 - Removed the redundant Continue button from the title screen.
 - Combined Saved Shifts and Scout Name into one title-screen panel and removed the grey saved-shift backing.
@@ -59,7 +59,7 @@ V2.29 updates:
 - Added even collectible shoe rotation using shoe.png, shoe1.png, shoe2.png and shoe3.png when available.
 
 
-V2.34 updates:
+V2.35 updates:
 - Dock is pinned to the top-left and the map size is reduced by roughly 25%.
 - Added lane-style light/dark floor overlays.
 - Added central elevator using elevator.png with rotating destination labels.
@@ -70,20 +70,27 @@ V2.34 updates:
 - Wrong office task answers show error.jpg inside the computer monitor for 2 seconds before the failure message.
 
 
-V2.34:
+V2.35:
 - Reworked title panel into a compact two-line layout.
 - Removed Saved Shifts / Max 3 text from visible title UI.
 - Start button now spans both rows and says Start.
 - Empty save slots now appear as 1, 2, 3.
 
 
-V2.34:
+V2.35:
 - Moved the compact title panel down so the empty space below it is not stupidly large.
 
-V2.34:
+V2.35:
 - Office/dock collision restored with a forgiving inset footprint instead of being fully removed.
 - Inventory Check now runs 60 seconds, uses a 6x5 grid, larger cells, and one-click neighbour-only swaps.
 - Quarantine Chaos now runs 60 seconds, lets the crate move half off-screen so each side can reach the screen edge, and removes extra drawn Dispose/Destroy labels.
 - Area sign images are restored behind labels without artificial black backing.
 - Conveyors added to the top/bottom of QS and Inventory zones so those areas read as side-entry work zones.
 - Fire extinguishing now plays a spray noise, shows a spray effect, fades the fire out, and shows the fire-extinguished points toast.
+
+V2.35:
+- Space / Action no longer opens the office from anywhere in the Dock; it only opens near the office door.
+- Dock start position moved away from the conveyor/collision area.
+- Dock conveyor shifted so it does not trap the starting point.
+- Light/dark walking-path overlays made more visible.
+- Conveyor pieces now draw with drop shadows too.

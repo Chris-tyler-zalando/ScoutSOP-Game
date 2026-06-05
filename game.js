@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.34';
+  const VERSION = 'V2.35';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -621,7 +621,7 @@
     const elevatorLeft = Math.max(24, Math.floor(MAP_W / 2) - 5);
     const elevatorTop = Math.max(14, Math.floor(MAP_H / 2) - 3);
     game.zones = {
-      dock: zone(2, 2, 20, 12, 'DOCK', 8, 9),
+      dock: zone(2, 2, 20, 12, 'DOCK', 10, 7),
       quarantine: zone(2, MAP_H - 13, 12, 9, 'QUARANTINE', 6, 7),
       inventory: zone(MAP_W - 18, MAP_H - 15, 14, 12, 'INVENTORY CHECK', 6, 6),
       exit: zone(MAP_W - 14, 3, 10, 7, 'EXIT', 8, 5),
@@ -854,7 +854,7 @@
     addConveyorRun(inv.left + .75, inv.top + inv.height - 1.25, 4, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
 
     // Dock conveyor divider, plus a few normal lane dividers.
-    addConveyorRun(d.left + 2.0, d.top + 8.75, 3, { allowZoneOverlap: true, allowPropOverlap: true });
+    addConveyorRun(d.left + 1.5, d.top + 10.25, 2, { allowZoneOverlap: true, allowPropOverlap: true });
 
     const target = game.level >= 5 ? 18 : 10;
     let attempts = 0;
@@ -1652,8 +1652,9 @@
   function playerNearDockOffice() {
     if (!game.player) return false;
     const z = game.zones.dock;
-    const office = tileCenter({ x: z.left + 4, y: z.top + 4 });
-    return dist(game.player, office) < TILE * 4.5 || pointInsideZone(game.player, z);
+    // Only the office door area should open the office. Being anywhere in the Dock should not be enough.
+    const door = tileCenter({ x: z.left + 4, y: z.top + 4 });
+    return dist(game.player, door) < TILE * 1.85;
   }
   function enterDockOffice() {
     if (game.mode !== 'play' || !playerNearDockOffice()) return false;
@@ -2604,7 +2605,7 @@
     ctx.save();
     for (let y = top; y < bottom; y++) {
       for (let x = left; x < right; x++) {
-        ctx.fillStyle = game.map[y] && game.map[y][x] === 1 ? 'rgba(0,0,0,.045)' : 'rgba(255,255,255,.030)';
+        ctx.fillStyle = game.map[y] && game.map[y][x] === 1 ? 'rgba(0,0,0,.115)' : 'rgba(255,255,255,.075)';
         ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
       }
     }
@@ -2623,7 +2624,7 @@
     game.conveyors.forEach(conveyor => {
       if (!images.conveyor || !onScreenRect(conveyor.left * TILE, conveyor.top * TILE, conveyor.width * TILE, conveyor.height * TILE, 80)) return;
       for (let i = 0; i < conveyor.pieces; i++) {
-        drawContain(images.conveyor, (conveyor.left + i * 3.13) * TILE, conveyor.top * TILE, 3.05 * TILE, conveyor.height * TILE, 1, false);
+        drawContain(images.conveyor, (conveyor.left + i * 3.13) * TILE, conveyor.top * TILE, 3.05 * TILE, conveyor.height * TILE, 1, true);
       }
     });
     game.movingConveyorItems.forEach(item => {
