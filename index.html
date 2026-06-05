@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Zalando Scout — Warehouse Run</title>
-  <link rel="stylesheet" href="styles.css?v=2.31">
+  <link rel="stylesheet" href="styles.css?v=2.32">
 </head>
 <body>
   <main id="game-shell" aria-label="Zalando Scout game">
@@ -92,18 +92,18 @@
 
     <section id="title-ui" class="menu-overlay" aria-label="Start shift">
       <div class="menu-card start-card combined-start-card">
-        <section id="profiles-panel" class="profiles-panel" aria-label="Saved shifts">
-          <div class="profiles-heading"><strong>SAVED SHIFTS</strong><span>MAX 3</span></div>
-          <div id="profile-slots" class="profile-slots"></div>
-          <p id="profile-warning" class="profile-warning hidden"></p>
-        </section>
-        <div class="start-row">
-          <label class="input-label" for="player-name">Scout name</label>
+        <div class="title-grid">
+          <label class="input-label title-name-label" for="player-name">Name</label>
           <input id="player-name" class="name-input" type="text" maxlength="26" autocomplete="nickname" placeholder="Enter your name" aria-label="Player name">
-          <div class="menu-actions">
-            <button id="new-shift" class="orange-button">New Shift</button>
+          <div class="menu-actions title-start-action">
+            <button id="new-shift" class="orange-button">Start</button>
             <button id="continue-saved" class="dark-button hidden" type="button" aria-hidden="true">Continue Shift</button>
           </div>
+          <section id="profiles-panel" class="profiles-panel" aria-label="Saved shift slots">
+            <div class="profiles-heading"><strong>SAVED SHIFTS</strong><span>MAX 3</span></div>
+            <div id="profile-slots" class="profile-slots"></div>
+            <p id="profile-warning" class="profile-warning hidden"></p>
+          </section>
         </div>
         <p id="name-warning" class="warning hidden">Enter your name to begin your shift.</p>
       </div>
@@ -117,6 +117,6 @@
       </div>
     </section>
   </main>
-  <script src="game.js?v=2.31"></script>
+  <script src="game.js?v=2.32"></script>
 </body>
 </html>

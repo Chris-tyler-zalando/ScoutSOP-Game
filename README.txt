@@ -59,7 +59,7 @@ V2.29 updates:
 - Added even collectible shoe rotation using shoe.png, shoe1.png, shoe2.png and shoe3.png when available.
 
 
-V2.31 updates:
+V2.32 updates:
 - Dock is pinned to the top-left and the map size is reduced by roughly 25%.
 - Added lane-style light/dark floor overlays.
 - Added central elevator using elevator.png with rotating destination labels.
@@ -68,3 +68,10 @@ V2.31 updates:
 - Dock office entrance collision is opened up.
 - End summary labels cleaned up and renamed.
 - Wrong office task answers show error.jpg inside the computer monitor for 2 seconds before the failure message.
+
+
+V2.32:
+- Reworked title panel into a compact two-line layout.
+- Removed Saved Shifts / Max 3 text from visible title UI.
+- Start button now spans both rows and says Start.
+- Empty save slots now appear as 1, 2, 3.

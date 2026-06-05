@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.31';
+  const VERSION = 'V2.32';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -1206,18 +1206,19 @@
   function renderProfiles() {
     const profiles = readProfiles();
     profileSlots.innerHTML = '';
-    if (!profiles.length) {
-      const empty = document.createElement('div');
-      empty.className = 'profile-empty';
-      empty.textContent = 'No saved shifts yet — enter a name below to begin.';
-      profileSlots.appendChild(empty);
-      return;
-    }
-    profiles.forEach(profile => {
+    for (let i = 0; i < MAX_PROFILES; i++) {
+      const profile = profiles[i];
+      if (!profile) {
+        const empty = document.createElement('div');
+        empty.className = 'profile-empty';
+        empty.textContent = String(i + 1);
+        profileSlots.appendChild(empty);
+        continue;
+      }
       const card = document.createElement('div');
       card.className = `profile-slot${profile.id === game.selectedProfileId ? ' is-selected' : ''}`;
       const button = document.createElement('button');
-      button.type = 'button'; button.className = 'profile-select'; button.setAttribute('aria-label', `Select saved shift for ${profile.name}`);
+      button.type = 'button'; button.className = 'profile-select'; button.setAttribute('aria-label', `Continue saved shift for ${profile.name}`);
       const avatar = document.createElement('span'); avatar.className = 'profile-avatar'; avatar.textContent = profile.avatar || profileAvatarFor(profile.name);
       const copy = document.createElement('span'); copy.className = 'profile-copy';
       const name = document.createElement('strong'); name.className = 'profile-name'; name.textContent = profile.name;
@@ -1226,7 +1227,7 @@
       copy.append(name, progress); button.append(avatar, copy); button.addEventListener('click', () => selectProfile(profile.id, true));
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'profile-delete'; remove.textContent = '✕'; remove.title = `Delete ${profile.name}`; remove.addEventListener('click', event => { event.stopPropagation(); deleteProfile(profile.id); });
       card.append(button, remove); profileSlots.appendChild(card);
-    });
+    }
   }
   function requireName() {
     const value = nameInput.value.trim();
