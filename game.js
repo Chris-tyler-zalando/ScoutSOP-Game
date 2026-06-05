@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.41';
+  const VERSION = 'V2.42';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -2608,6 +2608,23 @@
     updateBest();
   }
 
+  function roundRect(x, y, w, h, r, fill = true, stroke = false) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.lineTo(x + w - rr, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+    ctx.lineTo(x + w, y + h - rr);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    ctx.lineTo(x + rr, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+    ctx.lineTo(x, y + rr);
+    ctx.quadraticCurveTo(x, y, x + rr, y);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+
   function drawNoEanBriefing() {
     if (images.noEanWelcome) drawCoverImage(images.noEanWelcome, 0, 0, W, H);
     else { ctx.fillStyle = '#27313c'; ctx.fillRect(0, 0, W, H); }
@@ -2641,7 +2658,8 @@
   }
   function drawNoEanScannerSprite(pz, now) {
     const s = pz.scanner;
-    const w = 132, h = 94;
+    // scanner.png is 229 x 500. Keep that tall aspect ratio; do not squash it horizontally.
+    const h = 178, w = h * (229 / 500);
     const rad = (90 - s.angle) * Math.PI / 180;
     let feedbackImg = null, feedbackAlpha = 0;
     if (pz.feedback && now < pz.feedback.until) {
@@ -2677,17 +2695,32 @@
     }
     drawNoEanScannerSprite(pz, now);
     ctx.save();
-    ctx.fillStyle = 'rgba(12,15,18,.82)'; ctx.fillRect(34, 34, 324, 136);
-    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; ctx.strokeRect(34, 34, 324, 136);
-    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 20px Trebuchet MS'; ctx.fillText(`SCORE  ${formatScore(game.score)}`, 58, 74);
-    ctx.fillText(`HEARTS  ${'♥'.repeat(Math.max(0, game.health))}`, 58, 108);
-    ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, 58, 142);
-    ctx.fillStyle = '#ffd054'; ctx.font = 'bold 18px Trebuchet MS'; ctx.fillText(`TARGET: ${pz.targetLabel}`, 205, 142);
+    // Narrow vertical mini-game HUD, centered in the left-side open space instead of a long top box.
+    const hudX = 46, hudY = 92, hudW = 210, hudH = 218;
+    ctx.fillStyle = 'rgba(12,15,18,.82)';
+    roundRect(hudX, hudY, hudW, hudH, 12, true, false);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2;
+    roundRect(hudX, hudY, hudW, hudH, 12, false, true);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#fff4df';
+    ctx.font = 'bold 19px Trebuchet MS';
+    ctx.fillText('SCORE', hudX + 22, hudY + 42);
+    ctx.fillText(formatScore(game.score), hudX + 112, hudY + 42);
+    ctx.fillText('HEARTS', hudX + 22, hudY + 84);
+    ctx.fillText('♥'.repeat(Math.max(0, game.health)), hudX + 112, hudY + 84);
+    ctx.fillText('TIME', hudX + 22, hudY + 126);
+    ctx.fillText(`${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, hudX + 112, hudY + 126);
+    ctx.fillStyle = '#ffd054';
+    ctx.font = 'bold 17px Trebuchet MS';
+    ctx.fillText('TARGET', hudX + 22, hudY + 168);
+    ctx.fillText(pz.targetLabel, hudX + 22, hudY + 196);
     if (now < pz.toastUntil) {
-      ctx.fillStyle = 'rgba(15,18,22,.88)'; ctx.fillRect(55, 225, 360, 70);
-      ctx.strokeStyle = '#ff6900'; ctx.strokeRect(55, 225, 360, 70);
-      ctx.fillStyle = '#ffd054'; ctx.font = 'bold 28px Trebuchet MS'; ctx.textAlign = 'center';
-      ctx.fillText(`SHOOT ALL ${pz.targetLabel}`, 235, 270);
+      ctx.fillStyle = 'rgba(15,18,22,.88)';
+      roundRect(55, 340, 320, 64, 12, true, false);
+      ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2;
+      roundRect(55, 340, 320, 64, 12, false, true);
+      ctx.fillStyle = '#ffd054'; ctx.font = 'bold 25px Trebuchet MS'; ctx.textAlign = 'center';
+      ctx.fillText(`SHOOT ALL ${pz.targetLabel}`, 215, 381);
     }
     if (pz.wrongFlashUntil && now < pz.wrongFlashUntil) {
       ctx.globalAlpha = clamp((pz.wrongFlashUntil - now) / 300, 0, 1) * .35;
