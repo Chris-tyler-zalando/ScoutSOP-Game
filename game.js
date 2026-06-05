@@ -51,8 +51,8 @@
   let MAP_H = BASE_MAP_H;
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
-  const MAX_HEARTS = 3;
-  const VERSION = 'V2.46';
+  const STARTING_MAX_HEARTS = 3;
+  const VERSION = 'V2.48';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -85,6 +85,7 @@
   const OFFICE_MENU_MONITOR = { x: 99, y: 48, width: 581, height: 372 };
   const OFFICE_APP_MONITOR = { x: 130, y: 92, width: 498, height: 302 };
   const HINT_COST = 100;
+  const CONVEYOR_DRAW_Y_OFFSET = 0.10;
   const keys = new Set();
 
   const TASK_PUZZLES = {
@@ -140,13 +141,14 @@
     noEanWelcome: ['welcome3.jpg'], noEanBg: ['conveyor.jpg', 'conveyor.png', 'noeanbg.jpg', 'noeanbg.png', 'scannerbg.jpg', 'scannerbg.png', 'conveyorbg.jpg', 'conveyorbg.png'],
     scanner: ['scanner.png'], scannerCorrect: ['scanner2.png'], scannerWrong: ['scanner3.png'],
     noEanShoes: ['shoes.webp'], noEanTops: ['tops.webp'], noEanPants: ['pants.webp'],
-    minimap: ['minimap.webp', 'minimap.png', 'minimap.jpg']
+    minimap: ['minimap.webp', 'minimap.png', 'minimap.jpg'],
+    bossIntro: ['it2.jpg'], bossBg: ['bossbg.jpg'], bossBgWin: ['bossbg1.jpg'], bossIvan: ['boss1.webp'], fireball: ['fireball.webp'], bossCar: ['car.webp'], bossCarWin: ['car.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap', 'bossIntro', 'bossBg', 'bossBgWin', 'bossIvan', 'fireball', 'bossCar', 'bossCarWin']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
-    welcome: 'welcome.mp3', factory: 'factory.mp3', evilrobot: 'evilrobot.mp3'
+    welcome: 'welcome.mp3', factory: 'factory.mp3', evilrobot: 'evilrobot.mp3', boss: 'boss.mp3', success: 'success.mp3'
   };
   const gameplayPlaylist = ['gameplay', 'gameplay1', 'gameplay2', 'gameplay3'];
 
@@ -160,7 +162,7 @@
     { images: ['danger.jpg'], music: 'evilrobot', text: 'Beware of the evil automated robots. They do not want you taking their jobs.' },
     { images: ['inventorycheck.jpg'], music: 'inventory', text: 'You will also need to help complete inventory checks.' },
     { images: ['qs2.jpg'], music: 'kitchen', text: 'And help out with Quarantine Storage.' },
-    { images: ['exit.jpg'], music: 'winner', text: 'Complete your tasks and make your way to the exit, so we can send you to the next warehouse!' },
+    { images: ['exit.jpg'], music: 'winner', text: 'Complete the required tasks and make your way to the exit, so we can send you to the next warehouse!' },
     { images: ['background1.jpg'], music: 'gameplay', text: 'Your shift begins now!' }
   ];
   const INTRO_TYPE_INTERVAL = 19;
@@ -195,6 +197,8 @@
     score: 0,
     bestScore: Number(localStorage.getItem(BEST_KEY) || 0),
     health: 3,
+    maxHearts: STARTING_MAX_HEARTS,
+    boss: null,
     coffees: 0,
     muted: localStorage.getItem(MUTE_KEY) === '1',
     volume: clamp(Number(localStorage.getItem(VOLUME_KEY) || 72) / 100, 0, 1),
@@ -251,13 +255,15 @@
   };
 
   function freshStats() {
-    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, noEanTasks: 0, noEanScans: 0, noEanWrong: 0, noEanMissed: 0, opsFinds: 0, inventoryChecks: 0, quarantineSorts: 0, coffeeSprints: 0, palletJackRides: 0, firesExtinguished: 0, firePoints: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, hintsBought: 0, taskFailures: 0 };
+    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, noEanTasks: 0, noEanScans: 0, noEanWrong: 0, noEanMissed: 0, opsFinds: 0, inventoryChecks: 0, quarantineSorts: 0, coffeeSprints: 0, palletJackRides: 0, firesExtinguished: 0, firePoints: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, hintsBought: 0, taskFailures: 0, bossesDefeated: 0, bossHits: 0, bossShoeHits: 0, bossRams: 0 };
   }
-  function freshTasks() { return { alm: 0, sl: 0, email: 0, workday: 0, tokens: 0, completed: { alm: false, sl: false, email: false, workday: false } }; }
+  function freshTasks() { return { alm: 0, sl: 0, email: 0, workday: 0, tokens: 0, opsExit: false, completed: { alm: false, sl: false, email: false, workday: false } }; }
   function taskJobsReady(type) { return Math.floor((game.tasks[type] || 0) / 5); }
   function anyTaskReady() { return TASK_TYPES.some(type => taskJobsReady(type) > 0); }
-  function requiredTasksComplete() { return TASK_TYPES.every(type => game.tasks.completed[type]); }
-  function completionChecklist() { return TASK_TYPES.map(type => `${TASK_LABELS[type]} ${game.tasks.completed[type] ? '✓' : '✗'}`).join('   '); }
+  function completedTaskCount() { return TASK_TYPES.filter(type => game.tasks.completed[type]).length; }
+  function requiredTaskCountForLevel(level = game.level) { return level <= 1 ? 2 : (level === 2 ? 3 : TASK_TYPES.length); }
+  function requiredTasksComplete() { return !!(game.tasks && game.tasks.opsExit) || completedTaskCount() >= requiredTaskCountForLevel(); }
+  function completionChecklist() { return `TASKS ${completedTaskCount()}/${requiredTaskCountForLevel()} REQUIRED   ` + TASK_TYPES.map(type => `${TASK_LABELS[type]} ${game.tasks.completed[type] ? '✓' : '✗'}`).join('   '); }
   function taskCooldownRemaining(type, now = performance.now()) { return Math.max(0, Math.ceil(((game.taskCooldowns && game.taskCooldowns[type]) || 0) - now)); }
   function taskAvailable(type, now = performance.now()) { return taskJobsReady(type) > 0 && taskCooldownRemaining(type, now) <= 0; }
   function addTaskProgress(type, amount, source) {
@@ -279,7 +285,7 @@
       game.stats[key] = (game.stats[key] || 0) + 1;
       if (viaToken) game.stats.sopTokensUsed++;
       synth.points();
-      if (requiredTasksComplete()) addMessage('YOU FINISHED YOUR WORK! FIND THE EXIT AND LEAVE THIS WAREHOUSE.', '#71dd8d', 3800);
+      if (requiredTasksComplete()) addMessage('REQUIRED TASKS COMPLETE! FIND THE EXIT AND LEAVE THIS WAREHOUSE.', '#71dd8d', 3800);
     } else game.stats.taskFailures++;
     if (game.taskCooldowns && type) game.taskCooldowns[type] = performance.now() + TASK_COOLDOWN;
     updateBest();
@@ -384,6 +390,7 @@
         if (game.specialMusic) this.play(game.specialMusic, true);
         else this.playGameplay();
       } else if (game.mode === 'inventoryBriefing' || game.mode === 'inventoryPuzzle' || game.mode === 'qsPuzzle' || game.mode === 'noEanBriefing' || game.mode === 'noEanPuzzle') this.play('inventory', true);
+      else if (game.mode === 'bossFight') this.play('boss', true);
       else if (game.mode === 'gameover') this.play('gameover', true);
       else if (game.mode === 'intro') this.play(introSlides[game.introIndex].music, true);
       else if (game.mode === 'title') this.play('startup', true);
@@ -397,6 +404,14 @@
 
   const synth = new Synth();
   const music = new MusicController();
+  function playOneShot(file, volume = .55) {
+    if (game.muted || game.volume <= 0 || !file) return;
+    try {
+      const audio = new Audio(ASSET_PATH + file);
+      audio.volume = volume * game.volume;
+      audio.play().catch(() => {});
+    } catch (err) {}
+  }
 
   function rand(min, max) { return Math.random() * (max - min) + min; }
   function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
@@ -522,12 +537,26 @@
   function overlaps(a, b) {
     return a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top;
   }
+  function protectedPropRects() {
+    const rects = [];
+    const add = item => {
+      if (!item) return;
+      const base = item.collisionRect || item;
+      if (base && Number.isFinite(base.left) && Number.isFinite(base.top) && Number.isFinite(base.width) && Number.isFinite(base.height)) rects.push(paddedRect(base, .30));
+    };
+    (game.zoneProps || []).forEach(add);
+    (game.conveyors || []).forEach(c => rects.push({ left: c.visualLeft ?? c.left, top: (c.top || 0) - .35, width: (c.visualRight ?? (c.left + c.width)) - (c.visualLeft ?? c.left), height: 1.85 }));
+    const d = game.zones && game.zones.dock;
+    if (d) rects.push(dockDrivewayRect());
+    return rects;
+  }
+  function rectHitsProtectedProp(rect) { return protectedPropRects().some(protectedRect => overlaps(rect, protectedRect)); }
   function withinMap(rect) {
     return rect.left >= 1 && rect.top >= 1 && rect.left + rect.width <= MAP_W - 1 && rect.top + rect.height <= MAP_H - 1;
   }
   function isZoneBlocked(rect, pad = 1) {
     const zones = [game.zones.quarantine, game.zones.dock, game.zones.inventory, game.zones.exit, game.zones.elevator, ...game.zones.kitchens].filter(Boolean);
-    return rectTouchesTemplatePath(rect, .05) || zones.some(z => overlaps(rect, paddedRect(z, pad)));
+    return rectTouchesTemplatePath(rect, .05) || zones.some(z => overlaps(rect, paddedRect(z, pad))) || rectHitsProtectedProp(rect);
   }
   function markBlocked(rect) {
     const left = Math.max(0, Math.floor(rect.left));
@@ -605,7 +634,7 @@
     const candidate = { ...rect, image, flipX, collisionRect: null, decorative: true, collectible: isShoeImage(image), interactive: /^smallbox/.test(image), bob: rand(0, Math.PI * 2) };
     const centre = decorativeCenter(candidate);
     const tile = worldToTile(centre.x, centre.y);
-    if (!isFloorTile(tile.x, tile.y) || tileInAnyZone(tile, 0) || tileInsideVisibleScenery(tile)) return false;
+    if (!isFloorTile(tile.x, tile.y) || tileInAnyZone(tile, 0) || tileInsideVisibleScenery(tile) || tileInsideTemplatePath(tile) || rectHitsProtectedProp(rect)) return false;
     if (game.decorativeProps.some(prop => dist(centre, decorativeCenter(prop)) < TILE * 1.20)) return false;
     game.decorativeProps.push(candidate);
     return true;
@@ -957,7 +986,7 @@
         conveyor, image, collectible, size,
         minX, maxX,
         x: minX + Math.random() * Math.max(10, maxX - minX),
-        y: (top + .28 + Math.random() * .08) * TILE,
+        y: (top + .28 + CONVEYOR_DRAW_Y_OFFSET + Math.random() * .08) * TILE,
         dir: Math.random() < .5 ? -1 : 1, speed: rand(28, 68)
       };
       conveyor.moving.push(item);
@@ -1143,14 +1172,14 @@
       const t = { x: randInt(1, MAP_W - 2), y: randInt(1, MAP_H - 2) };
       if (!isFloorTile(t.x, t.y)) continue;
       if (excludeZones && tileInAnyZone(t, 0)) continue;
-      if (avoidScenery && tileInsideVisibleScenery(t)) continue;
+      if (avoidScenery && (tileInsideVisibleScenery(t) || tileInsideTemplatePath(t) || rectHitsProtectedProp({ left: t.x, top: t.y, width: 1, height: 1 }))) continue;
       const p = tileCenter(t);
       if ((!game.player || dist(p, game.player) >= minDistance) && !occupiedAt(p)) return t;
     }
     const tiles = shuffle(availableFloorTiles(excludeZones));
     for (const t of tiles) {
       const p = tileCenter(t);
-      if (avoidScenery && tileInsideVisibleScenery(t)) continue;
+      if (avoidScenery && (tileInsideVisibleScenery(t) || tileInsideTemplatePath(t) || rectHitsProtectedProp({ left: t.x, top: t.y, width: 1, height: 1 }))) continue;
       if ((!game.player || dist(p, game.player) >= minDistance) && !occupiedAt(p)) return t;
     }
     return tiles.find(t => !avoidScenery || !tileInsideVisibleScenery(t)) || tiles[0] || { x: 1, y: 1 };
@@ -1253,8 +1282,7 @@
   function spawnEnemies() {
     game.enemies = [];
     let index = 0;
-    const densityStep = [10, 8, 6][(game.level - 1) % 3];
-    const targetCount = clamp(Math.ceil(MAP_W / densityStep), 6, 18);
+    const targetCount = [15, 20, 30][(game.level - 1) % 3];
     const patrolTiles = shuffle(availableFloorTiles(true).filter(t => !tileInsideSafeZone(t) && !tileInsideVisibleScenery(t)));
     for (let i = 0; i < targetCount && i < patrolTiles.length; i++) {
       game.enemies.push(makeRobotAtTile(patrolTiles[i], i < 2, index++));
@@ -1319,7 +1347,9 @@
   function resetRun() {
     game.level = 1;
     game.score = 0;
-    game.health = 3;
+    game.maxHearts = STARTING_MAX_HEARTS;
+    game.health = game.maxHearts;
+    game.boss = null;
     game.coffees = 0;
     game.tasks = freshTasks();
     game.stats = freshStats();
@@ -1644,7 +1674,7 @@
   }
 
   function continueAfterDeath() {
-    game.health = MAX_HEARTS;
+    game.health = game.maxHearts;
     game.coffees = 0;
     const p = destinationPosition(game.zones.dock);
     game.player = { x: p.x, y: p.y, r: 23, speed: 315, facing: 'down', frame: 0, anim: 0, moving: false, sprinting: false, invulnerableUntil: performance.now() + 3000, action: null, palletJackUntil: 0 };
@@ -1789,12 +1819,17 @@
   function pointInsideDockDriveway(p) {
     return tileInsideDockDriveway(worldToTile(p.x, p.y));
   }
-  function tileInsideSafeZone(t) {
+  function isSafeZone(t) {
+    if (!t) return false;
     return tileInsideZone(t, game.zones.dock) ||
       tileInsideZone(t, game.zones.elevator) ||
       tileInsideDockDriveway(t) ||
+      tileInsideTemplatePath(t) ||
+      tileInsideZone(t, game.zones.inventory) ||
+      tileInsideZone(t, game.zones.quarantine) ||
       game.zones.kitchens.some(k => tileInsideZone(t, k));
   }
+  function tileInsideSafeZone(t) { return isSafeZone(t); }
   function playerInsideSafeZone() {
     return !!game.player && (
       pointInsideZone(game.player, game.zones.dock) ||
@@ -2046,7 +2081,7 @@
     synth.hurt();
     synth.powerDown();
     shake(12);
-    const remaining = `${game.health}/${MAX_HEARTS} HEARTS REMAINING`;
+    const remaining = `${game.health}/${game.maxHearts} HEARTS REMAINING`;
     addMessage(`${label}  -${damage} HEART${damage > 1 ? 'S' : ''} — ${remaining}`, '#ee394d', 2900);
     burst(game.player.x, game.player.y, '#ee394d', 15);
     if (game.health <= 0) triggerDeath();
@@ -2058,7 +2093,7 @@
     game.stats.coffeesCollected++;
     if (game.coffees >= 3) {
       game.coffees = 0;
-      if (game.health < MAX_HEARTS) { game.health++; addMessage('3 COFFEES — HEART RESTORED!', '#e38537', 1800); }
+      if (game.health < game.maxHearts) { game.health++; addMessage('3 COFFEES — HEART RESTORED!', '#e38537', 1800); }
       else { game.score += 100; addMessage('FULL ENERGY — +100', '#e38537', 1600); }
     } else addMessage(`COFFEE COLLECTED  ${game.coffees}/3`, '#e38537', 1350);
     synth.pickup();
@@ -2066,23 +2101,36 @@
   }
 
   const lootTable = [
-    { id: 'heart', weight: 8 }, { id: 'coffee', weight: 13 },
+    { id: 'heart', weight: 8 }, { id: 'coffee', weight: 13 }, { id: 'shoeReward', weight: 10 },
     { id: 'emailTask', weight: 25 }, { id: 'workdayTask', weight: 25 }, { id: 'noean', weight: 16 }, { id: 'sopToken', weight: 2 },
     { id: 'return', weight: 8 }, { id: 'mixed', weight: 7 }, { id: 'mould', weight: 8 }, { id: 'break', weight: 6 },
     { id: 'ops', weight: 3 }, { id: 'empty', weight: 5 }
   ];
   const smallBoxLoot = [
-    { id: 'empty', weight: 38 }, { id: 'heart', weight: 8 }, { id: 'coffee', weight: 10 },
+    { id: 'empty', weight: 20 }, { id: 'heart', weight: 8 }, { id: 'coffee', weight: 10 }, { id: 'shoeReward', weight: 12 },
     { id: 'emailTask', weight: 17 }, { id: 'workdayTask', weight: 17 }, { id: 'noean', weight: 10 }, { id: 'sopToken', weight: 2 }
   ];
   function weightedFrom(table) {
     const total = table.reduce((sum, item) => sum + item.weight, 0);
+    if (total <= 0) return 'coffee';
     let roll = Math.random() * total;
     for (const item of table) { roll -= item.weight; if (roll <= 0) return item.id; }
-    return 'empty';
+    return table[0] ? table[0].id : 'coffee';
   }
-  function weightedLoot() { return weightedFrom(lootTable); }
-  function weightedSmallBoxLoot() { return weightedFrom(smallBoxLoot); }
+  function lootAvailable(id, now = performance.now()) {
+    if (id === 'emailTask') return !game.tasks.completed.email && taskCooldownRemaining('email', now) <= 0;
+    if (id === 'workdayTask') return !game.tasks.completed.workday && taskCooldownRemaining('workday', now) <= 0;
+    if (id === 'noean') return now >= game.noEanCooldownUntil;
+    if (id === 'mixed') return now >= game.inventoryCooldownUntil;
+    if (id === 'mould') return now >= game.qsCooldownUntil;
+    if (id === 'ops') return requiredTasksComplete() && !game.tasks.opsExit;
+    return true;
+  }
+  function filteredLootTable(table, now = performance.now()) {
+    return table.filter(item => lootAvailable(item.id, now));
+  }
+  function weightedLoot() { return weightedFrom(filteredLootTable(lootTable, performance.now())); }
+  function weightedSmallBoxLoot() { return weightedFrom(filteredLootTable(smallBoxLoot, performance.now())); }
   function openNearbyBox(now) {
     if (game.player.action || game.mode !== 'play') return false;
     let smallIndex = -1, smallDistance = TILE * 1.05;
@@ -2138,32 +2186,35 @@
     switch (item) {
       case 'heart':
         game.stats.heartsFound++;
-        if (game.health < MAX_HEARTS) { game.health++; synth.pickup(); addMessage('HEART RESTORED!', '#ed4959', 1600); }
+        if (game.health < game.maxHearts) { game.health++; synth.pickup(); addMessage('HEART RESTORED!', '#ed4959', 1600); }
         else { game.score += 100; synth.points(); addMessage('FULL HEALTH  +100', '#ed4959', 1600); }
         break;
       case 'coffee': collectCoffee(); return;
+      case 'shoeReward': game.stats.shoesCollected++; addTaskProgress(Math.random() < .5 ? 'alm' : 'sl', 1, 'OFFLINE STOCK FOUND'); return;
       case 'emailTask': addTaskProgress('email', 1, 'EMAIL TASK FOUND'); return;
       case 'workdayTask': addTaskProgress('workday', 1, 'WORKDAY TASK FOUND'); return;
-      case 'noean': game.stats.noEanTasks++; teleportTo(game.zones.dock, 'NO EAN ON SHIPPING NOTICE — SCANNER TASK', null); startNoEanBriefing(); return;
+      case 'noean': if (now < game.noEanCooldownUntil) { resolveLoot('coffee', now); return; } game.stats.noEanTasks++; teleportTo(game.zones.dock, 'NO EAN ON SHIPPING NOTICE — SCANNER TASK', null); startNoEanBriefing(); return;
       case 'sopToken':
         game.tasks.tokens++;
         game.stats.sopTokensFound++;
-        game.tokenFlashUntil = performance.now() + 900;
+        game.tokenFlashUntil = performance.now() + 2200;
         synth.route();
-        addMessage('SOP SCOUT TOKEN FOUND!', '#ff7700', 2500);
+        addMessage('Use the SOPScout to help you complete a task in the office!', '#ff7700', 3300);
         updateBest();
         return;
       case 'return': game.score += 150; game.stats.returnsProcessed++; teleportTo(game.zones.dock, 'RETURN — SENT TO DOCK  +150', null); break;
-      case 'mixed': game.stats.mixedStock++; teleportTo(game.zones.inventory, 'MIXED STOCK — INVENTORY CHECK', 'inventory'); startInventoryBriefing(); break;
-      case 'mould': game.stats.mouldyClothes++; teleportTo(game.zones.quarantine, 'MOULDY CLOTHES — QUARANTINE', null); break;
+      case 'mixed': if (now < game.inventoryCooldownUntil) { resolveLoot('shoeReward', now); return; } game.stats.mixedStock++; teleportTo(game.zones.inventory, 'MIXED STOCK — INVENTORY CHECK', 'inventory'); startInventoryBriefing(); break;
+      case 'mould': if (now < game.qsCooldownUntil) { resolveLoot('coffee', now); return; } game.stats.mouldyClothes++; teleportTo(game.zones.quarantine, 'SPERRLAGER: ITEMS IN BAD CONDITION', null); break;
       case 'break': game.stats.lunchBreaks++; teleportTo(choice(game.zones.kitchens), 'COFFEE BREAK — SENT TO KITCHEN', 'kitchen'); break;
       case 'ops':
         game.stats.opsFinds++;
+        game.tasks.opsExit = true;
         game.routePath = bfs(worldToTile(game.player.x, game.player.y), { x: game.zones.exit.x, y: game.zones.exit.y });
-        game.routeUntil = now + 10000;
+        game.routeUntil = now + 18000;
         game.score += 250;
         synth.route();
-        addMessage('OPERATIONS EXCELLENCE — ROUTE REVEALED  +250', '#ff7700', 2800);
+        addMessage('You’ve achieved Operational Excellence!', '#ff7700', 3300);
+        addMessage('You can go right to the exit without having to complete any more tasks!', '#ffd054', 4300);
         break;
       default: synth.note(180, .08, 'square', .03); addMessage('EMPTY BOX', '#e9dac2', 1250);
     }
@@ -2959,12 +3010,185 @@
     if (!game.fire && now >= game.nextFireAt) startFireEvent(now);
   }
 
+
+  function shouldStartBossAfterWarehouse(level) { return level > 0 && level % 3 === 0; }
+  function startBossIntro() {
+    game.mode = 'bossIntro';
+    setGameplayControlsVisible(false);
+    keys.clear();
+    game.health = game.maxHearts;
+    game.boss = {
+      phase: 'intro', introStart: performance.now(), cameraX: 0, countdown: 3,
+      player: { x: W / 2, y: H + 220, speed: 430, invulnerableUntil: performance.now() + 2300 },
+      boss: { x: 1000, y: -240, w: 235, h: 330, vx: 115, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
+      fireballs: [], shoes: [], nextFireAt: performance.now() + 3600, nextVoiceAt: performance.now() + randInt(10000, 15000),
+      startedAt: performance.now(), victoryStart: 0, rewardShown: false, summaryUntil: 0, fade: 1
+    };
+    music.stop();
+  }
+  function startBossFight() {
+    if (!game.boss) return;
+    game.mode = 'bossFight';
+    game.boss.phase = 'fight';
+    game.boss.startedAt = performance.now();
+    game.boss.nextFireAt = performance.now() + 1600;
+    music.play('boss', true);
+  }
+  function bossViewport() {
+    const bg = images.bossBg || images.bossBgWin;
+    const bgW = bg ? bg.width : 2000;
+    const bgH = bg ? bg.height : 576;
+    const scale = H / bgH;
+    const scaledW = bgW * scale;
+    const maxCamera = Math.max(0, scaledW - W);
+    const desired = game.boss ? game.boss.player.x * scale - W / 2 : maxCamera / 2;
+    return { scale, scaledW, maxCamera, cameraX: clamp(desired, 0, maxCamera) };
+  }
+  function tintDraw(img, x, y, w, h, alpha = 1, flipX = false, redTint = true) {
+    if (!img) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (flipX) { ctx.translate(x + w, y); ctx.scale(-1, 1); x = 0; y = 0; }
+    ctx.filter = 'brightness(90%) sepia(20%) saturate(115%) hue-rotate(-14deg)';
+    ctx.drawImage(img, x, y, w, h);
+    if (redTint) { ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = 'rgba(160,15,25,.16)'; ctx.fillRect(x, y, w, h); }
+    ctx.restore();
+  }
+  function bossAlphaHit(a, b, pad = 0) {
+    return a.x - a.w / 2 + pad < b.x + b.w / 2 && a.x + a.w / 2 - pad > b.x - b.w / 2 && a.y - a.h / 2 + pad < b.y + b.h / 2 && a.y + a.h / 2 - pad > b.y - b.h / 2;
+  }
+  function damageBoss(amount, source) {
+    const b = game.boss && game.boss.boss;
+    if (!b || b.dead || performance.now() < (b.rehitUntil || 0)) return;
+    b.hearts = Math.max(0, b.hearts - amount);
+    b.hitFlashUntil = performance.now() + 420;
+    b.rehitUntil = performance.now() + 450;
+    game.stats.bossHits += amount;
+    if (source === 'ram') game.stats.bossRams++; else game.stats.bossShoeHits++;
+    burst(b.x, b.y, '#ff3c3c', 24);
+    synth.hurt();
+    if (b.hearts <= 0) startBossVictory();
+  }
+  function startBossVictory() {
+    const bz = game.boss;
+    if (!bz || bz.phase === 'victory') return;
+    bz.phase = 'victory';
+    bz.victoryStart = performance.now();
+    bz.boss.dead = true;
+    bz.fireballs = [];
+    music.stop();
+    playOneShot('success.mp3', .75);
+    game.maxHearts += 1;
+    game.health = game.maxHearts;
+    game.stats.bossesDefeated++;
+    game.stats.warehousesCleared++;
+    updateBest();
+  }
+  function throwBossShoe(now) {
+    const bz = game.boss;
+    if (!bz || bz.phase !== 'fight') return false;
+    if (now < (bz.nextShoeAt || 0)) return false;
+    bz.nextShoeAt = now + 320;
+    const keysPool = shoeImageKeys();
+    bz.shoes.push({ x: bz.player.x, y: bz.player.y - 80, w: 74, h: 46, vy: -720, spin: 0, image: choice(keysPool.length ? keysPool : ['shoe']) });
+    synth.jump();
+    return true;
+  }
+  function updateBossIntro(dt, now) {
+    const bz = game.boss;
+    if (!bz) return;
+    const elapsed = now - bz.introStart;
+    if (elapsed < 900) return;
+    if (elapsed < 6200) {
+      bz.typed = clamp((elapsed - 900) / 4400, 0, 1);
+      return;
+    }
+    if (elapsed < 7900) return;
+    bz.phase = 'enter';
+    game.mode = 'bossEnter';
+    bz.enterStart = now;
+  }
+  function updateBossEnter(dt, now) {
+    const bz = game.boss;
+    if (!bz) return;
+    const t = clamp((now - bz.enterStart) / 2600, 0, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    bz.boss.y = -240 + (H * .43 + 240) * eased;
+    bz.player.y = H + 210 + (H * .78 - H - 210) * eased;
+    if (t >= 1) {
+      bz.phase = 'countdown';
+      game.mode = 'bossCountdown';
+      bz.countdownStart = now;
+    }
+  }
+  function updateBossCountdown(dt, now) {
+    const bz = game.boss;
+    if (!bz) return;
+    const elapsed = now - bz.countdownStart;
+    bz.countdown = Math.max(1, 3 - Math.floor(elapsed / 1000));
+    if (elapsed >= 3300) startBossFight();
+  }
+  function updateBossFight(dt, now) {
+    const bz = game.boss;
+    if (!bz) return;
+    let dx = 0, dy = 0;
+    if (keys.has('ArrowLeft') || keys.has('KeyA')) dx--;
+    if (keys.has('ArrowRight') || keys.has('KeyD')) dx++;
+    if (keys.has('ArrowUp') || keys.has('KeyW')) dy--;
+    if (keys.has('ArrowDown') || keys.has('KeyS')) dy++;
+    if (dx || dy) { const l = Math.hypot(dx, dy); dx /= l; dy /= l; }
+    bz.player.x = clamp(bz.player.x + dx * bz.player.speed * dt, 80, 1920);
+    bz.player.y = clamp(bz.player.y + dy * bz.player.speed * dt, H * .56, H - 70);
+    const b = bz.boss;
+    b.x += b.vx * dt;
+    if (b.x < 360 || b.x > 1640) { b.vx *= -1; b.x = clamp(b.x, 360, 1640); }
+    b.y = H * .39 + Math.sin(now / 900) * 28;
+    if (now >= bz.nextVoiceAt) { playOneShot(choice(['robot1.mp3','robot2.mp3','robot3.mp3']), .62); bz.nextVoiceAt = now + randInt(10000, 15000); }
+    if (now >= bz.nextFireAt) {
+      bz.fireballs.push({ x: b.x, y: b.y + 25, w: 54, h: 54, vx: (bz.player.x - b.x) * .58, vy: 255, born: now });
+      bz.nextFireAt = now + randInt(1400, 2300);
+    }
+    bz.fireballs.forEach(f => { f.x += f.vx * dt; f.y += f.vy * dt; });
+    bz.fireballs = bz.fireballs.filter(f => f.y < H + 80 && f.x > -120 && f.x < 2120);
+    bz.shoes.forEach(s => { s.y += s.vy * dt; s.spin += dt * Math.PI * 5.4; });
+    bz.shoes = bz.shoes.filter(s => s.y > -90);
+    for (const s of bz.shoes) if (!s.hit && bossAlphaHit({ x: s.x, y: s.y, w: s.w, h: s.h }, { x: b.x, y: b.y, w: b.w * .62, h: b.h * .74 }, 6)) { s.hit = true; damageBoss(1, 'shoe'); }
+    bz.shoes = bz.shoes.filter(s => !s.hit);
+    const verticalRam = Math.abs(bz.player.x - b.x) < b.w * .32 && bz.player.y < b.y + b.h * .58 && bz.player.y > b.y + b.h * .18;
+    if (verticalRam) damageBoss(2, 'ram');
+    for (const f of bz.fireballs) {
+      if (!f.hit && now > (bz.player.invulnerableUntil || 0) && bossAlphaHit({ x: f.x, y: f.y, w: f.w, h: f.h }, { x: bz.player.x, y: bz.player.y, w: 132, h: 150 }, 10)) {
+        f.hit = true; game.health = Math.max(0, game.health - 1); bz.player.invulnerableUntil = now + 1500; synth.hurt(); shake(10); addMessage('IVAN FIREBALL HIT!', '#ff3949', 1500); if (game.health <= 0) triggerDeath();
+      }
+    }
+    bz.fireballs = bz.fireballs.filter(f => !f.hit);
+  }
+  function updateBossVictory(dt, now) {
+    const bz = game.boss;
+    if (!bz) return;
+    if (!bz.summaryUntil && now - bz.victoryStart > 5600) bz.summaryUntil = now + 8500;
+    if (bz.summaryUntil && now > bz.summaryUntil) {
+      game.level++;
+      game.mode = 'transition';
+      game.transitionUntil = now + 1800;
+      game.boss = null;
+    }
+  }
+  function updateBoss(dt, now) {
+    if (!game.boss) return;
+    if (game.mode === 'bossIntro') updateBossIntro(dt, now);
+    else if (game.mode === 'bossEnter') updateBossEnter(dt, now);
+    else if (game.mode === 'bossCountdown') updateBossCountdown(dt, now);
+    else if (game.mode === 'bossFight') updateBossFight(dt, now);
+    else if (game.mode === 'bossVictory') updateBossVictory(dt, now);
+  }
+
   function triggerLevelWin() {
     if (game.player.action || game.mode !== 'play') return;
     if (!requiredTasksComplete()) {
       if (performance.now() >= game.exitWarnUntil) {
         game.exitWarnUntil = performance.now() + 3300;
-        addMessage('YOU HAVE UNFINISHED WORK! GO TO THE OFFICE BEFORE YOU CAN LEAVE.', '#ff7700', 3100);
+        addMessage(`YOU NEED ${requiredTaskCountForLevel()} TASKS COMPLETE BEFORE YOU CAN LEAVE.`, '#ff7700', 3100);
         addMessage(completionChecklist(), '#ffd054', 3100);
       }
       return;
@@ -2972,12 +3196,15 @@
     music.play('winner', false);
     startPlayerAction('win', 1040, () => {
       game.score += 750 + game.health * 100;
-      game.health = Math.min(MAX_HEARTS, game.health + 1);
-      game.stats.warehousesCleared++;
-      game.level++;
+      game.health = Math.min(game.maxHearts, game.health + 1);
       updateBest();
-      game.mode = 'transition';
-      game.transitionUntil = performance.now() + 2400;
+      if (shouldStartBossAfterWarehouse(game.level)) startBossIntro();
+      else {
+        game.stats.warehousesCleared++;
+        game.level++;
+        game.mode = 'transition';
+        game.transitionUntil = performance.now() + 2400;
+      }
     });
   }
   function finishTransition() {
@@ -3115,7 +3342,7 @@
     const now = performance.now();
     if (action === 'points') { game.score += 500; addMessage('ADMIN +500 POINTS', '#ffd054', 1400); return; }
     if (action === 'token') { game.tasks.tokens++; addMessage('ADMIN +1 SOP TOKEN', '#ffd054', 1400); return; }
-    if (action === 'hearts') { game.health = MAX_HEARTS; addMessage('ADMIN HEARTS RESTORED', '#ffd054', 1400); return; }
+    if (action === 'hearts') { game.health = game.maxHearts; addMessage('ADMIN HEARTS RESTORED', '#ffd054', 1400); return; }
     if (action === 'inventory') { adminReturnToWarehouse(); game.inventoryCooldownUntil = 0; startInventoryBriefing(); return; }
     if (action === 'qs') { adminReturnToWarehouse(); game.qsCooldownUntil = 0; startQSPuzzle(); return; }
     if (action === 'noean') { adminReturnToWarehouse(); game.noEanCooldownUntil = 0; startNoEanBriefing(); return; }
@@ -3128,6 +3355,7 @@
     if (action === 'exitLocked') { adminReturnToWarehouse(); game.tasks = freshTasks(); const pos = destinationPosition(game.zones.exit); game.player.x = pos.x; game.player.y = pos.y; centerCamera(); triggerLevelWin(); return; }
     if (action === 'exitOpen') { adminReturnToWarehouse(); TASK_TYPES.forEach(type => game.tasks.completed[type] = true); const pos = destinationPosition(game.zones.exit); game.player.x = pos.x; game.player.y = pos.y; centerCamera(); triggerLevelWin(); return; }
     if (action === 'gameover') { adminReturnToWarehouse(); game.health = 0; triggerDeath(); return; }
+    if (action === 'boss') { adminReturnToWarehouse(); game.level = 3; startBossIntro(); return; }
     if (action === 'next') { adminReturnToWarehouse(); game.level++; buildLevel(game.level); addMessage(`ADMIN: WAREHOUSE ${game.level}`, '#ffd054', 2300); return; }
   }
 
@@ -3141,7 +3369,8 @@
   }
 
   function update(dt, now) {
-    if (game.mode === 'play') {
+    if (game.mode === 'bossIntro' || game.mode === 'bossEnter' || game.mode === 'bossCountdown' || game.mode === 'bossFight' || game.mode === 'bossVictory') { updateBoss(dt, now); }
+    else if (game.mode === 'play') {
       updatePlayer(dt, now);
       if (game.mode !== 'play') {
         game.messages = game.messages.filter(message => message.until > now);
@@ -3291,7 +3520,7 @@
       const visualW = ((conveyor.visualRight ?? (conveyor.left + conveyor.width)) - (conveyor.visualLeft ?? conveyor.left)) * TILE;
       if (!images.conveyor || !onScreenRect(visualX, (conveyor.top - 1.1) * TILE, visualW, 2.4 * TILE, 100)) return;
       for (let i = 0; i < conveyor.pieces; i++) {
-        drawContain(images.conveyor, (conveyor.left + i * 3.13) * TILE, conveyor.top * TILE, 3.05 * TILE, conveyor.height * TILE, 1, true);
+        drawContain(images.conveyor, (conveyor.left + i * 3.13) * TILE, (conveyor.top + CONVEYOR_DRAW_Y_OFFSET) * TILE, 3.05 * TILE, conveyor.height * TILE, 1, true);
       }
       if (images.conveyorEnd) {
         const endW = (conveyor.endW || 3.05) * TILE;
@@ -3299,7 +3528,7 @@
         const endY = (conveyor.top - 1.02) * TILE;
         const machineLeft = conveyor.feederSide === 'left'
           ? (conveyor.left - (conveyor.endW || 3.05)) * TILE
-          : (conveyor.left + conveyor.width) * TILE;
+          : (conveyor.left + conveyor.width - .02) * TILE;
         drawContain(images.conveyorEnd, machineLeft, endY, endW, endH, 1, true, conveyor.feederSide === 'left');
       }
     });
@@ -3785,13 +4014,16 @@
   }
   function miniMapScreenRect() {
     const w = Math.min(280, W * .22), h = w * (5 / 8);
-    return { x: W - w - 18, y: 82, w, h };
+    return { x: W - w - 18, y: 104, w, h };
   }
   function drawMiniMapMarker(x, y, emoji, now, size = 15, flash = true) {
     const alpha = flash ? (.55 + .45 * Math.sin(now / 180)) : 1;
-    ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `${size}px Arial`;
-    ctx.shadowColor = '#ffd054'; ctx.shadowBlur = emoji === '🧍‍♂️' ? 16 : 10;
-    ctx.fillText(emoji, x, y); ctx.restore();
+    ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.beginPath(); ctx.fillStyle = emoji === '🧍‍♂️' ? 'rgba(255,208,84,.82)' : 'rgba(255,105,0,.72)';
+    ctx.shadowColor = emoji === '🧍‍♂️' ? '#ffd054' : '#ff6900'; ctx.shadowBlur = emoji === '🧍‍♂️' ? 18 : 11;
+    ctx.arc(x, y, Math.max(5, size * .38), 0, Math.PI * 2); ctx.fill();
+    ctx.font = `${size}px Arial`; ctx.fillText(emoji, x, y);
+    ctx.restore();
   }
   function miniMapPointFromWorld(rect, wx, wy) {
     return { x: rect.x + clamp(wx / WORLD_W, 0, 1) * rect.w, y: rect.y + clamp(wy / WORLD_H, 0, 1) * rect.h };
@@ -3838,7 +4070,24 @@
     ctx.restore();
   }
 
-  function drawTokenCelebration(now) { if (now >= game.tokenFlashUntil) return; const alpha = clamp((game.tokenFlashUntil - now) / 900, 0, 1) * .36; ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#ff6900'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  function drawTokenCelebration(now) {
+    if (now >= game.tokenFlashUntil) return;
+    const remain = clamp((game.tokenFlashUntil - now) / 2200, 0, 1);
+    const pulse = .65 + .35 * Math.sin(now / 90);
+    ctx.save();
+    ctx.globalAlpha = .20 * remain; ctx.fillStyle = '#ff6900'; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = remain;
+    ctx.textAlign = 'center';
+    if (images.scoutIcon) {
+      const s = 142 + pulse * 18;
+      ctx.shadowColor = '#ff7700'; ctx.shadowBlur = 34;
+      drawContain(images.scoutIcon, W / 2 - s / 2, H / 2 - s / 2 - 60, s, s, 1, true);
+    }
+    ctx.shadowColor = '#ff7700'; ctx.shadowBlur = 18;
+    ctx.fillStyle = '#ffd054'; ctx.font = 'bold 26px Trebuchet MS';
+    ctx.fillText('Use the SOPScout to help you complete a task in the office!', W / 2, H / 2 + 105);
+    ctx.restore();
+  }
   function drawHUD(now) {
     ctx.save();
     ctx.fillStyle = 'rgba(12,15,18,.88)'; ctx.fillRect(0, 0, W, 70);
@@ -3863,7 +4112,7 @@
       }
     }
     ctx.globalAlpha = 1;
-    ctx.font = 'bold 14px Trebuchet MS'; ctx.fillStyle = '#f0c7a0'; ctx.fillText(`${game.health}/${MAX_HEARTS}`, 610, 43);
+    ctx.font = 'bold 14px Trebuchet MS'; ctx.fillStyle = '#f0c7a0'; ctx.fillText(`${game.health}/${game.maxHearts}`, 610, 43);
     drawContain(images.coffee, 660, 14, 26, 43); ctx.font = 'bold 23px Trebuchet MS'; ctx.fillStyle = '#fff3e1'; ctx.fillText(`${game.coffees}/3`, 696, 44);
     if (playerRidingPalletJack(now)) {
       ctx.fillStyle = '#ffd054';
@@ -4238,6 +4487,102 @@
   }
 
   function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskAvailable('alm') || taskAvailable('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskAvailable('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskAvailable('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id === 'buy-hint') { buyOfficeHint(); return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) { if (!game.office.puzzle.locked.includes(emoji)) chosen.splice(idx, 1); } else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
+
+  function drawBossBackground(victory = false) {
+    const img = victory ? (images.bossBgWin || images.bossBg) : images.bossBg;
+    if (!img) { ctx.fillStyle = '#1a0e1c'; ctx.fillRect(0,0,W,H); return bossViewport(); }
+    const view = bossViewport();
+    ctx.drawImage(img, view.cameraX / view.scale, 0, W / view.scale, img.height, 0, 0, W, H);
+    return view;
+  }
+  function drawBossIntro(now) {
+    const bz = game.boss;
+    ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+    if (!bz) return;
+    const elapsed = now - bz.introStart;
+    const fade = elapsed < 800 ? elapsed / 800 : 1;
+    ctx.save(); ctx.globalAlpha = fade;
+    if (images.bossIntro) drawCoverImage(images.bossIntro, 0, 0, W, H); else { ctx.fillStyle = '#111'; ctx.fillRect(0,0,W,H); }
+    const story = 'Crazy Ivan has turned himself into an Evil AI Robot and he isnt going to let you get away! Battle him so you can get to the next warehouse!';
+    const chars = Math.floor(story.length * (bz.typed || 0));
+    ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(70, H - 154, W - 140, 98);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(70, H - 154, W - 140, 98);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 23px Trebuchet MS'; ctx.textAlign = 'center';
+    wrapText(story.slice(0, chars), W/2, H - 116, W - 190, 29);
+    ctx.restore();
+  }
+  function wrapText(text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' '); let line = '', yy = y;
+    words.forEach(word => { const test = line ? line + ' ' + word : word; if (ctx.measureText(test).width > maxWidth && line) { ctx.fillText(line, x, yy); line = word; yy += lineHeight; } else line = test; });
+    if (line) ctx.fillText(line, x, yy);
+  }
+  function drawBossActor(now, view, victory = false) {
+    const bz = game.boss; if (!bz) return;
+    const b = bz.boss;
+    if (victory && Math.floor((now - bz.victoryStart) / 130) % 2 === 0 && now - bz.victoryStart < 1600) return;
+    const sx = b.x * view.scale - view.cameraX, sy = b.y;
+    const w = b.w, h = b.h;
+    if (images.bossIvan) tintDraw(images.bossIvan, sx - w/2, sy - h/2, w, h, (now < b.hitFlashUntil ? .55 : 1), false, true);
+    else { ctx.font = '140px Arial'; ctx.textAlign='center'; ctx.fillText('🤖', sx, sy); }
+  }
+  function drawBossPlayer(now, view) {
+    const bz = game.boss; if (!bz) return;
+    const x = bz.player.x * view.scale - view.cameraX, y = bz.player.y;
+    if (bz.phase === 'victory') {
+      if (images.bossCarWin) drawContain(images.bossCarWin, x - 82, H - 132, 164, 92, 1, true);
+      if (images.actionssprite) {
+        const frame = Math.floor(((now - bz.victoryStart) / 140) % 10);
+        const f = frame < 5 ? frame : 9 - frame;
+        spriteFrame(images.actionssprite, 5, 3, f, 1, x - 66, H - 245, 132, 178, false, 1, true);
+      }
+      return;
+    }
+    if (images.bossCar) tintDraw(images.bossCar, x - 118, y - 100, 236, 182, now < (bz.player.invulnerableUntil || 0) && Math.floor(now/100)%2 === 0 ? .55 : 1, false, true);
+    else { ctx.font = '110px Arial'; ctx.textAlign='center'; ctx.fillText('🚜', x, y); }
+  }
+  function drawBossProjectiles(now, view) {
+    const bz = game.boss; if (!bz) return;
+    bz.fireballs.forEach(f => { const x = f.x * view.scale - view.cameraX; if (images.fireball) drawContain(images.fireball, x - f.w/2, f.y - f.h/2, f.w, f.h, 1, true); else { ctx.font='44px Arial'; ctx.fillText('🔥', x, f.y); } });
+    bz.shoes.forEach(s => { const x = s.x * view.scale - view.cameraX; ctx.save(); ctx.translate(x, s.y); ctx.rotate(s.spin); if (images[s.image]) tintDraw(images[s.image], -s.w/2, -s.h/2, s.w, s.h, 1, false, true); else { ctx.font='42px Arial'; ctx.fillText('👟',0,0); } ctx.restore(); });
+  }
+  function drawBossUI(now) {
+    const bz = game.boss; if (!bz) return;
+    ctx.save(); ctx.fillStyle='rgba(12,15,18,.78)'; roundRect(24, 74, 195, 168, 12, true, false); ctx.strokeStyle='#ff6900'; ctx.lineWidth=2; roundRect(24,74,195,168,12,false,true);
+    ctx.fillStyle='#fff4df'; ctx.font='bold 20px Trebuchet MS'; ctx.fillText('SCOUT', 46, 111); ctx.fillText('HEARTS', 46, 153); ctx.fillText('♥'.repeat(Math.max(0,game.health)), 46, 194);
+    ctx.fillStyle='rgba(12,15,18,.78)'; roundRect(W-228, 74, 204, 250, 12, true, false); ctx.strokeStyle='#ff6900'; roundRect(W-228,74,204,250,12,false,true);
+    ctx.fillStyle='#ff9a3b'; ctx.font='bold 20px Trebuchet MS'; ctx.fillText('CRAZY IVAN', W-205, 112);
+    for (let i=0;i<bz.boss.maxHearts;i++) { ctx.globalAlpha = i < bz.boss.hearts ? 1 : .20; ctx.fillStyle='#ed4959'; ctx.font='bold 28px Trebuchet MS'; ctx.fillText('♥', W-126, 156 + i*28); }
+    ctx.globalAlpha=1;
+    if (game.mode === 'bossCountdown') { ctx.textAlign='center'; ctx.fillStyle='#ffd054'; ctx.font='bold 78px Trebuchet MS'; ctx.fillText(String(bz.countdown), W/2, H/2); }
+    if (game.mode === 'bossFight') { ctx.textAlign='center'; ctx.fillStyle='#fff4df'; ctx.font='bold 18px Trebuchet MS'; ctx.fillText('Ram Ivan with the forklift or throw offline stock at him to get him away from the exit!', W/2, H-34); }
+    ctx.restore();
+  }
+  function drawBossVictorySummary(now) {
+    const bz = game.boss; if (!bz || !bz.summaryUntil) return;
+    ctx.save(); ctx.fillStyle='rgba(0,0,0,.66)'; ctx.fillRect(0,0,W,H);
+    const boardW=720, boardH=330, x=(W-boardW)/2, y=130;
+    if (images.score) drawContain(images.score, x, y, boardW, boardH, .95, true); else { ctx.fillStyle='rgba(14,16,20,.92)'; roundRect(x,y,boardW,boardH,18,true,false); ctx.strokeStyle='#ff6900'; ctx.lineWidth=3; roundRect(x,y,boardW,boardH,18,false,true); }
+    ctx.textAlign='center'; ctx.fillStyle='#ffd054'; ctx.font='bold 40px Trebuchet MS'; ctx.fillText('CRAZY IVAN DEFEATED!', W/2, y+72);
+    const spin = (now - bz.victoryStart) / 300;
+    ctx.save(); ctx.translate(W/2, y+138); ctx.rotate(spin); ctx.fillStyle='#ed4959'; ctx.font='bold 54px Trebuchet MS'; ctx.fillText('♥',0,0); ctx.restore();
+    ctx.fillStyle='#fff4df'; ctx.font='bold 24px Trebuchet MS'; ctx.fillText('You won an extra heart!', W/2, y+184);
+    ctx.font='bold 20px Trebuchet MS'; ctx.fillText(`Max hearts now: ${game.maxHearts}`, W/2, y+226);
+    ctx.fillText(`Boss hits: ${game.stats.bossHits}   Rams: ${game.stats.bossRams}   Offline stock hits: ${game.stats.bossShoeHits}`, W/2, y+262);
+    ctx.restore();
+  }
+  function drawBoss(now) {
+    if (game.mode === 'bossIntro') { drawBossIntro(now); return; }
+    const bz = game.boss; if (!bz) return;
+    const victory = bz.phase === 'victory';
+    const view = drawBossBackground(victory);
+    drawBossProjectiles(now, view);
+    if (!victory || now - bz.victoryStart < 1600) drawBossActor(now, view, victory);
+    if (victory && now - bz.victoryStart < 1700) { ctx.save(); ctx.globalAlpha = .55 * (1 - (now - bz.victoryStart)/1700); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.restore(); }
+    drawBossPlayer(now, view);
+    if (!victory) drawBossUI(now);
+    drawBossVictorySummary(now);
+  }
+
   function draw(now) {
     if (game.mode !== 'play' && game.mode !== 'cockpitHelp') hideFireOverlay();
     ctx.clearRect(0, 0, W, H);
@@ -4250,6 +4595,7 @@
     else if (game.mode === 'noEanBriefing') drawNoEanBriefing(now);
     else if (game.mode === 'noEanPuzzle') drawNoEanPuzzle(now);
     else if (game.mode === 'transition') drawTransition(now);
+    else if (game.mode === 'bossIntro' || game.mode === 'bossEnter' || game.mode === 'bossCountdown' || game.mode === 'bossFight' || game.mode === 'bossVictory') drawBoss(now);
     else if (game.mode === 'gameover') drawGameOver();
   }
 
@@ -4413,7 +4759,7 @@
 
   document.addEventListener('keydown', event => {
     const prevent = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code);
-    if (prevent && (game.mode === 'play' || game.mode === 'qsPuzzle' || game.mode === 'noEanPuzzle' || game.mode === 'noEanBriefing')) event.preventDefault();
+    if (prevent && (game.mode === 'play' || game.mode === 'qsPuzzle' || game.mode === 'bossFight' || game.mode === 'bossCountdown' || game.mode === 'noEanPuzzle' || game.mode === 'noEanBriefing')) event.preventDefault();
     if (event.code === 'Escape' && game.mode === 'title') {
       const now = performance.now();
       game.adminEscapeCount = now <= game.adminEscapeUntil ? game.adminEscapeCount + 1 : 1;
@@ -4470,6 +4816,7 @@
       if (event.code === 'Enter') { resetNoEanScanner(); event.preventDefault(); return; }
       if (event.code === 'Space' && !keys.has('Space')) { fireNoEanScanner(now); actionControl.classList.add('active'); }
     }
+    if (event.code === 'Space' && game.mode === 'bossFight' && !keys.has('Space')) { synth.init(); throwBossShoe(performance.now()); }
     if (event.code === 'Space' && game.mode === 'play' && !keys.has('Space')) {
       const now = performance.now();
       handleActionPress(now);
