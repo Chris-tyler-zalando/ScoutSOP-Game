@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.43';
+  const VERSION = 'V2.44';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -134,9 +134,10 @@
     elevator: ['elevator.png'], conveyor: ['conveyor.png'], conveyorBox: ['box.png'],
     jiraScreen: ['jira.jpg'], errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png'],
     noEanWelcome: ['welcome3.jpg'], noEanBg: ['conveyor.jpg', 'conveyor.png', 'noeanbg.jpg', 'noeanbg.png', 'scannerbg.jpg', 'scannerbg.png', 'conveyorbg.jpg', 'conveyorbg.png'],
-    scanner: ['scanner.png'], scannerCorrect: ['scanner2.png'], scannerWrong: ['scanner3.png']
+    scanner: ['scanner.png'], scannerCorrect: ['scanner2.png'], scannerWrong: ['scanner3.png'],
+    noEanShoes: ['shoes.webp'], noEanTops: ['tops.webp'], noEanPants: ['pants.webp']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -2410,9 +2411,9 @@
   }
 
   function noEanSpawnInterval(elapsed) {
-    if (elapsed < 20000) return rand(1600, 2000);
-    if (elapsed < 40000) return rand(1300, 1700);
-    return rand(1000, 1400);
+    if (elapsed < 20000) return rand(1150, 1450);
+    if (elapsed < 40000) return rand(850, 1150);
+    return rand(620, 900);
   }
   function makeNoEanPath() {
     // V2.43: aligned to conveyor.jpg in its 1672 x 941 design coordinate space.
@@ -2485,18 +2486,28 @@
     const pants = [0, 1, 6, 10];
     return choice(category === 'tops' ? tops : pants);
   }
+  function chooseNoEanSpawnCategory() {
+    const pz = game.noEanPuzzle;
+    if (!pz || !pz.target) return choice(NOEAN_TARGETS);
+    // Roughly half target items, half distractors.
+    if (Math.random() < .52) return pz.target;
+    const nonTargets = NOEAN_TARGETS.filter(cat => cat !== pz.target);
+    return choice(nonTargets);
+  }
+
   function createNoEanItem(now) {
-    const category = choice(NOEAN_TARGETS);
+    const category = chooseNoEanSpawnCategory();
     const shoeKeys = shoeImageKeys();
     const isShoe = category === 'shoes';
+    const frameCount = noEanFrameCount(category);
     return {
       category,
       image: isShoe ? (choice(shoeKeys.length ? shoeKeys : ['shoe'])) : 'clothes',
-      frame: isShoe ? 0 : noEanClothingFrame(category),
+      frame: randInt(0, Math.max(0, frameCount - 1)),
       distance: 0,
-      speed: rand(112, 142),
-      w: isShoe ? rand(76, 96) : rand(62, 82),
-      h: isShoe ? rand(48, 62) : rand(72, 92),
+      speed: rand(126, 158),
+      w: category === 'shoes' ? rand(82, 108) : (category === 'tops' ? rand(72, 96) : rand(68, 92)),
+      h: category === 'shoes' ? rand(50, 68) : (category === 'tops' ? rand(78, 104) : rand(70, 96)),
       x: -999,
       y: -999,
       hitAt: 0,
@@ -2598,15 +2609,17 @@
     const downHeld = keys.has('ArrowDown') || keys.has('KeyS');
     if ((upHeld || downHeld) && now - (pz.scanner.lastAngleStepAt || 0) >= 1000) noEanAdvanceAngle(pz, upHeld ? 1 : -1, now);
     const elapsed = now - pz.startedAt;
-    if (now >= pz.nextSpawnAt && now < pz.until && pz.items.length < 5) {
-      const last = pz.items[pz.items.length - 1];
-      if (!last || last.distance > 205) {
+    if (now >= pz.nextSpawnAt && now < pz.until) {
+      const active = pz.items.filter(item => !item.removing);
+      const last = active[active.length - 1];
+      // No max active cap. Keep only a path-gap rule so late-round speed does not leave big empty conveyor sections.
+      if (!last || last.distance > 105) {
         const item = createNoEanItem(now);
         const pos = noEanPathPosition(item, pz.path);
         item.x = pos.x; item.y = pos.y;
         pz.items.push(item);
         pz.nextSpawnAt = now + noEanSpawnInterval(elapsed);
-      } else pz.nextSpawnAt = now + 260;
+      } else pz.nextSpawnAt = now + 90;
     }
     for (let i = pz.items.length - 1; i >= 0; i--) {
       const item = pz.items[i];
@@ -2680,11 +2693,52 @@
     ctx.fillStyle = '#ffd054'; ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText(`STARTING IN ${seconds}...`, W / 2, 548);
     ctx.restore();
   }
+  function noEanSheetForCategory(category) {
+    if (category === 'shoes') return images.noEanShoes || null;
+    if (category === 'tops') return images.noEanTops || null;
+    if (category === 'pants') return images.noEanPants || null;
+    return null;
+  }
+  function noEanSheetGrid(img) {
+    // Dedicated No EAN sprite cards are treated as flexible grids.
+    // This works for 3x2, 4x2, 4x3, or similar card layouts without needing exact hard-coding.
+    if (!img) return { cols: 1, rows: 1, count: 1 };
+    const ratio = img.width / Math.max(1, img.height);
+    let cols = 4, rows = 3;
+    if (ratio > 2.2) { cols = 4; rows = 2; }
+    else if (ratio > 1.45) { cols = 3; rows = 2; }
+    else { cols = 3; rows = 3; }
+    return { cols, rows, count: cols * rows };
+  }
+  function noEanFrameCount(category) {
+    const img = noEanSheetForCategory(category);
+    return noEanSheetGrid(img).count;
+  }
+  function drawNoEanCardItem(item, x, y, w, h, alpha = 1) {
+    const img = noEanSheetForCategory(item.category);
+    if (!img) return false;
+    const grid = noEanSheetGrid(img);
+    const frame = (item.frame || 0) % grid.count;
+    const col = frame % grid.cols;
+    const row = Math.floor(frame / grid.cols);
+    const sw = img.width / grid.cols;
+    const sh = img.height / grid.rows;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(img, col * sw, row * sh, sw, sh, x, y, w, h);
+    ctx.restore();
+    return true;
+  }
   function drawNoEanItem(item, alpha = 1) {
     ctx.save();
     ctx.globalAlpha = alpha;
-    if (item.category === 'shoes' && images[item.image]) drawContain(images[item.image], item.x - item.w / 2, item.y - item.h / 2, item.w, item.h, alpha, true);
-    else if (images.clothes) drawClothingItem(item.frame, item.x - item.w / 2, item.y - item.h / 2, item.w, item.h, alpha);
+    const x = item.x - item.w / 2;
+    const y = item.y - item.h / 2;
+    const usedCard = drawNoEanCardItem(item, x, y, item.w, item.h, alpha);
+    if (!usedCard) {
+      if (item.category === 'shoes' && images[item.image]) drawContain(images[item.image], x, y, item.w, item.h, alpha, true);
+      else if (images.clothes) drawClothingItem(item.frame, x, y, item.w, item.h, alpha);
+    }
     if (performance.now() < item.flashUntil) {
       ctx.globalAlpha = .45; ctx.fillStyle = '#ff1f2a'; ctx.beginPath(); ctx.ellipse(item.x, item.y, item.w * .55, item.h * .55, 0, 0, Math.PI * 2); ctx.fill();
     }

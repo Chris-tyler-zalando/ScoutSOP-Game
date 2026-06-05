@@ -787,3 +787,5 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
 /* V2.42 No EAN scanner aspect + HUD fix */
 
 /* V2.43 No EAN conveyor path + HUD placement fix */
+
+/* V2.44 No EAN sprite cards + no active cap */
