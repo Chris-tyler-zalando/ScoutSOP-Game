@@ -797,3 +797,13 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
 /* V2.47 warehouse rules, filtered loot, live minimap, SOP Scout flash */
 
 /* V2.48 Crazy Ivan boss fight */
+
+
+/* V2.49 admin panel drag/collapse helpers */
+.admin-panel { touch-action: none; }
+.admin-header { cursor: move; user-select: none; }
+.admin-window-controls { display: flex; gap: 5px; }
+.admin-panel.collapsed { width: 178px; max-height: 52px; overflow: hidden; padding-bottom: 8px; }
+.admin-panel.collapsed p,
+.admin-panel.collapsed .admin-quick,
+.admin-panel.collapsed .admin-modules { display: none; }

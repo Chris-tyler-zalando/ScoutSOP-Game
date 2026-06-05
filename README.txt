@@ -223,3 +223,6 @@ V2.48a:
 - Saved shifts now preserve maxHearts.
 - Name input no longer swallows gameplay movement keys after the intro.
 - Starting/continuing a shift blurs the title input and clears stuck keys.
+
+V2.49:
+- Cleared pending list items: removed return reward, improved filtered loot, stronger shoe availability, pushable smallbox3, area-edge shelves/boxes, conveyor-machine alignment, No EAN path pull-left, QS timer layout, elevator label/helper text, live minimap visibility, admin drag/collapse/edit, and carry-forward resources between warehouses.

@@ -39,6 +39,7 @@
   const fireAnimationOverlay = document.getElementById('fire-animation-overlay');
   const adminPanel = document.getElementById('admin-panel');
   const adminExitButton = document.getElementById('admin-exit');
+  const adminCollapseButton = document.getElementById('admin-collapse');
   const adminButtons = Array.from(document.querySelectorAll('[data-admin]'));
 
   const W = canvas.width;
@@ -52,7 +53,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.48a';
+  const VERSION = 'V2.49';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -85,7 +86,7 @@
   const OFFICE_MENU_MONITOR = { x: 99, y: 48, width: 581, height: 372 };
   const OFFICE_APP_MONITOR = { x: 130, y: 92, width: 498, height: 302 };
   const HINT_COST = 100;
-  const CONVEYOR_DRAW_Y_OFFSET = 0.10;
+  const CONVEYOR_DRAW_Y_OFFSET = 0.20;
   const keys = new Set();
 
   const TASK_PUZZLES = {
@@ -631,7 +632,7 @@
   function isShoeImage(image) { return /^shoe\d*$/.test(image); }
   function addDecorativeProp(image, rect, flipX = false) {
     if (!images[image]) return false;
-    const candidate = { ...rect, image, flipX, collisionRect: null, decorative: true, collectible: isShoeImage(image), interactive: /^smallbox/.test(image), bob: rand(0, Math.PI * 2) };
+    const candidate = { ...rect, image, flipX, collisionRect: null, decorative: true, collectible: isShoeImage(image), interactive: /^smallbox(?!3$)/.test(image), pushable: image === 'smallbox3', bob: rand(0, Math.PI * 2) };
     const centre = decorativeCenter(candidate);
     const tile = worldToTile(centre.x, centre.y);
     if (!isFloorTile(tile.x, tile.y) || tileInAnyZone(tile, 0) || tileInsideVisibleScenery(tile) || tileInsideTemplatePath(tile) || rectHitsProtectedProp(rect)) return false;
@@ -660,7 +661,7 @@
     if (!choices.length && !shoePool.length) return;
     const shelfProps = game.obstacles.filter(prop => /^box[2-7]$/.test(prop.image));
     const scaleChoices = [1, .5, .3];
-    const maxDecor = Math.min(game.level >= 5 ? 280 : 190, Math.max(70, Math.round(shelfProps.length * .30)));
+    const maxDecor = Math.min(game.level >= 5 ? 340 : 245, Math.max(95, Math.round(shelfProps.length * .40)));
     let placed = 0;
 
     // Denser decorative clutter: keep it attached to shelf fronts and gaps, not stranded in open aisles.
@@ -670,7 +671,7 @@
       const itemsHere = Math.random() < .32 ? 3 : (Math.random() < .72 ? 2 : 1);
       for (let i = 0; i < itemsHere && placed < maxDecor; i++) {
         let image;
-        if (shoePool.length && (!choices.length || Math.random() < .50)) image = nextShoeImage();
+        if (shoePool.length && (!choices.length || Math.random() < .72)) image = nextShoeImage();
         else image = choice(choices);
         if (!image || !images[image]) continue;
         const scale = choice(scaleChoices);
@@ -796,6 +797,32 @@
       }
     }
   }
+
+  function addPushableSmallBox(left, top) {
+    if (!images.smallbox3) return false;
+    return addDecorativeProp('smallbox3', { left, top, width: .9, height: .75 }, false);
+  }
+  function installTaskAreaEdgeProps() {
+    const areaZones = [game.zones.inventory, game.zones.quarantine, game.zones.exit, ...game.zones.kitchens].filter(Boolean);
+    const hardImages = ['box5', 'box6', 'box7', 'box3'].filter(key => images[key]);
+    if (!hardImages.length && !images.smallbox3) return;
+    areaZones.forEach((z, zi) => {
+      const openLeft = Math.round(z.top + z.height / 2);
+      const openRight = openLeft + (zi % 2 ? 1 : -1);
+      for (let x = Math.floor(z.left); x < Math.ceil(z.left + z.width); x += 3) {
+        const topGap = x >= z.left + z.width / 2 - 1 && x <= z.left + z.width / 2 + 1;
+        if (!topGap && hardImages.length) addZoneProp(hardImages[(x + zi) % hardImages.length], { left: x + .1, top: z.top - 1.05, width: 2.6, height: 1.65 }, { collisionInset: .08 });
+        if (!topGap && hardImages.length) addZoneProp(hardImages[(x + zi + 1) % hardImages.length], { left: x + .1, top: z.top + z.height - .55, width: 2.6, height: 1.65 }, { collisionInset: .08 });
+      }
+      for (let y = Math.floor(z.top + 1); y < Math.ceil(z.top + z.height - 1); y += 2) {
+        if (Math.abs(y - openLeft) <= 1) { addPushableSmallBox(z.left - .95, y + .25); continue; }
+        if (hardImages.length) addZoneProp(hardImages[(y + zi) % hardImages.length], { left: z.left - 1.15, top: y, width: 1.65, height: 1.55 }, { collisionInset: .08 });
+        if (Math.abs(y - openRight) <= 1) { addPushableSmallBox(z.left + z.width + .05, y + .25); continue; }
+        if (hardImages.length) addZoneProp(hardImages[(y + zi + 2) % hardImages.length], { left: z.left + z.width - .55, top: y, width: 1.65, height: 1.55 }, { collisionInset: .08 });
+      }
+    });
+  }
+
   function crossesMainAisle(rect) {
 
 
@@ -976,7 +1003,7 @@
     const conveyor = { left, top, width: totalW, height, pieces: count, moving: [], feederSide, endW, endH, visualLeft, visualRight };
     const itemCount = clamp(Math.floor(count * 1.35), 2, 7);
     for (let i = 0; i < itemCount; i++) {
-      const collectible = shoeImageKeys().length && Math.random() < .18;
+      const collectible = shoeImageKeys().length && Math.random() < .34;
       const image = collectible ? (nextShoeImage() || 'shoe') : 'conveyorBox';
       const size = collectible ? rand(.62, .88) : rand(.42, .78);
       // Items travel on the visible belt only and stop at the machine entrance.
@@ -1116,10 +1143,11 @@
     installDenseShelfWalls();
     installExitApproachMaze();
     installSpecialAreaProps();
+    installTaskAreaEdgeProps();
     sealUnexpectedOpenPatches();
+    installConveyors();
     scatterConeHazards();
     installWalkwayConeGuides();
-    installConveyors();
     installWarehouseBorder();
     scatterDecorativeClutter();
     clearDockDrivewayVisualClutter();
@@ -1150,7 +1178,7 @@
   function destinationPosition(z) { return tileCenter({ x: z.x, y: z.y }); }
   function occupiedAt(p, includeEnemies = true) {
     const decor = game.decorativeProps
-      .filter(prop => prop.collectible || prop.interactive)
+      .filter(prop => prop.collectible || prop.interactive || prop.pushable)
       .map(prop => decorativeCenter(prop));
     const movingShoes = (game.movingConveyorItems || [])
       .filter(item => item.collectible)
@@ -1816,13 +1844,16 @@
     addMessage('EMERGENCY MOVE — SAFE AISLE REACHED', '#ffd054', 2200);
   }
   function tileInsideZone(t, z) {
+    if (!t || !z) return false;
     return t.x >= z.left && t.x < z.left + z.width && t.y >= z.top && t.y < z.top + z.height;
   }
   function pointInsideZone(p, z) {
+    if (!p || !z) return false;
     return tileInsideZone(worldToTile(p.x, p.y), z);
   }
   function dockDrivewayRect() {
-    const d = game.zones.dock;
+    const d = game.zones && game.zones.dock;
+    if (!d) return { left: -999, top: -999, width: 0, height: 0 };
     return { left: 0, top: d.top + 4.35, width: d.left + d.width + 3.0, height: 2.95 };
   }
   function tileInsideDockDriveway(t) {
@@ -1928,6 +1959,45 @@
     }
     return true;
   }
+
+  function propFootRect(prop, left = prop.left, top = prop.top) {
+    return { left, top, width: prop.width || .9, height: prop.height || .75 };
+  }
+  function rectBlockedForPush(rect, movingProp) {
+    if (!withinMap(rect)) return true;
+    const corners = [
+      { x: Math.floor(rect.left), y: Math.floor(rect.top) },
+      { x: Math.floor(rect.left + rect.width - .05), y: Math.floor(rect.top) },
+      { x: Math.floor(rect.left), y: Math.floor(rect.top + rect.height - .05) },
+      { x: Math.floor(rect.left + rect.width - .05), y: Math.floor(rect.top + rect.height - .05) }
+    ];
+    if (corners.some(t => !isFloorTile(t.x, t.y) || tileInsideTemplatePath(t))) return true;
+    if (rectHitsProtectedProp(rect)) return true;
+    if (game.obstacles.some(o => overlaps(rect, o))) return true;
+    if (game.zoneProps.some(p => p.image !== 'cone' && overlaps(rect, p))) return true;
+    if (game.decorativeProps.some(p => p !== movingProp && (p.pushable || p.interactive || p.collectible) && overlaps(rect, propFootRect(p)))) return true;
+    return false;
+  }
+  function pushSmallBoxIfNeeded(dx, dy, step) {
+    if (!game.player || (!dx && !dy)) return;
+    const ahead = { x: game.player.x + dx * (game.player.r + 28), y: game.player.y + dy * (game.player.r + 28) };
+    for (const prop of game.decorativeProps) {
+      if (!prop.pushable) continue;
+      const c = decorativeCenter(prop);
+      if (Math.hypot(ahead.x - c.x, ahead.y - c.y) > TILE * .72) continue;
+      const moveTiles = Math.max(.04, step / TILE);
+      const nextLeft = prop.left + dx * moveTiles;
+      const nextTop = prop.top + dy * moveTiles;
+      const nextRect = propFootRect(prop, nextLeft, nextTop);
+      if (!rectBlockedForPush(nextRect, prop)) {
+        prop.left = nextLeft;
+        prop.top = nextTop;
+        prop.bob = 0;
+      }
+      break;
+    }
+  }
+
   function updatePlayer(dt, now) {
     if (updatePlayerAction(now)) { centerCamera(); return; }
     const p = game.player;
@@ -1945,6 +2015,7 @@
       const responseSpeed = game.fire ? 2 : 1;
       const step = p.speed * (playerRidingPalletJack(now) ? 2 : (p.sprinting ? 1.72 : responseSpeed)) * dt;
       const moveRadius = playerRidingPalletJack(now) ? 18 : p.r;
+      pushSmallBoxIfNeeded(dx, dy, step);
       if (canMove(p.x + dx * step, p.y, moveRadius)) p.x += dx * step;
       if (canMove(p.x, p.y + dy * step, moveRadius)) p.y += dy * step;
       p.anim += dt * (playerRidingPalletJack(now) || game.fire ? 15 : (p.sprinting ? 17 : 10));
@@ -2114,13 +2185,13 @@
   }
 
   const lootTable = [
-    { id: 'heart', weight: 8 }, { id: 'coffee', weight: 13 }, { id: 'shoeReward', weight: 10 },
+    { id: 'heart', weight: 8 }, { id: 'coffee', weight: 13 }, { id: 'shoeReward', weight: 18 },
     { id: 'emailTask', weight: 25 }, { id: 'workdayTask', weight: 25 }, { id: 'noean', weight: 16 }, { id: 'sopToken', weight: 2 },
-    { id: 'return', weight: 8 }, { id: 'mixed', weight: 7 }, { id: 'mould', weight: 8 }, { id: 'break', weight: 6 },
+    { id: 'mixed', weight: 7 }, { id: 'mould', weight: 8 }, { id: 'break', weight: 6 },
     { id: 'ops', weight: 3 }, { id: 'empty', weight: 5 }
   ];
   const smallBoxLoot = [
-    { id: 'empty', weight: 20 }, { id: 'heart', weight: 8 }, { id: 'coffee', weight: 10 }, { id: 'shoeReward', weight: 12 },
+    { id: 'empty', weight: 14 }, { id: 'heart', weight: 8 }, { id: 'coffee', weight: 12 }, { id: 'shoeReward', weight: 20 },
     { id: 'emailTask', weight: 17 }, { id: 'workdayTask', weight: 17 }, { id: 'noean', weight: 10 }, { id: 'sopToken', weight: 2 }
   ];
   function weightedFrom(table) {
@@ -2541,13 +2612,13 @@
     };
 
     // Feeder/top-left -> top belt -> right curve -> middle belt -> left U-turn -> lower belt -> lower-right exit.
-    addLine([330, 118], [1408, 118], 42);
-    addQuad([1408, 118], [1572, 132], [1528, 301], 28);
-    addLine([1528, 301], [312, 301], 48);
+    addLine([330, 118], [1338, 118], 42);
+    addQuad([1338, 118], [1504, 132], [1456, 301], 28);
+    addLine([1456, 301], [312, 301], 48);
     addQuad([312, 301], [118, 390], [258, 510], 34);
-    addLine([258, 510], [1410, 510], 44);
-    addQuad([1410, 510], [1566, 548], [1502, 675], 28);
-    addLine([1502, 675], [1502, 970], 24);
+    addLine([258, 510], [1348, 510], 44);
+    addQuad([1348, 510], [1496, 548], [1438, 675], 28);
+    addLine([1438, 675], [1438, 970], 24);
 
     const lengths = [0];
     let total = 0;
@@ -3196,6 +3267,27 @@
     else if (game.mode === 'bossVictory') updateBossVictory(dt, now);
   }
 
+
+  function makeLevelCarry() {
+    return {
+      coffees: game.coffees,
+      tasks: {
+        alm: game.tasks.alm || 0,
+        sl: game.tasks.sl || 0,
+        email: game.tasks.email || 0,
+        workday: game.tasks.workday || 0,
+        tokens: game.tasks.tokens || 0
+      }
+    };
+  }
+  function applyLevelCarry(carry) {
+    if (!carry) return;
+    game.coffees = clamp(Number(carry.coffees) || 0, 0, 2);
+    ['alm', 'sl', 'email', 'workday'].forEach(type => { game.tasks[type] = Math.max(game.tasks[type] || 0, Number(carry.tasks && carry.tasks[type]) || 0); });
+    game.tasks.tokens = Math.max(game.tasks.tokens || 0, Number(carry.tasks && carry.tasks.tokens) || 0);
+    game.levelCarry = null;
+  }
+
   function triggerLevelWin() {
     if (game.player.action || game.mode !== 'play') return;
     if (!requiredTasksComplete()) {
@@ -3211,6 +3303,7 @@
       game.score += 750 + game.health * 100;
       game.health = Math.min(game.maxHearts, game.health + 1);
       updateBest();
+      game.levelCarry = makeLevelCarry();
       if (shouldStartBossAfterWarehouse(game.level)) startBossIntro();
       else {
         game.stats.warehousesCleared++;
@@ -3221,9 +3314,11 @@
     });
   }
   function finishTransition() {
+    const carry = game.levelCarry;
     game.mode = 'play';
     setGameplayControlsVisible(true);
     buildLevel(game.level);
+    applyLevelCarry(carry);
     music.playGameplay(true);
     addMessage(`WAREHOUSE ${game.level} — THREATS INCREASED`, '#ff7700', 3200);
   }
@@ -3350,6 +3445,29 @@
     setGameplayControlsVisible(false);
     startOfficePuzzle(type);
   }
+
+  function adminEditGameSave() {
+    const profiles = readProfiles();
+    if (!profiles.length) { alert('No saved games found.'); return; }
+    const list = profiles.map((profile, i) => `${i + 1}. ${profile.name} — W${profile.level || 1} / ${formatScore(profile.score || 0)}`).join('\n');
+    const choiceRaw = prompt(`Choose saved game to edit:\n${list}`);
+    const index = Number(choiceRaw) - 1;
+    if (!Number.isInteger(index) || !profiles[index]) return;
+    const p = profiles[index];
+    const taskDefaults = { alm: 0, sl: 0, email: 0, workday: 0, tokens: 0, ...(p.tasks || {}) };
+    const score = prompt('Points / score:', String(p.score || 0)); if (score !== null) p.score = Math.max(0, Number(score) || 0);
+    const coffees = prompt('Coffees 0-2:', String(p.coffees || 0)); if (coffees !== null) p.coffees = clamp(Number(coffees) || 0, 0, 2);
+    const tokens = prompt('SOP tokens:', String(taskDefaults.tokens || 0)); if (tokens !== null) taskDefaults.tokens = Math.max(0, Number(tokens) || 0);
+    for (const type of TASK_TYPES) {
+      const value = prompt(`${TASK_LABELS[type]} task count:`, String(taskDefaults[type] || 0));
+      if (value !== null) taskDefaults[type] = Math.max(0, Number(value) || 0);
+    }
+    p.tasks = { ...freshTasks(), ...taskDefaults, completed: { ...freshTasks().completed, ...((p.tasks && p.tasks.completed) || {}) } };
+    writeProfiles(profiles);
+    refreshSavedButton();
+    addMessage('ADMIN SAVE EDITED', '#ffd054', 2000);
+  }
+
   function handleAdminAction(action) {
     if (!game.adminMode) return;
     const now = performance.now();
@@ -3369,6 +3487,7 @@
     if (action === 'exitOpen') { adminReturnToWarehouse(); TASK_TYPES.forEach(type => game.tasks.completed[type] = true); const pos = destinationPosition(game.zones.exit); game.player.x = pos.x; game.player.y = pos.y; centerCamera(); triggerLevelWin(); return; }
     if (action === 'gameover') { adminReturnToWarehouse(); game.health = 0; triggerDeath(); return; }
     if (action === 'boss') { adminReturnToWarehouse(); game.level = 3; startBossIntro(); return; }
+    if (action === 'editGame') { adminEditGameSave(); return; }
     if (action === 'next') { adminReturnToWarehouse(); game.level++; buildLevel(game.level); addMessage(`ADMIN: WAREHOUSE ${game.level}`, '#ffd054', 2300); return; }
   }
 
@@ -3538,7 +3657,7 @@
       if (images.conveyorEnd) {
         const endW = (conveyor.endW || 3.05) * TILE;
         const endH = (conveyor.endH || 1.42) * TILE;
-        const endY = (conveyor.top - 1.02) * TILE;
+        const endY = (conveyor.top - .84 + CONVEYOR_DRAW_Y_OFFSET * .35) * TILE;
         const machineLeft = conveyor.feederSide === 'left'
           ? (conveyor.left - (conveyor.endW || 3.05)) * TILE
           : (conveyor.left + conveyor.width - .02) * TILE;
@@ -3644,12 +3763,12 @@
     const flash = elevatorChangeFlashing(now) && Math.floor(now / 250) % 2 === 0;
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.font = 'bold 10px Trebuchet MS';
+    ctx.font = 'bold 13px Trebuchet MS';
     labels.forEach((dest, i) => {
       if (!dest) return;
       const tx = x + (i + .5) * (imgW / 3);
-      const ty = y + imgH * .083;
-      const labelMax = imgW / 3 - 18;
+      const ty = y + imgH * .095;
+      const labelMax = imgW / 3 - 10;
       ctx.fillStyle = flash ? '#d3ffb5' : '#58d34c';
       ctx.strokeStyle = 'rgba(0,0,0,.92)';
       ctx.lineWidth = 4;
@@ -3657,6 +3776,20 @@
       ctx.strokeText(text, tx, ty, labelMax);
       ctx.fillText(text, tx, ty, labelMax);
     });
+    if (game.player && pointInsideZone(game.player, e)) {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 14px Trebuchet MS';
+      ctx.fillStyle = '#ffd054';
+      ctx.strokeStyle = 'rgba(0,0,0,.95)';
+      ctx.lineWidth = 4;
+      const help = 'Press SPACE to take the elevator to the listed area';
+      const hx = game.player.x;
+      const hy = game.player.y - TILE * .72;
+      ctx.strokeText(help, hx, hy);
+      ctx.fillText(help, hx, hy);
+      ctx.restore();
+    }
     ctx.restore();
   }
   function drawZonePod(z) {
@@ -4030,12 +4163,13 @@
     return { x: W - w - 18, y: 104, w, h };
   }
   function drawMiniMapMarker(x, y, emoji, now, size = 15, flash = true) {
-    const alpha = flash ? (.55 + .45 * Math.sin(now / 180)) : 1;
+    const alpha = flash ? (.72 + .28 * Math.sin(now / 130)) : 1;
     ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.beginPath(); ctx.fillStyle = emoji === '🧍‍♂️' ? 'rgba(255,208,84,.82)' : 'rgba(255,105,0,.72)';
     ctx.shadowColor = emoji === '🧍‍♂️' ? '#ffd054' : '#ff6900'; ctx.shadowBlur = emoji === '🧍‍♂️' ? 18 : 11;
-    ctx.arc(x, y, Math.max(5, size * .38), 0, Math.PI * 2); ctx.fill();
+    ctx.arc(x, y, Math.max(6, size * .48), 0, Math.PI * 2); ctx.fill();
     ctx.font = `${size}px Arial`; ctx.fillText(emoji, x, y);
+    if (emoji === '🧍‍♂️') { ctx.font = 'bold 9px Trebuchet MS'; ctx.fillStyle = '#ffd054'; ctx.fillText('YOU', x, y + size * .75); }
     ctx.restore();
   }
   function miniMapPointFromWorld(rect, wx, wy) {
@@ -4047,7 +4181,7 @@
     ctx.save();
     ctx.fillStyle = 'rgba(11,14,18,.72)'; roundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8, true, false);
     ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; roundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8, false, true);
-    if (images.minimap) drawContain(images.minimap, r.x, r.y, r.w, r.h, .92, false);
+    if (images.minimap) drawContain(images.minimap, r.x, r.y, r.w, r.h, .88, false);
     else { ctx.fillStyle = 'rgba(180,190,190,.35)'; ctx.fillRect(r.x, r.y, r.w, r.h); }
     const zoneRect = (z, color) => { ctx.fillStyle = color; ctx.fillRect(r.x + (z.left / MAP_W) * r.w, r.y + (z.top / MAP_H) * r.h, (z.width / MAP_W) * r.w, (z.height / MAP_H) * r.h); };
     zoneRect(game.zones.dock, 'rgba(255,105,0,.22)'); zoneRect(game.zones.elevator, 'rgba(80,210,100,.22)');
@@ -4094,7 +4228,7 @@
     if (images.scoutIcon) {
       const s = 142 + pulse * 18;
       ctx.shadowColor = '#ff7700'; ctx.shadowBlur = 34;
-      drawContain(images.scoutIcon, W / 2 - s / 2, H / 2 - s / 2 - 60, s, s, 1, true);
+      drawContain(images.scoutIcon, W / 2 - s / 2, H / 2 - s / 2 - 60, s, s, .58, true);
     }
     ctx.shadowColor = '#ff7700'; ctx.shadowBlur = 18;
     ctx.fillStyle = '#ffd054'; ctx.font = 'bold 26px Trebuchet MS';
@@ -4294,10 +4428,11 @@
     else { ctx.fillStyle = '#4d5052'; ctx.fillRect(0, 0, W, H); }
     ctx.fillStyle = 'rgba(0,0,0,.26)'; ctx.fillRect(0, 0, W, H);
     ctx.save();
-    ctx.fillStyle = 'rgba(12,15,18,.91)'; ctx.fillRect(36, 20, W - 72, 74);
-    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(36, 20, W - 72, 74);
+    const barRight = W - 178;
+    ctx.fillStyle = 'rgba(12,15,18,.91)'; ctx.fillRect(36, 20, barRight - 36, 74);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(36, 20, barRight - 36, 74);
     ctx.fillStyle = '#fff4df'; ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText('SPERRLAGER: ITEMS IN BAD CONDITION', 62, 65);
-    ctx.textAlign = 'right'; ctx.fillStyle = '#ffd054'; ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, W - 60, 65);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#ffd054'; ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, barRight - 28, 65);
     ctx.textAlign = 'left'; ctx.font = 'bold 18px Trebuchet MS';
     ctx.fillStyle = '#fff4df'; ctx.fillText(`DISPOSED  ${pz.disposeCount}    DESTROYED  ${pz.destroyCount}    BONUS  +${pz.scoreEarned}`, 62, 118);
     pz.items.forEach(item => drawQSSprite(item));
@@ -4719,6 +4854,32 @@
   fireAnimationOverlay.addEventListener('error', () => { fireAnimationOverlay.dataset.failed = '1'; fireAnimationOverlay.classList.add('hidden'); });
   adminExitButton.addEventListener('click', exitAdminMode);
   adminButtons.forEach(button => button.addEventListener('click', () => handleAdminAction(button.dataset.admin)));
+
+  if (adminCollapseButton) adminCollapseButton.addEventListener('click', event => { event.stopPropagation(); adminPanel.classList.toggle('collapsed'); });
+  (function setupAdminPanelDrag() {
+    const header = adminPanel.querySelector('.admin-header');
+    if (!header) return;
+    let drag = null;
+    header.addEventListener('pointerdown', event => {
+      if (event.target.closest('button')) return;
+      drag = { x: event.clientX, y: event.clientY, left: adminPanel.offsetLeft, top: adminPanel.offsetTop };
+      adminPanel.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    });
+    header.addEventListener('pointermove', event => {
+      if (!drag) return;
+      const shellRect = shell.getBoundingClientRect();
+      const nextLeft = clamp(drag.left + event.clientX - drag.x, 4, shellRect.width - adminPanel.offsetWidth - 4);
+      const nextTop = clamp(drag.top + event.clientY - drag.y, 4, shellRect.height - 44);
+      adminPanel.style.left = `${nextLeft}px`;
+      adminPanel.style.top = `${nextTop}px`;
+      adminPanel.style.right = 'auto';
+    });
+    const endDrag = event => { drag = null; adminPanel.releasePointerCapture?.(event.pointerId); };
+    header.addEventListener('pointerup', endDrag);
+    header.addEventListener('pointercancel', endDrag);
+  })();
+
 
   titleUI.addEventListener('pointerdown', () => { synth.init(); startTitleMusic(); });
   nameInput.addEventListener('focus', () => { synth.init(); startTitleMusic(); });
