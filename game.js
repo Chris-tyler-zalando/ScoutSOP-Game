@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.44';
+  const VERSION = 'V2.45';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -70,6 +70,7 @@
   const NOEAN_DURATION = 60000;
   const NOEAN_ANGLES = [40, 60, 80, 90, 100, 120, 140];
   const NOEAN_TARGETS = ['shoes', 'tops', 'pants'];
+  const NOEAN_FRAME_BOUNDS = {"pants": [[76, 46, 266, 400], [81, 47, 272, 400], [93, 45, 296, 400], [93, 43, 275, 400], [73, 33, 268, 399], [66, 33, 285, 398], [83, 35, 299, 400], [94, 33, 272, 397], [77, 19, 237, 375], [76, 18, 259, 376], [48, 89, 324, 325], [83, 19, 286, 372]], "shoes": [[17, 168, 342, 374], [32, 118, 350, 374], [17, 90, 317, 381], [23, 187, 349, 375], [18, 119, 340, 400], [22, 90, 350, 310], [5, 95, 317, 301], [25, 47, 340, 313], [11, 0, 310, 256], [22, 40, 346, 257], [3, 38, 334, 248], [25, 47, 344, 256]], "tops": [[22, 87, 342, 388], [14, 70, 335, 368], [12, 57, 338, 400], [26, 44, 357, 400], [8, 52, 348, 398], [4, 24, 336, 385], [19, 46, 329, 386], [25, 0, 358, 340], [58, 36, 297, 311], [58, 18, 271, 317], [4, 46, 333, 339], [28, 21, 353, 334]]};
   const PALLET_JACK_DURATION = 30000;
   const PUZZLE_COLS = 6;
   const PUZZLE_ROWS = 5;
@@ -131,13 +132,13 @@
     officeBase: ['baseoffice.jpg'], officeFrame: ['officeframe.webp'], officeMenu: ['pcmenu.jpg'],
     palletjack: ['palletjack.png'], clothesDamaged: ['clothesdamaged.png'], slbox: ['slbox.png'],
     qsBg: ['qs2.jpg', 'qs2.png'], fireExtinguisher: ['fire.png'], fireAnim: ['fire.webp'],
-    elevator: ['elevator.png'], conveyor: ['conveyor.png'], conveyorBox: ['box.png'],
+    elevator: ['elevator.png'], conveyor: ['conveyor.png'], conveyorEnd: ['conveyor2.png'], conveyorBox: ['box.png'],
     jiraScreen: ['jira.jpg'], errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png'],
     noEanWelcome: ['welcome3.jpg'], noEanBg: ['conveyor.jpg', 'conveyor.png', 'noeanbg.jpg', 'noeanbg.png', 'scannerbg.jpg', 'scannerbg.png', 'conveyorbg.jpg', 'conveyorbg.png'],
     scanner: ['scanner.png'], scannerCorrect: ['scanner2.png'], scannerWrong: ['scanner3.png'],
     noEanShoes: ['shoes.webp'], noEanTops: ['tops.webp'], noEanPants: ['pants.webp']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -918,20 +919,33 @@
     if (!images.conveyor || count <= 0) return false;
     const width = 3.05, height = 1.04, gap = 0.08;
     const totalW = count * width + Math.max(0, count - 1) * gap;
-    const rect = { left, top, width: totalW, height };
+    const hasEnd = !!images.conveyorEnd && options.noEndCap !== true;
+    const endW = hasEnd ? 4.85 : 0;
+    const endH = hasEnd ? 2.25 : height;
+    let feederSide = options.feederSide || (Math.random() < .5 ? 'left' : 'right');
+    if (hasEnd && feederSide === 'left' && left - endW + 1.2 < 0) feederSide = 'right';
+    if (hasEnd && feederSide === 'right' && left + totalW + endW - 1.2 > MAP_W) feederSide = 'left';
+
+    const visualLeft = hasEnd && feederSide === 'left' ? left - endW + 1.2 : left;
+    const visualRight = hasEnd && feederSide === 'right' ? left + totalW + endW - 1.2 : left + totalW;
+    const rect = { left: visualLeft, top: hasEnd ? top - .88 : top, width: visualRight - visualLeft, height: hasEnd ? endH : height };
+
     if (!withinMap(rect) || (!options.allowZoneOverlap && isZoneBlocked(rect, .25)) || (!options.allowPropOverlap && game.obstacles.some(o => overlaps(rect, o))) || (!options.allowPropOverlap && game.zoneProps.some(o => overlaps(rect, o))) || (!options.allowElevatorOverlap && game.zones.elevator && overlaps(rect, paddedRect(game.zones.elevator, 1)))) return false;
-    markBlocked({ left, top: top + .35, width: totalW, height: .52 });
-    addCollider({ left, top: top + .35, width: totalW, height: .52 }, 'conveyor', .02);
-    const conveyor = { left, top, width: totalW, height, pieces: count, moving: [] };
+    markBlocked({ left: visualLeft, top: top + .35, width: visualRight - visualLeft, height: .52 });
+    addCollider({ left: visualLeft, top: top + .35, width: visualRight - visualLeft, height: .52 }, 'conveyor', .02);
+
+    const conveyor = { left, top, width: totalW, height, pieces: count, moving: [], feederSide, endW, endH, visualLeft, visualRight };
     const itemCount = clamp(Math.floor(count * 1.35), 2, 7);
     for (let i = 0; i < itemCount; i++) {
       const collectible = shoeImageKeys().length && Math.random() < .18;
       const image = collectible ? (nextShoeImage() || 'shoe') : 'conveyorBox';
       const size = collectible ? rand(.62, .88) : rand(.42, .78);
+      const minX = (visualLeft + .55) * TILE;
+      const maxX = (visualRight - .55) * TILE;
       const item = {
         conveyor, image, collectible, size,
-        minX: (left + .45) * TILE, maxX: (left + totalW - .45) * TILE,
-        x: (left + .7 + Math.random() * Math.max(.4, totalW - 1.4)) * TILE,
+        minX, maxX,
+        x: minX + Math.random() * Math.max(10, maxX - minX),
         y: (top + .28 + Math.random() * .08) * TILE,
         dir: Math.random() < .5 ? -1 : 1, speed: rand(28, 68)
       };
@@ -2700,15 +2714,13 @@
     return null;
   }
   function noEanSheetGrid(img) {
-    // Dedicated No EAN sprite cards are treated as flexible grids.
-    // This works for 3x2, 4x2, 4x3, or similar card layouts without needing exact hard-coding.
-    if (!img) return { cols: 1, rows: 1, count: 1 };
-    const ratio = img.width / Math.max(1, img.height);
-    let cols = 4, rows = 3;
-    if (ratio > 2.2) { cols = 4; rows = 2; }
-    else if (ratio > 1.45) { cols = 3; rows = 2; }
-    else { cols = 3; rows = 3; }
-    return { cols, rows, count: cols * rows };
+    // The No EAN cards are 1500x1200 with a fixed 4 x 3 layout.
+    return { cols: 4, rows: 3, count: 12 };
+  }
+  function noEanFrameBounds(category, frame, sw, sh) {
+    const list = NOEAN_FRAME_BOUNDS[category];
+    if (!list || !list.length) return [0, 0, sw, sh];
+    return list[frame % list.length] || [0, 0, sw, sh];
   }
   function noEanFrameCount(category) {
     const img = noEanSheetForCategory(category);
@@ -2721,11 +2733,22 @@
     const frame = (item.frame || 0) % grid.count;
     const col = frame % grid.cols;
     const row = Math.floor(frame / grid.cols);
-    const sw = img.width / grid.cols;
-    const sh = img.height / grid.rows;
+    const cellW = img.width / grid.cols;
+    const cellH = img.height / grid.rows;
+    const crop = noEanFrameBounds(item.category, frame, cellW, cellH);
+    const sx = col * cellW + crop[0], sy = row * cellH + crop[1];
+    const sw = crop[2] - crop[0], sh = crop[3] - crop[1];
+    const scale = Math.min(w / sw, h / sh);
+    const dw = sw * scale, dh = sh * scale;
+    const dx = x + (w - dw) / 2, dy = y + (h - dh) / 2;
+
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.drawImage(img, col * sw, row * sh, sw, sh, x, y, w, h);
+    ctx.shadowColor = 'rgba(0,0,0,.72)';
+    ctx.shadowBlur = 13;
+    ctx.shadowOffsetX = 4;
+    ctx.shadowOffsetY = 9;
+    ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
     ctx.restore();
     return true;
   }
@@ -3237,9 +3260,20 @@
   }
   function drawConveyors(now = performance.now()) {
     game.conveyors.forEach(conveyor => {
-      if (!images.conveyor || !onScreenRect(conveyor.left * TILE, conveyor.top * TILE, conveyor.width * TILE, conveyor.height * TILE, 80)) return;
+      const visualX = (conveyor.visualLeft ?? conveyor.left) * TILE;
+      const visualW = ((conveyor.visualRight ?? (conveyor.left + conveyor.width)) - (conveyor.visualLeft ?? conveyor.left)) * TILE;
+      if (!images.conveyor || !onScreenRect(visualX, (conveyor.top - 1.0) * TILE, visualW, 2.5 * TILE, 100)) return;
       for (let i = 0; i < conveyor.pieces; i++) {
         drawContain(images.conveyor, (conveyor.left + i * 3.13) * TILE, conveyor.top * TILE, 3.05 * TILE, conveyor.height * TILE, 1, true);
+      }
+      if (images.conveyorEnd) {
+        const endW = (conveyor.endW || 4.85) * TILE;
+        const endH = (conveyor.endH || 2.25) * TILE;
+        const endY = (conveyor.top - .90) * TILE;
+        const machineLeft = conveyor.feederSide === 'left'
+          ? (conveyor.left - (conveyor.endW || 4.85) + 1.2) * TILE
+          : (conveyor.left + conveyor.width - 1.2) * TILE;
+        drawContain(images.conveyorEnd, machineLeft, endY, endW, endH, 1, true, conveyor.feederSide === 'left');
       }
     });
     game.movingConveyorItems.forEach(item => {
