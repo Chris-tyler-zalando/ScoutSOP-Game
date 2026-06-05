@@ -807,3 +807,36 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
 .admin-panel.collapsed p,
 .admin-panel.collapsed .admin-quick,
 .admin-panel.collapsed .admin-modules { display: none; }
+
+
+/* V2.50 in-game admin save editor */
+.admin-editor {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  background: rgba(0,0,0,.48);
+  pointer-events: auto;
+}
+.admin-editor-card {
+  width: min(760px, 86%);
+  max-height: 86%;
+  overflow: auto;
+  color: var(--cream);
+  background: rgba(14,18,22,.95);
+  border: 2px solid var(--orange);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 14px 42px rgba(0,0,0,.56);
+}
+.admin-editor-card header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.admin-editor-card header button { width: 42px; height: 38px; padding: 0; background: #25313b; color: #fff; border: 1px solid rgba(255,105,0,.7); }
+.admin-editor-list { display: grid; gap: 8px; margin-bottom: 12px; }
+.admin-editor-list button, .admin-editor-actions button { background: #25313b; color: var(--cream); border: 1px solid rgba(255,105,0,.72); }
+.admin-editor-fields { display: grid; gap: 8px; }
+.admin-slider-row { display: grid; grid-template-columns: 160px 1fr 64px; gap: 12px; align-items: center; }
+.admin-slider-row span { font-weight: bold; color: var(--muted); }
+.admin-slider-row output { text-align: right; color: #ffd054; font-weight: bold; }
+.admin-slider-row input { width: 100%; accent-color: var(--orange); }
+.admin-editor-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }

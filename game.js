@@ -53,7 +53,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.49';
+  const VERSION = 'V2.50';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -86,7 +86,7 @@
   const OFFICE_MENU_MONITOR = { x: 99, y: 48, width: 581, height: 372 };
   const OFFICE_APP_MONITOR = { x: 130, y: 92, width: 498, height: 302 };
   const HINT_COST = 100;
-  const CONVEYOR_DRAW_Y_OFFSET = 0.20;
+  const CONVEYOR_DRAW_Y_OFFSET = 0.00;
   const keys = new Set();
 
   const TASK_PUZZLES = {
@@ -126,7 +126,7 @@
     cement: ['cement.jpeg'], clothes: ['clothes.png'], coffee: ['coffee.png'], entrance: ['entrance.png'],
     evilguy: ['evilguy.png'], evilguysprite: ['evilguysprite.png'], exit: ['exit.png', 'exit.jpg'], gameover: ['gameover.png'],
     heart: ['heart.png'], inventory1: ['inventory1.png'], inventory2: ['inventory2.png'], inventory3: ['inventory3.png'],
-    inventory4: ['inventory4.png'], inventory5: ['inventory5.png'], kitchen: ['kitchen.png'], meeting: ['meeting.jpg'],
+    inventory4: ['inventory4.png'], inventory5: ['inventory5.png'], kitchen: ['kitchen.png'], meeting: ['meeting.jpg'], printers: ['printers.png'], bathroom: ['bathroom.png'],
     pickup: ['pickup.png'], qs: ['qs.jpeg'], qsObj1: ['qs.png'], qsObj2: ['qs2.png'], cone: ['cone.png'], score: ['score.png'],
     screens: ['screens.jpg'], sign: ['sign.png'], tiles: ['tiles.jpeg'], carpet: ['carpet.jpg', 'cement.jpeg'],
     inventorybg: ['inventory.png', 'inventory.jpg', 'inventorycheck.jpg', 'meeting.jpg'],
@@ -143,9 +143,9 @@
     scanner: ['scanner.png'], scannerCorrect: ['scanner2.png'], scannerWrong: ['scanner3.png'],
     noEanShoes: ['shoes.webp'], noEanTops: ['tops.webp'], noEanPants: ['pants.webp'],
     minimap: ['minimap.webp', 'minimap.png', 'minimap.jpg'],
-    bossIntro: ['it2.jpg'], bossBg: ['bossbg.jpg'], bossBgWin: ['bossbg1.jpg'], bossIvan: ['boss1.webp'], fireball: ['fireball.webp'], bossCar: ['car.webp'], bossCarWin: ['car.png']
+    bossIntro: ['it2.jpg'], bossBg: ['bossbg.jpg'], bossBgWin: ['bossbg1.jpg'], bossIvan: ['boss1.webp'], fireball: ['fireball.webp'], bossCarSheet: ['car_battle_sheet.png'], bossCar: ['car.webp'], bossCarWin: ['car.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap', 'bossIntro', 'bossBg', 'bossBgWin', 'bossIvan', 'fireball', 'bossCar', 'bossCarWin']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap', 'printers', 'bathroom', 'bossIntro', 'bossBg', 'bossBgWin', 'bossIvan', 'fireball', 'bossCarSheet', 'bossCar', 'bossCarWin']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -636,7 +636,7 @@
     const centre = decorativeCenter(candidate);
     const tile = worldToTile(centre.x, centre.y);
     if (!isFloorTile(tile.x, tile.y) || tileInAnyZone(tile, 0) || tileInsideVisibleScenery(tile) || tileInsideTemplatePath(tile) || rectHitsProtectedProp(rect)) return false;
-    if (game.decorativeProps.some(prop => dist(centre, decorativeCenter(prop)) < TILE * 1.20)) return false;
+    if (game.decorativeProps.some(prop => dist(centre, decorativeCenter(prop)) < TILE * .82)) return false;
     game.decorativeProps.push(candidate);
     return true;
   }
@@ -661,17 +661,17 @@
     if (!choices.length && !shoePool.length) return;
     const shelfProps = game.obstacles.filter(prop => /^box[2-7]$/.test(prop.image));
     const scaleChoices = [1, .5, .3];
-    const maxDecor = Math.min(game.level >= 5 ? 340 : 245, Math.max(95, Math.round(shelfProps.length * .40)));
+    const maxDecor = Math.min(game.level >= 5 ? 480 : 360, Math.max(150, Math.round(shelfProps.length * .72)));
     let placed = 0;
 
     // Denser decorative clutter: keep it attached to shelf fronts and gaps, not stranded in open aisles.
     for (const shelf of shuffle(shelfProps)) {
       if (placed >= maxDecor) break;
-      if (Math.random() < .07) continue;
-      const itemsHere = Math.random() < .32 ? 3 : (Math.random() < .72 ? 2 : 1);
+      if (Math.random() < .02) continue;
+      const itemsHere = Math.random() < .48 ? 3 : (Math.random() < .82 ? 2 : 1);
       for (let i = 0; i < itemsHere && placed < maxDecor; i++) {
         let image;
-        if (shoePool.length && (!choices.length || Math.random() < .72)) image = nextShoeImage();
+        if (shoePool.length && (!choices.length || Math.random() < .86)) image = nextShoeImage();
         else image = choice(choices);
         if (!image || !images[image]) continue;
         const scale = choice(scaleChoices);
@@ -809,7 +809,7 @@
     areaZones.forEach((z, zi) => {
       const openLeft = Math.round(z.top + z.height / 2);
       const openRight = openLeft + (zi % 2 ? 1 : -1);
-      for (let x = Math.floor(z.left); x < Math.ceil(z.left + z.width); x += 3) {
+      for (let x = Math.floor(z.left); x < Math.ceil(z.left + z.width); x += 2) {
         const topGap = x >= z.left + z.width / 2 - 1 && x <= z.left + z.width / 2 + 1;
         if (!topGap && hardImages.length) addZoneProp(hardImages[(x + zi) % hardImages.length], { left: x + .1, top: z.top - 1.05, width: 2.6, height: 1.65 }, { collisionInset: .08 });
         if (!topGap && hardImages.length) addZoneProp(hardImages[(x + zi + 1) % hardImages.length], { left: x + .1, top: z.top + z.height - .55, width: 2.6, height: 1.65 }, { collisionInset: .08 });
@@ -819,6 +819,28 @@
         if (hardImages.length) addZoneProp(hardImages[(y + zi) % hardImages.length], { left: z.left - 1.15, top: y, width: 1.65, height: 1.55 }, { collisionInset: .08 });
         if (Math.abs(y - openRight) <= 1) { addPushableSmallBox(z.left + z.width + .05, y + .25); continue; }
         if (hardImages.length) addZoneProp(hardImages[(y + zi + 2) % hardImages.length], { left: z.left + z.width - .55, top: y, width: 1.65, height: 1.55 }, { collisionInset: .08 });
+      }
+    });
+  }
+
+
+  function installFillerAreaProps() {
+    const fillerImages = ['printers', 'bathroom'].filter(key => images[key]);
+    const shelfImages = ['box4', 'box5', 'box6', 'box7', 'box3'].filter(key => images[key]);
+    const slots = (game.zones.areaSlots || []).slice(0, 4);
+    slots.forEach((slot, i) => {
+      const z = zone(slot.left + .8, slot.top + .8, Math.max(8, slot.width - 1.6), Math.max(5, slot.height - 1.6), i % 2 ? 'BATHROOM / FIRST AID' : 'PRINT ROOM', 5, 3);
+      const img = fillerImages[i % Math.max(1, fillerImages.length)];
+      if (img) addZoneProp(img, { left: z.left + .8, top: z.top + .8, width: z.width - 1.6, height: z.height - 1.6 }, { collisionInset: .12 });
+      if (!shelfImages.length) return;
+      for (let x = z.left; x < z.left + z.width - 2; x += 3) {
+        addZoneProp(shelfImages[(Math.floor(x) + i) % shelfImages.length], { left: x, top: z.top - .85, width: 2.65, height: 1.55 }, { collisionInset: .08 });
+        addZoneProp(shelfImages[(Math.floor(x) + i + 1) % shelfImages.length], { left: x, top: z.top + z.height - .65, width: 2.65, height: 1.55 }, { collisionInset: .08 });
+      }
+      for (let y = z.top + 1; y < z.top + z.height - 1; y += 2) {
+        if (Math.abs(y - (z.top + z.height / 2)) < 1.4) { if (images.smallbox3) addPushableSmallBox(z.left - .95, y); continue; }
+        addZoneProp(shelfImages[(Math.floor(y) + i) % shelfImages.length], { left: z.left - 1.05, top: y, width: 1.55, height: 1.45 }, { collisionInset: .08 });
+        addZoneProp(shelfImages[(Math.floor(y) + i + 2) % shelfImages.length], { left: z.left + z.width - .50, top: y, width: 1.55, height: 1.45 }, { collisionInset: .08 });
       }
     });
   }
@@ -994,7 +1016,7 @@
 
     const visualLeft = hasEnd && feederSide === 'left' ? left - endW : left;
     const visualRight = hasEnd && feederSide === 'right' ? left + totalW + endW : left + totalW;
-    const rect = { left: visualLeft, top: hasEnd ? top - .98 : top, width: visualRight - visualLeft, height: hasEnd ? endH : height };
+    const rect = { left: visualLeft, top, width: visualRight - visualLeft, height: Math.max(height, endH) };
 
     if (!withinMap(rect) || (!options.allowZoneOverlap && isZoneBlocked(rect, .25)) || (!options.allowPropOverlap && game.obstacles.some(o => overlaps(rect, o))) || (!options.allowPropOverlap && game.zoneProps.some(o => overlaps(rect, o))) || (!options.allowElevatorOverlap && game.zones.elevator && overlaps(rect, paddedRect(game.zones.elevator, 1)))) return false;
     markBlocked({ left: visualLeft, top: top + .35, width: visualRight - visualLeft, height: .52 });
@@ -1003,7 +1025,7 @@
     const conveyor = { left, top, width: totalW, height, pieces: count, moving: [], feederSide, endW, endH, visualLeft, visualRight };
     const itemCount = clamp(Math.floor(count * 1.35), 2, 7);
     for (let i = 0; i < itemCount; i++) {
-      const collectible = shoeImageKeys().length && Math.random() < .34;
+      const collectible = shoeImageKeys().length && Math.random() < .55;
       const image = collectible ? (nextShoeImage() || 'shoe') : 'conveyorBox';
       const size = collectible ? rand(.62, .88) : rand(.42, .78);
       // Items travel on the visible belt only and stop at the machine entrance.
@@ -1013,7 +1035,7 @@
         conveyor, image, collectible, size,
         minX, maxX,
         x: minX + Math.random() * Math.max(10, maxX - minX),
-        y: (top + .28 + CONVEYOR_DRAW_Y_OFFSET + Math.random() * .08) * TILE,
+        y: (top + .28 + Math.random() * .08) * TILE,
         dir: Math.random() < .5 ? -1 : 1, speed: rand(28, 68)
       };
       conveyor.moving.push(item);
@@ -2612,13 +2634,13 @@
     };
 
     // Feeder/top-left -> top belt -> right curve -> middle belt -> left U-turn -> lower belt -> lower-right exit.
-    addLine([330, 118], [1338, 118], 42);
-    addQuad([1338, 118], [1504, 132], [1456, 301], 28);
-    addLine([1456, 301], [312, 301], 48);
+    addLine([330, 118], [1268, 118], 42);
+    addQuad([1268, 118], [1418, 132], [1362, 301], 28);
+    addLine([1362, 301], [312, 301], 48);
     addQuad([312, 301], [118, 390], [258, 510], 34);
-    addLine([258, 510], [1348, 510], 44);
-    addQuad([1348, 510], [1496, 548], [1438, 675], 28);
-    addLine([1438, 675], [1438, 970], 24);
+    addLine([258, 510], [1268, 510], 44);
+    addQuad([1268, 510], [1404, 548], [1342, 675], 28);
+    addLine([1342, 675], [1342, 970], 24);
 
     const lengths = [0];
     let total = 0;
@@ -3104,7 +3126,7 @@
     game.boss = {
       phase: 'intro', introStart: performance.now(), cameraX: 0, countdown: 3,
       player: { x: W / 2, y: H + 220, speed: 430, invulnerableUntil: performance.now() + 2300 },
-      boss: { x: 1000, y: -240, w: 235, h: 330, vx: 115, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
+      boss: { x: 1000, y: -320, w: 329, h: 462, vx: 115, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
       fireballs: [], shoes: [], nextFireAt: performance.now() + 3600, nextVoiceAt: performance.now() + randInt(10000, 15000),
       startedAt: performance.now(), victoryStart: 0, rewardShown: false, summaryUntil: 0, fade: 1
     };
@@ -3197,7 +3219,7 @@
     if (!bz) return;
     const t = clamp((now - bz.enterStart) / 2600, 0, 1);
     const eased = 1 - Math.pow(1 - t, 3);
-    bz.boss.y = -240 + (H * .43 + 240) * eased;
+    bz.boss.y = -320 + (H * .40 + 320) * eased;
     bz.player.y = H + 210 + (H * .78 - H - 210) * eased;
     if (t >= 1) {
       bz.phase = 'countdown';
@@ -3226,10 +3248,10 @@
     const b = bz.boss;
     b.x += b.vx * dt;
     if (b.x < 360 || b.x > 1640) { b.vx *= -1; b.x = clamp(b.x, 360, 1640); }
-    b.y = H * .39 + Math.sin(now / 900) * 28;
+    b.y = H * .38 + Math.sin(now / 900) * 22;
     if (now >= bz.nextVoiceAt) { playOneShot(choice(['robot1.mp3','robot2.mp3','robot3.mp3']), .62); bz.nextVoiceAt = now + randInt(10000, 15000); }
     if (now >= bz.nextFireAt) {
-      bz.fireballs.push({ x: b.x, y: b.y + 25, w: 54, h: 54, vx: (bz.player.x - b.x) * .58, vy: 255, born: now });
+      bz.fireballs.push({ x: b.x - b.w * .02, y: b.y + b.h * .05, w: 66, h: 66, vx: (bz.player.x - b.x) * .58, vy: 255, born: now });
       bz.nextFireAt = now + randInt(1400, 2300);
     }
     bz.fireballs.forEach(f => { f.x += f.vx * dt; f.y += f.vy * dt; });
@@ -3239,7 +3261,7 @@
     for (const s of bz.shoes) if (!s.hit && bossAlphaHit({ x: s.x, y: s.y, w: s.w, h: s.h }, { x: b.x, y: b.y, w: b.w * .62, h: b.h * .74 }, 6)) { s.hit = true; damageBoss(1, 'shoe'); }
     bz.shoes = bz.shoes.filter(s => !s.hit);
     const verticalRam = Math.abs(bz.player.x - b.x) < b.w * .32 && bz.player.y < b.y + b.h * .58 && bz.player.y > b.y + b.h * .18;
-    if (verticalRam) damageBoss(2, 'ram');
+    if (verticalRam && now > (bz.nextRamAt || 0)) { damageBoss(2, 'ram'); bz.nextRamAt = now + 850; }
     for (const f of bz.fireballs) {
       if (!f.hit && now > (bz.player.invulnerableUntil || 0) && bossAlphaHit({ x: f.x, y: f.y, w: f.w, h: f.h }, { x: bz.player.x, y: bz.player.y, w: 132, h: 150 }, 10)) {
         f.hit = true; game.health = Math.max(0, game.health - 1); bz.player.invulnerableUntil = now + 1500; synth.hurt(); shake(10); addMessage('IVAN FIREBALL HIT!', '#ff3949', 1500); if (game.health <= 0) triggerDeath();
@@ -3446,26 +3468,68 @@
     startOfficePuzzle(type);
   }
 
+  function ensureAdminEditor() {
+    let editor = document.getElementById('admin-editor');
+    if (editor) return editor;
+    editor = document.createElement('section');
+    editor.id = 'admin-editor';
+    editor.className = 'admin-editor hidden';
+    editor.innerHTML = `
+      <div class="admin-editor-card">
+        <header><strong>EDIT GAME SAVE</strong><button type="button" id="admin-editor-close">✕</button></header>
+        <div id="admin-editor-list" class="admin-editor-list"></div>
+        <div id="admin-editor-fields" class="admin-editor-fields hidden"></div>
+        <div class="admin-editor-actions"><button type="button" id="admin-editor-save">Save changes</button><button type="button" id="admin-editor-back">Back to admin</button></div>
+      </div>`;
+    document.getElementById('game-shell').appendChild(editor);
+    editor.querySelector('#admin-editor-close').addEventListener('click', closeAdminEditor);
+    editor.querySelector('#admin-editor-back').addEventListener('click', closeAdminEditor);
+    editor.querySelector('#admin-editor-save').addEventListener('click', saveAdminEditorChanges);
+    return editor;
+  }
+  function closeAdminEditor() { const editor = document.getElementById('admin-editor'); if (editor) editor.classList.add('hidden'); }
+  function adminSliderRow(key, label, value, min, max, step = 1) {
+    return `<label class="admin-slider-row"><span>${label}</span><input data-edit-key="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${value}"><output>${value}</output></label>`;
+  }
   function adminEditGameSave() {
     const profiles = readProfiles();
-    if (!profiles.length) { alert('No saved games found.'); return; }
-    const list = profiles.map((profile, i) => `${i + 1}. ${profile.name} — W${profile.level || 1} / ${formatScore(profile.score || 0)}`).join('\n');
-    const choiceRaw = prompt(`Choose saved game to edit:\n${list}`);
-    const index = Number(choiceRaw) - 1;
-    if (!Number.isInteger(index) || !profiles[index]) return;
-    const p = profiles[index];
-    const taskDefaults = { alm: 0, sl: 0, email: 0, workday: 0, tokens: 0, ...(p.tasks || {}) };
-    const score = prompt('Points / score:', String(p.score || 0)); if (score !== null) p.score = Math.max(0, Number(score) || 0);
-    const coffees = prompt('Coffees 0-2:', String(p.coffees || 0)); if (coffees !== null) p.coffees = clamp(Number(coffees) || 0, 0, 2);
-    const tokens = prompt('SOP tokens:', String(taskDefaults.tokens || 0)); if (tokens !== null) taskDefaults.tokens = Math.max(0, Number(tokens) || 0);
-    for (const type of TASK_TYPES) {
-      const value = prompt(`${TASK_LABELS[type]} task count:`, String(taskDefaults[type] || 0));
-      if (value !== null) taskDefaults[type] = Math.max(0, Number(value) || 0);
-    }
-    p.tasks = { ...freshTasks(), ...taskDefaults, completed: { ...freshTasks().completed, ...((p.tasks && p.tasks.completed) || {}) } };
-    writeProfiles(profiles);
-    refreshSavedButton();
-    addMessage('ADMIN SAVE EDITED', '#ffd054', 2000);
+    const editor = ensureAdminEditor();
+    const list = editor.querySelector('#admin-editor-list');
+    const fields = editor.querySelector('#admin-editor-fields');
+    fields.classList.add('hidden'); fields.innerHTML = ''; editor.dataset.profileIndex = '';
+    if (!profiles.length) list.innerHTML = '<p>No saved games found.</p>';
+    else list.innerHTML = profiles.map((p, i) => `<button type="button" data-profile-index="${i}">${p.name || 'Scout'} — W${p.level || 1} / ${formatScore(p.score || 0)}</button>`).join('');
+    list.querySelectorAll('[data-profile-index]').forEach(btn => btn.addEventListener('click', () => loadAdminEditorProfile(Number(btn.dataset.profileIndex))));
+    editor.classList.remove('hidden');
+  }
+  function loadAdminEditorProfile(index) {
+    const profiles = readProfiles(); const p = profiles[index]; if (!p) return;
+    const editor = ensureAdminEditor(); const fields = editor.querySelector('#admin-editor-fields');
+    editor.dataset.profileIndex = String(index);
+    const tasks = { ...freshTasks(), ...(p.tasks || {}) };
+    fields.innerHTML = `
+      ${adminSliderRow('score', 'Points', Math.max(0, p.score || 0), 0, 50000, 50)}
+      ${adminSliderRow('level', 'Warehouse', Math.max(1, p.level || 1), 1, 30, 1)}
+      ${adminSliderRow('coffees', 'Coffees', Math.max(0, p.coffees || 0), 0, 9, 1)}
+      ${adminSliderRow('tokens', 'SOP tokens', Math.max(0, tasks.tokens || 0), 0, 20, 1)}
+      ${adminSliderRow('alm', 'ALM tasks', Math.max(0, tasks.alm || 0), 0, 20, 1)}
+      ${adminSliderRow('sl', 'SL tasks', Math.max(0, tasks.sl || 0), 0, 20, 1)}
+      ${adminSliderRow('email', 'Email tasks', Math.max(0, tasks.email || 0), 0, 20, 1)}
+      ${adminSliderRow('workday', 'Workday tasks', Math.max(0, tasks.workday || 0), 0, 20, 1)}
+      ${adminSliderRow('maxHearts', 'Max hearts', Math.max(3, p.maxHearts || 3), 3, 10, 1)}
+    `;
+    fields.querySelectorAll('input[type="range"]').forEach(input => input.addEventListener('input', () => { input.nextElementSibling.textContent = input.value; }));
+    fields.classList.remove('hidden');
+  }
+  function saveAdminEditorChanges() {
+    const editor = ensureAdminEditor(); const index = Number(editor.dataset.profileIndex);
+    const profiles = readProfiles(); const p = profiles[index]; if (!p) { addMessage('CHOOSE A SAVE FIRST', '#ffd054', 1500); return; }
+    const get = key => Number(editor.querySelector(`[data-edit-key="${key}"]`)?.value || 0);
+    p.score = get('score'); p.level = Math.max(1, get('level')); p.coffees = get('coffees'); p.maxHearts = Math.max(3, get('maxHearts')); p.health = Math.min(p.maxHearts, p.health || p.maxHearts);
+    const taskDefaults = { ...freshTasks(), ...(p.tasks || {}) };
+    ['tokens','alm','sl','email','workday'].forEach(key => taskDefaults[key] = get(key));
+    p.tasks = taskDefaults;
+    writeProfiles(profiles); refreshSavedButton(); addMessage('ADMIN SAVE EDITED', '#ffd054', 1800); closeAdminEditor();
   }
 
   function handleAdminAction(action) {
@@ -3582,6 +3646,18 @@
     else ctx.drawImage(img, col * sw, row * sh, sw, sh, dx, dy, dw, dh);
     ctx.restore();
   }
+  function drawTintedSpriteFrame(img, cols, rows, col, row, dx, dy, dw, dh, flip = false, alpha = 1, shadow = true, redTint = false) {
+    const sw = img.width / cols, sh = img.height / rows;
+    if (shadow) drawShadow(dx, dy, dw, dh, .28 * alpha);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.filter = 'brightness(92%) sepia(12%) saturate(112%) hue-rotate(-8deg)';
+    if (flip) { ctx.translate(dx + dw, dy); ctx.scale(-1, 1); ctx.drawImage(img, col * sw, row * sh, sw, sh, 0, 0, dw, dh); }
+    else ctx.drawImage(img, col * sw, row * sh, sw, sh, dx, dy, dw, dh);
+    if (redTint) { ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = 'rgba(170,18,28,.12)'; ctx.fillRect(flip ? 0 : dx, flip ? 0 : dy, dw, dh); }
+    ctx.restore();
+  }
+
   function drawPatternRect(pattern, x, y, w, h, alpha = 1) {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -3657,10 +3733,10 @@
       if (images.conveyorEnd) {
         const endW = (conveyor.endW || 3.05) * TILE;
         const endH = (conveyor.endH || 1.42) * TILE;
-        const endY = (conveyor.top - .84 + CONVEYOR_DRAW_Y_OFFSET * .35) * TILE;
+        const endY = (conveyor.top + CONVEYOR_DRAW_Y_OFFSET) * TILE;
         const machineLeft = conveyor.feederSide === 'left'
           ? (conveyor.left - (conveyor.endW || 3.05)) * TILE
-          : (conveyor.left + conveyor.width - .02) * TILE;
+          : (conveyor.left + conveyor.width) * TILE;
         drawContain(images.conveyorEnd, machineLeft, endY, endW, endH, 1, true, conveyor.feederSide === 'left');
       }
     });
@@ -4677,7 +4753,7 @@
     const bz = game.boss; if (!bz) return;
     const x = bz.player.x * view.scale - view.cameraX, y = bz.player.y;
     if (bz.phase === 'victory') {
-      if (images.bossCarWin) drawContain(images.bossCarWin, x - 82, H - 132, 164, 92, 1, true);
+      if (images.bossCarWin) drawContain(images.bossCarWin, x - 150, H - 205, 300, 170, 1, true);
       if (images.actionssprite) {
         const frame = Math.floor(((now - bz.victoryStart) / 140) % 10);
         const f = frame < 5 ? frame : 9 - frame;
@@ -4685,12 +4761,23 @@
       }
       return;
     }
-    if (images.bossCar) tintDraw(images.bossCar, x - 118, y - 100, 236, 182, now < (bz.player.invulnerableUntil || 0) && Math.floor(now/100)%2 === 0 ? .55 : 1, false, true);
+    const alpha = now < (bz.player.invulnerableUntil || 0) && Math.floor(now/100)%2 === 0 ? .55 : 1;
+    if (images.bossCarSheet) {
+      const frame = Math.floor(now / 115) % 7;
+      drawTintedSpriteFrame(images.bossCarSheet, 7, 1, frame, 0, x - 105, y - 190, 210, 330, false, alpha, true, true);
+    } else if (images.bossCar) tintDraw(images.bossCar, x - 105, y - 190, 210, 330, alpha, false, true);
     else { ctx.font = '110px Arial'; ctx.textAlign='center'; ctx.fillText('🚜', x, y); }
   }
   function drawBossProjectiles(now, view) {
     const bz = game.boss; if (!bz) return;
-    bz.fireballs.forEach(f => { const x = f.x * view.scale - view.cameraX; if (images.fireball) drawContain(images.fireball, x - f.w/2, f.y - f.h/2, f.w, f.h, 1, true); else { ctx.font='44px Arial'; ctx.fillText('🔥', x, f.y); } });
+    bz.fireballs.forEach(f => {
+      const x = f.x * view.scale - view.cameraX;
+      ctx.save();
+      ctx.globalAlpha = .72; ctx.shadowColor = '#ff3b00'; ctx.shadowBlur = 22; ctx.fillStyle = 'rgba(255,78,0,.42)';
+      ctx.beginPath(); ctx.arc(x, f.y, Math.max(f.w, f.h) * .42, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      if (images.fireball) drawContain(images.fireball, x - f.w/2, f.y - f.h/2, f.w, f.h, 1, false); else { ctx.font='44px Arial'; ctx.fillText('🔥', x, f.y); }
+    });
     bz.shoes.forEach(s => { const x = s.x * view.scale - view.cameraX; ctx.save(); ctx.translate(x, s.y); ctx.rotate(s.spin); if (images[s.image]) tintDraw(images[s.image], -s.w/2, -s.h/2, s.w, s.h, 1, false, true); else { ctx.font='42px Arial'; ctx.fillText('👟',0,0); } ctx.restore(); });
   }
   function drawBossUI(now) {
@@ -4702,7 +4789,7 @@
     for (let i=0;i<bz.boss.maxHearts;i++) { ctx.globalAlpha = i < bz.boss.hearts ? 1 : .20; ctx.fillStyle='#ed4959'; ctx.font='bold 28px Trebuchet MS'; ctx.fillText('♥', W-126, 156 + i*28); }
     ctx.globalAlpha=1;
     if (game.mode === 'bossCountdown') { ctx.textAlign='center'; ctx.fillStyle='#ffd054'; ctx.font='bold 78px Trebuchet MS'; ctx.fillText(String(bz.countdown), W/2, H/2); }
-    if (game.mode === 'bossFight') { ctx.textAlign='center'; ctx.fillStyle='#fff4df'; ctx.font='bold 18px Trebuchet MS'; ctx.fillText('Ram Ivan with the forklift or throw offline stock at him to get him away from the exit!', W/2, H-34); }
+    if (game.mode === 'bossFight') { ctx.textAlign='center'; ctx.fillStyle='#fff4df'; ctx.font='bold 18px Trebuchet MS'; roundRect(W/2 - 455, H - 86, 910, 48, 12, true, false); ctx.fillStyle='#fff4df'; ctx.fillText('Ram Ivan with the forklift or throw offline stock at him to get him away from the exit!', W/2, H-55); }
     ctx.restore();
   }
   function drawBossVictorySummary(now) {
