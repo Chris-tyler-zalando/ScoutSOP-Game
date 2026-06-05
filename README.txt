@@ -1,4 +1,4 @@
-ZALANDO SCOUT — SYSTEM UPDATE V2.37
+ZALANDO SCOUT — SYSTEM UPDATE V2.38
 ====================================
 
 This ZIP contains the system files only:
@@ -14,7 +14,7 @@ Keep your existing assets folder beside these files. The new version expects the
 - fire.png (extinguisher)
 - fire.webp (animated fire)
 
-Changes in V2.37
+Changes in V2.38
 ----------------
 - Restored the original pcmenu.jpg image for the Dock Office home screen. The game no longer redraws its own replacement app menu.
 - Once an app is clicked, only the menu image is removed and the Jira / Email / Workday / SOP Scout content is drawn on the blank monitor in baseoffice.jpg.
@@ -33,7 +33,7 @@ Retained from earlier builds
 - Cockpit help modal, safe zones, task-gated exit, Inventory Check, mobile controls, coffee sprint, score download, carrier toast and increased enemies.
 
 
-V2.37 additions and corrections:
+V2.38 additions and corrections:
 - Office home screen keeps pcmenu.jpg, moved upward and resized to prevent clipping/white strip.
 - Jira interaction buttons are blue with rounded corners.
 - Office task puzzles now have an optional 100-point hint system with locked revealed answers or incorrect-selection explanations.
@@ -42,7 +42,7 @@ V2.37 additions and corrections:
 - Hidden Admin Test Mode: press Escape five times from the title screen to launch modules directly without saving test scores.
 
 
-V2.37 updates:
+V2.38 updates:
 - QS falling articles and the sorting crate are twice as large.
 - Removed the black sign backing so warehouse labels render cleanly without sign panels.
 - Fire event now displays an extinguisher pickup in the guided collection area.
@@ -51,7 +51,7 @@ V2.37 updates:
 - Added up to three separate saved scout profiles with select, continue and delete controls on the title screen.
 
 
-V2.37 updates:
+V2.38 updates:
 - Saved-shift profile cards now continue that save directly when clicked.
 - Removed the redundant Continue button from the title screen.
 - Combined Saved Shifts and Scout Name into one title-screen panel and removed the grey saved-shift backing.
@@ -59,7 +59,7 @@ V2.37 updates:
 - Added even collectible shoe rotation using shoe.png, shoe1.png, shoe2.png and shoe3.png when available.
 
 
-V2.37 updates:
+V2.38 updates:
 - Dock is pinned to the top-left and the map size is reduced by roughly 25%.
 - Added lane-style light/dark floor overlays.
 - Added central elevator using elevator.png with rotating destination labels.
@@ -70,17 +70,17 @@ V2.37 updates:
 - Wrong office task answers show error.jpg inside the computer monitor for 2 seconds before the failure message.
 
 
-V2.37:
+V2.38:
 - Reworked title panel into a compact two-line layout.
 - Removed Saved Shifts / Max 3 text from visible title UI.
 - Start button now spans both rows and says Start.
 - Empty save slots now appear as 1, 2, 3.
 
 
-V2.37:
+V2.38:
 - Moved the compact title panel down so the empty space below it is not stupidly large.
 
-V2.37:
+V2.38:
 - Office/dock collision restored with a forgiving inset footprint instead of being fully removed.
 - Inventory Check now runs 60 seconds, uses a 6x5 grid, larger cells, and one-click neighbour-only swaps.
 - Quarantine Chaos now runs 60 seconds, lets the crate move half off-screen so each side can reach the screen edge, and removes extra drawn Dispose/Destroy labels.
@@ -88,21 +88,21 @@ V2.37:
 - Conveyors added to the top/bottom of QS and Inventory zones so those areas read as side-entry work zones.
 - Fire extinguishing now plays a spray noise, shows a spray effect, fades the fire out, and shows the fire-extinguished points toast.
 
-V2.37:
+V2.38:
 - Space / Action no longer opens the office from anywhere in the Dock; it only opens near the office door.
 - Dock start position moved away from the conveyor/collision area.
 - Dock conveyor shifted so it does not trap the starting point.
 - Light/dark walking-path overlays made more visible.
 - Conveyor pieces now draw with drop shadows too.
 
-V2.37:
+V2.38:
 - Elevator visual/navigation hub reduced to about half size while preserving the 2:1 elevator image ratio.
 - Shelf placement rules tightened: shelves now snap to aligned aisle rows.
 - Shelf runs are placed as whole groups of 4–6 shelves, with deliberate lane gaps only between groups.
 - Removed the previous orphan/staggered partial shelf dividers that caused random out-of-line shelves.
 - Empty-patch filler now adds aligned shelf runs instead of scattered loose shelves.
 
-V2.37:
+V2.38:
 - Locked map rules from the sketch.
 - Tile size is now 100px.
 - Standard map size is now fixed at 80 x 50 tiles.
@@ -113,3 +113,15 @@ V2.37:
 - Shelf/maze generation is restricted to the remaining grey blocks.
 - Pickups now prefer the light walkable corridor cells.
 - Shelf runs remain aligned rather than scattered.
+
+V2.38:
+- Dock driveway extends left off-map, with truck entering/leaving from the left.
+- Dock office/building is about 25% larger and positioned at the far-right of the driveway.
+- Dock driveway has traffic cone guide rows with gaps.
+- Dock area has top and bottom conveyor boundaries.
+- inventory1.png, table.png and table2.png are scaled up in the Inventory area.
+- table3.png is no longer used.
+- Kitchen image is 25% larger and centered in its kitchen pod.
+- Quarantine area now places large mouldy boxes mostly along bottom/sides, with small boxes and conveyors inside.
+- Area pod dark fill removed; only a very faint outline remains.
+- Cone guides added along open walking lanes where shelves are not present.

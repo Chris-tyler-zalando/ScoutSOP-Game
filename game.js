@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.37';
+  const VERSION = 'V2.38';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -638,7 +638,7 @@
   }
   function scatterConeHazards() {
     if (!images.cone) return;
-    const groupsTarget = game.level >= 5 ? 64 : 34;
+    const groupsTarget = game.level >= 5 ? 36 : 20;
     let groupsPlaced = 0;
     let attempts = 0;
     while (groupsPlaced < groupsTarget && attempts < groupsTarget * 45) {
@@ -688,38 +688,66 @@
   }
   function installSpecialAreaProps() {
     const q = game.zones.quarantine;
+
+    // Quarantine: mouldy/blocked stock mostly around the sides and bottom, with smaller props inside.
     if (images.qsObj1 || images.qsObj2) {
-      addZoneProp('qsObj1', { left: q.left + 1, top: q.top + 1, width: 4, height: 3 });
-      addZoneProp('qsObj2', { left: q.left + 5, top: q.top + 1, width: 4, height: 3 });
-      addZoneProp('qsObj2', { left: q.left + 1, top: q.top + 4, width: 4, height: 2 });
+      addZoneProp('qsObj1', { left: q.left + .25, top: q.top + 1.0, width: 3.8, height: 3.0 });
+      addZoneProp('qsObj2', { left: q.left + q.width - 4.05, top: q.top + 1.0, width: 3.8, height: 3.0 });
+      addZoneProp('qsObj2', { left: q.left + .55, top: q.top + q.height - 3.0, width: 4.6, height: 2.35 });
+      addZoneProp('qsObj1', { left: q.left + q.width - 5.15, top: q.top + q.height - 3.0, width: 4.6, height: 2.35 });
     } else {
-      addZoneProp('box1', { left: q.left + 0, top: q.top + 1, width: 3, height: 3 }, { flipX: false });
-      addZoneProp('box2', { left: q.left + 5, top: q.top + 1, width: 3, height: 3 });
-      addZoneProp('box3', { left: q.left + 0, top: q.top + 5, width: 2, height: 2 });
-      addZoneProp('box3', { left: q.left + 3, top: q.top + 5, width: 2, height: 2 });
+      addZoneProp('box1', { left: q.left + .2, top: q.top + 1, width: 3.8, height: 3 });
+      addZoneProp('box2', { left: q.left + q.width - 4, top: q.top + 1, width: 3.8, height: 3 });
+      addZoneProp('box3', { left: q.left + 1, top: q.top + q.height - 2.8, width: 3, height: 2 });
+      addZoneProp('box3', { left: q.left + q.width - 4, top: q.top + q.height - 2.8, width: 3, height: 2 });
     }
-    // Keep the arrival tile clear; cones create a jumpable hazard line beside it.
-    if (images.cone) for (let i = 0; i < 4; i++) addZoneProp('cone', { left: q.left + 1 + i, top: q.top + 6, width: 1, height: 1 }, { flipX: i % 2 === 1 });
+    ['smallbox', 'smallbox2', 'smallbox3'].forEach((img, i) => {
+      if (images[img]) addZoneProp(img, { left: q.left + 4.5 + i * 1.2, top: q.top + 4.0 + (i % 2) * .9, width: .9, height: .75 }, { block: false, flipX: i % 2 === 1 });
+    });
 
     const inv = game.zones.inventory;
-    // Alcove shape: stock around the edges, open playable centre.
-    addZoneProp('inventory1', { left: inv.left + 0, top: inv.top + 1, width: 3, height: 4 });
-    addZoneProp('inventory2', { left: inv.left + 3, top: inv.top + 1, width: 3, height: 2 });
-    addZoneProp('inventory3', { left: inv.left + 6, top: inv.top + 1, width: 3, height: 2 });
-    addZoneProp('inventory4', { left: inv.left + 9, top: inv.top + 1, width: 3, height: 4 });
-    if (images.table) addZoneProp('table', { left: inv.left + 1, top: inv.top + 6, width: 3, height: 2 });
-    else addZoneProp('inventory5', { left: inv.left + 1, top: inv.top + 6, width: 3, height: 2 });
-    if (images.table2) addZoneProp('table2', { left: inv.left + 5, top: inv.top + 7, width: 3, height: 2 });
-    if (images.table3) addZoneProp('table3', { left: inv.left + 9, top: inv.top + 6, width: 2, height: 2 });
+    // Inventory: scale the small assets up so they match the rest of the warehouse.
+    addZoneProp('inventory1', { left: inv.left + .45, top: inv.top + .55, width: 6.0, height: 7.0 }, { collisionInset: .16 });
+    addZoneProp('inventory2', { left: inv.left + 6.8, top: inv.top + .75, width: 3.1, height: 2.2 }, { collisionInset: .16 });
+    addZoneProp('inventory3', { left: inv.left + 10.1, top: inv.top + .75, width: 3.1, height: 2.2 }, { collisionInset: .16 });
+    addZoneProp('inventory4', { left: inv.left + 10.1, top: inv.top + 3.15, width: 3.1, height: 3.5 }, { collisionInset: .16 });
+    if (images.table) addZoneProp('table', { left: inv.left + 6.9, top: inv.top + 3.65, width: 5.4, height: 3.4 }, { collisionInset: .18 });
+    else addZoneProp('inventory5', { left: inv.left + 6.9, top: inv.top + 3.65, width: 5.4, height: 3.4 }, { collisionInset: .18 });
+    if (images.table2) addZoneProp('table2', { left: inv.left + 1.0, top: inv.top + 5.55, width: 5.2, height: 2.1 }, { collisionInset: .18 });
+    // table3.png intentionally no longer used.
 
-    // Kitchen artwork is visible, with the reduced inner footprint used for collision.
-    game.zones.kitchens.forEach(k => addZoneProp('kitchen', { left: k.left + 0, top: k.top + 1, width: 6, height: 3 }, { collisionRect: { left: k.left + 0, top: k.top + 1, width: 6, height: 3 }, collisionInset: 0.20, flipX: false }));
+    // Kitchen artwork is 25% larger and centred inside the kitchen zone.
+    game.zones.kitchens.forEach(k => {
+      const kw = 7.5, kh = 3.75;
+      addZoneProp('kitchen', {
+        left: k.left + (k.width - kw) / 2,
+        top: k.top + (k.height - kh) / 2,
+        width: kw,
+        height: kh
+      }, {
+        collisionRect: { left: k.left + (k.width - kw) / 2, top: k.top + (k.height - kh) / 2, width: kw, height: kh },
+        collisionInset: 0.20,
+        flipX: false
+      });
+    });
+
     const d = game.zones.dock;
-    // Dock office is collidable again, but with a forgiving inset footprint so the scout can still reach the door.
-    addCollider({ left: d.left + .28, top: d.top + 1.0, width: 8.1, height: 3.0 }, 'dock-office', .20);
+    // Larger dock office footprint on the far right of the yellow driveway.
+    const officeRect = { left: d.left + d.width - 10.8, top: d.top + 1.10, width: 10.1, height: 3.75 };
+    addCollider(officeRect, 'dock-office', .20);
+
+    // Traffic cones guide the top and bottom of the driveway, with deliberate gaps for walking through.
     if (images.cone) {
-      // Never block the Dock spawn point at d.left + 7, d.top + 6.
-      for (let i = 0; i < 4; i++) addZoneProp('cone', { left: d.left + 8 + i, top: d.top + 4, width: 1, height: 1 }, { flipX: i % 2 === 0 });
+      const drivewayTop = d.top + 4.15;
+      const drivewayBottom = d.top + 7.15;
+      const gapXs = [d.left + 3, d.left + 7, d.left + 11];
+      for (let x = d.left - 1; x <= d.left + d.width + 1; x += 1.55) {
+        const nearGap = gapXs.some(g => Math.abs(x - g) < .85);
+        if (!nearGap) {
+          addZoneProp('cone', { left: x, top: drivewayTop, width: .85, height: .85 }, { block: false, flipX: Math.floor(x) % 2 === 0 });
+          addZoneProp('cone', { left: x, top: drivewayBottom, width: .85, height: .85 }, { block: false, flipX: Math.floor(x) % 2 === 1 });
+        }
+      }
     }
   }
   function crossesMainAisle(rect) {
@@ -912,19 +940,22 @@
     const inv = game.zones.inventory;
     const d = game.zones.dock;
 
+    // Dock gets conveyor boundaries on the top and bottom of the whole dock area.
+    addConveyorRun(d.left + .35, d.top + .15, 4, { allowZoneOverlap: true, allowPropOverlap: true });
+    addConveyorRun(d.left + .35, d.top + d.height - 1.15, 4, { allowZoneOverlap: true, allowPropOverlap: true });
+
     // Enclose QS and Inventory from top/bottom so they read as work zones with side entry.
     addConveyorRun(q.left + 1.05, q.top + .35, 3, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
     addConveyorRun(q.left + 1.05, q.top + q.height - 1.25, 3, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
+    addConveyorRun(q.left + 4.0, q.top + 4.9, 2, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
+
     addConveyorRun(inv.left + .75, inv.top + .35, 4, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
     addConveyorRun(inv.left + .75, inv.top + inv.height - 1.25, 4, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
 
-    // Dock conveyor divider, plus a few normal lane dividers.
-    addConveyorRun(d.left + 1.5, d.top + 10.25, 2, { allowZoneOverlap: true, allowPropOverlap: true });
-
-    const target = game.level >= 5 ? 18 : 10;
+    const target = game.level >= 5 ? 16 : 10;
     let attempts = 0;
     while (game.conveyors.length < target && attempts++ < target * 40) {
-      const count = randInt(2, 5);
+      const count = randInt(2, 4);
       const x = randInt(3, Math.max(4, MAP_W - count * 3 - 4));
       const y = randInt(5, Math.max(6, MAP_H - 6));
       addConveyorRun(x, y, count);
@@ -971,6 +1002,30 @@
     // V2.37: the template regions already provide the warehouse structure.
     // Do not add random emergency shelves across the corridor skeleton.
   }
+  function installWalkwayConeGuides() {
+    if (!images.cone) return;
+    const guidePoints = [];
+    // Main vertical lane guides.
+    [24, 52].forEach(x => {
+      for (let y = 6; y <= 43; y += 5) {
+        if (Math.abs(y - 15) < 2 || Math.abs(y - 31) < 2) continue;
+        guidePoints.push({ x: x - 1.0, y }, { x: x + 3.2, y });
+      }
+    });
+    // Main horizontal lane guides.
+    [15, 31].forEach(y => {
+      for (let x = 7; x <= 72; x += 7) {
+        if (Math.abs(x - 24) < 3 || Math.abs(x - 52) < 3) continue;
+        guidePoints.push({ x, y: y - 1.0 }, { x, y: y + 3.3 });
+      }
+    });
+    guidePoints.forEach((p, i) => {
+      const rect = { left: p.x, top: p.y, width: .75, height: .75 };
+      if (withinMap(rect) && !tileInAnyZone({ x: Math.floor(p.x), y: Math.floor(p.y) }, 0)) {
+        addZoneProp('cone', rect, { block: false, flipX: i % 2 === 0 });
+      }
+    });
+  }
   function buildWarehouseLayout() {
     game.map = makeFloorGrid();
     game.obstacles = [];
@@ -988,6 +1043,7 @@
     installSpecialAreaProps();
     sealUnexpectedOpenPatches();
     scatterConeHazards();
+    installWalkwayConeGuides();
     installConveyors();
     installWarehouseBorder();
     scatterDecorativeClutter();
@@ -1707,9 +1763,11 @@
   function playerNearDockOffice() {
     if (!game.player) return false;
     const z = game.zones.dock;
-    // Only the office door area should open the office. Being anywhere in the Dock should not be enough.
-    const door = tileCenter({ x: z.left + 4, y: z.top + 4 });
-    return dist(game.player, door) < TILE * 1.85;
+    const door = {
+      x: (z.left + z.width - 5.6) * TILE,
+      y: (z.top + 4.75) * TILE
+    };
+    return dist(game.player, door) < TILE * 2.05;
   }
   function enterDockOffice() {
     if (game.mode !== 'play' || !playerNearDockOffice()) return false;
@@ -2741,19 +2799,32 @@
     ctx.restore();
   }
   function drawDock(z) {
+    const drivewayY = z.top * TILE + TILE * 4.45;
+    const drivewayH = TILE * 2.65;
+    const drivewayX = -TILE * 18;
+    const drivewayW = (z.left + z.width + 3) * TILE + TILE * 18;
+
     ctx.save();
-    ctx.fillStyle = 'rgba(246,183,53,.2)';
-    ctx.fillRect(z.left * TILE + 10, z.top * TILE + TILE * 2.4, z.width * TILE - 20, TILE * 3.5);
+    ctx.fillStyle = 'rgba(246,183,53,.22)';
+    ctx.fillRect(drivewayX, drivewayY, drivewayW, drivewayH);
     ctx.strokeStyle = '#f0a623';
-    ctx.lineWidth = 8;
-    ctx.setLineDash([34, 22]);
+    ctx.lineWidth = 7;
+    ctx.setLineDash([30, 20]);
     ctx.beginPath();
-    ctx.moveTo(z.left * TILE + 25, z.top * TILE + TILE * 5.5);
-    ctx.lineTo((z.left + z.width) * TILE - 25, z.top * TILE + TILE * 5.5);
+    ctx.moveTo(drivewayX + 20, drivewayY + drivewayH / 2);
+    ctx.lineTo(drivewayX + drivewayW - 20, drivewayY + drivewayH / 2);
     ctx.stroke();
     ctx.restore();
+
     drawZoneSign('DOCK', z, 330, 82);
-    drawContain(images.entrance, z.left * TILE + 18, z.top * TILE + 64, TILE * 8.1, TILE * 3.0, .96, true);
+
+    // Bigger office/door building on the far right of the driveway.
+    const officeW = TILE * 10.1;
+    const officeH = TILE * 3.75;
+    const officeX = (z.left + z.width) * TILE - officeW - 12;
+    const officeY = z.top * TILE + TILE * 1.08;
+    drawContain(images.entrance, officeX, officeY, officeW, officeH, .98, true);
+
     // Truck is drawn dynamically above the cached warehouse layer when it arrives.
   }
   function drawElevator(now = performance.now()) {
@@ -2780,11 +2851,10 @@
     ctx.restore();
   }
   function drawZonePod(z) {
+    // Area pods should not get a dark overlay now; keep only a very faint outline for orientation.
     if (!z || !isZoneVisible(z, 80)) return;
     ctx.save();
-    ctx.fillStyle = 'rgba(40,47,55,.18)';
-    ctx.fillRect(z.left * TILE, z.top * TILE, z.width * TILE, z.height * TILE);
-    ctx.strokeStyle = 'rgba(255,255,255,.10)';
+    ctx.strokeStyle = 'rgba(255,255,255,.055)';
     ctx.lineWidth = 2;
     ctx.strokeRect(z.left * TILE + 4, z.top * TILE + 4, z.width * TILE - 8, z.height * TILE - 8);
     ctx.restore();
@@ -2818,24 +2888,23 @@
   }
   function truckDrawX(now) {
     const z = game.zones.dock;
-    const targetX = z.left * TILE + TILE * 7.7;
-    const startX = z.left * TILE - TILE * 8.5;
+    const targetX = z.left * TILE + TILE * 1.1;
+    const leftOffMap = z.left * TILE - TILE * 13.5;
     if (!game.truck) return targetX;
     if (game.truck.phase === 'arriving') {
       const progress = clamp((now - game.truck.arriveStarted) / 1250, 0, 1);
-      return startX + (targetX - startX) * progress;
+      return leftOffMap + (targetX - leftOffMap) * progress;
     }
     if (game.truck.phase === 'leaving') {
-      const endX = z.left * TILE + TILE * 20;
       const progress = clamp((now - game.truck.leaveStarted) / 1100, 0, 1);
-      return targetX + (endX - targetX) * progress;
+      return targetX + (leftOffMap - targetX) * progress;
     }
     return targetX;
   }
   function drawLiveTruck(now) {
     if (!game.truck || !isZoneVisible(game.zones.dock, 40)) return;
     const z = game.zones.dock;
-    drawContain(images.truck, truckDrawX(now), z.top * TILE + TILE * 4.4, TILE * 9.0, TILE * 3.2, 1, true);
+    drawContain(images.truck, truckDrawX(now), z.top * TILE + TILE * 4.25, TILE * 9.0, TILE * 3.2, 1, true);
   }
 
   function drawRoute(now) {
