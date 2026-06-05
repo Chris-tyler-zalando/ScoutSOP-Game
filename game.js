@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.38';
+  const VERSION = 'V2.40';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -67,6 +67,9 @@
   const DISPLAY_MODE_KEY = 'zalandoScoutDisplayMode';
   const INVENTORY_DURATION = 60000;
   const QS_DURATION = 60000;
+  const NOEAN_DURATION = 60000;
+  const NOEAN_ANGLES = [40, 60, 80, 90, 100, 120, 140];
+  const NOEAN_TARGETS = ['shoes', 'tops', 'pants'];
   const PALLET_JACK_DURATION = 30000;
   const PUZZLE_COLS = 6;
   const PUZZLE_ROWS = 5;
@@ -129,9 +132,11 @@
     palletjack: ['palletjack.png'], clothesDamaged: ['clothesdamaged.png'], slbox: ['slbox.png'],
     qsBg: ['qs2.jpg', 'qs2.png'], fireExtinguisher: ['fire.png'], fireAnim: ['fire.webp'],
     elevator: ['elevator.png'], conveyor: ['conveyor.png'], conveyorBox: ['box.png'],
-    jiraScreen: ['jira.jpg'], errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png']
+    jiraScreen: ['jira.jpg'], errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png'],
+    noEanWelcome: ['welcome3.jpg'], noEanBg: ['noeanbg.jpg', 'noeanbg.png', 'scannerbg.jpg', 'scannerbg.png', 'conveyorbg.jpg', 'conveyorbg.png', 'welcome3.jpg'],
+    scanner: ['scanner.png'], scannerCorrect: ['scanner2.png'], scannerWrong: ['scanner3.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorBox']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -226,6 +231,9 @@
     office: null,
     qsPuzzle: null,
     qsCooldownUntil: 0,
+    noEanBriefUntil: 0,
+    noEanPuzzle: null,
+    noEanCooldownUntil: 0,
     fire: null,
     nextFireAt: 0,
     tokenFlashUntil: 0,
@@ -234,7 +242,7 @@
   };
 
   function freshStats() {
-    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, opsFinds: 0, inventoryChecks: 0, quarantineSorts: 0, coffeeSprints: 0, palletJackRides: 0, firesExtinguished: 0, firePoints: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, hintsBought: 0, taskFailures: 0 };
+    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, noEanTasks: 0, noEanScans: 0, noEanWrong: 0, noEanMissed: 0, opsFinds: 0, inventoryChecks: 0, quarantineSorts: 0, coffeeSprints: 0, palletJackRides: 0, firesExtinguished: 0, firePoints: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, hintsBought: 0, taskFailures: 0 };
   }
   function freshTasks() { return { alm: 0, sl: 0, email: 0, workday: 0, tokens: 0, completed: { alm: false, sl: false, email: false, workday: false } }; }
   function taskJobsReady(type) { return Math.floor((game.tasks[type] || 0) / 5); }
@@ -363,7 +371,7 @@
       else if (game.mode === 'play') {
         if (game.specialMusic) this.play(game.specialMusic, true);
         else this.playGameplay();
-      } else if (game.mode === 'inventoryBriefing' || game.mode === 'inventoryPuzzle' || game.mode === 'qsPuzzle') this.play('inventory', true);
+      } else if (game.mode === 'inventoryBriefing' || game.mode === 'inventoryPuzzle' || game.mode === 'qsPuzzle' || game.mode === 'noEanBriefing' || game.mode === 'noEanPuzzle') this.play('inventory', true);
       else if (game.mode === 'gameover') this.play('gameover', true);
       else if (game.mode === 'intro') this.play(introSlides[game.introIndex].music, true);
       else if (game.mode === 'title') this.play('startup', true);
@@ -732,9 +740,6 @@
     });
 
     const d = game.zones.dock;
-    // Larger dock office footprint on the far right of the yellow driveway.
-    const officeRect = { left: d.left + d.width - 10.8, top: d.top + 1.10, width: 10.1, height: 3.75 };
-    addCollider(officeRect, 'dock-office', .20);
 
     // Traffic cones guide the top and bottom of the driveway, with deliberate gaps for walking through.
     if (images.cone) {
@@ -800,7 +805,9 @@
     for (let y = .25; y < MAP_H - .2; y += verticalStep) {
       const leftImage = sideIndex % 2 === 0 ? 'box7' : 'box3';
       const rightImage = sideIndex % 2 === 0 ? 'box3' : 'box7';
-      addBorderProp(leftImage, { left: -.77, top: y, width: 2.08, height: 2.75 }, sideIndex % 3 === 0);
+      const leftRect = { left: -.77, top: y, width: 2.08, height: 2.75 };
+      const road = game.zones && game.zones.dock ? dockDrivewayRect() : null;
+      if (!road || !overlaps(leftRect, road)) addBorderProp(leftImage, leftRect, sideIndex % 3 === 0);
       addBorderProp(rightImage, { left: MAP_W - 1.32, top: y, width: 2.08, height: 2.75 }, sideIndex % 3 === 1);
       sideIndex++;
     }
@@ -924,7 +931,7 @@
         conveyor, image, collectible, size,
         minX: (left + .45) * TILE, maxX: (left + totalW - .45) * TILE,
         x: (left + .7 + Math.random() * Math.max(.4, totalW - 1.4)) * TILE,
-        y: (top + .42 + Math.random() * .12) * TILE,
+        y: (top + .28 + Math.random() * .08) * TILE,
         dir: Math.random() < .5 ? -1 : 1, speed: rand(28, 68)
       };
       conveyor.moving.push(item);
@@ -982,10 +989,14 @@
   function elevatorDoorIndexFromPlayer() {
     if (!game.player || !game.zones.elevator) return -1;
     const e = game.zones.elevator;
+    const imgW = e.width * .60;
+    const imgH = imgW * .50;
+    const imgLeft = e.left + (e.width - imgW) / 2;
+    const imgTop = e.top + (e.height - imgH) / 2;
     const px = game.player.x / TILE;
     const py = game.player.y / TILE;
-    if (px < e.left - .5 || px > e.left + e.width + .5 || py < e.top - .4 || py > e.top + e.height + 1.2) return -1;
-    const rel = clamp((px - e.left) / e.width, 0, .999);
+    if (px < imgLeft - .5 || px > imgLeft + imgW + .5 || py < imgTop - .4 || py > imgTop + imgH + 1.2) return -1;
+    const rel = clamp((px - imgLeft) / imgW, 0, .999);
     return clamp(Math.floor(rel * 3), 0, 2);
   }
   function tryUseElevator(now) {
@@ -1026,6 +1037,15 @@
       }
     });
   }
+  function clearDockDrivewayVisualClutter() {
+    if (!game.zones || !game.zones.dock) return;
+    const road = dockDrivewayRect();
+    const clear = prop => !overlaps(prop.collisionRect || prop, road);
+    game.obstacles = game.obstacles.filter(clear);
+    game.zoneProps = game.zoneProps.filter(prop => prop.image === 'cone' || clear(prop));
+    game.decorativeProps = game.decorativeProps.filter(clear);
+    game.colliders = game.colliders.filter(c => !overlaps({ left: c.left / TILE, top: c.top / TILE, width: c.width / TILE, height: c.height / TILE }, road));
+  }
   function buildWarehouseLayout() {
     game.map = makeFloorGrid();
     game.obstacles = [];
@@ -1047,6 +1067,9 @@
     installConveyors();
     installWarehouseBorder();
     scatterDecorativeClutter();
+    clearDockDrivewayVisualClutter();
+    const d = game.zones.dock;
+    addCollider({ left: d.left + d.width - 10.8, top: d.top + 1.10, width: 10.1, height: 3.75 }, 'dock-office', .20);
     game.floorLogos = generateFloorLogos();
   }
 
@@ -1250,6 +1273,8 @@
     game.movingConveyorItems = game.movingConveyorItems || [];
     game.qsPuzzle = null;
     game.qsCooldownUntil = 0;
+    game.noEanPuzzle = null;
+    game.noEanCooldownUntil = 0;
     game.fire = null;
     game.nextFireAt = performance.now() + randInt(45000, 90000);
     for (let i = 0; i < activeBoxCount(); i++) spawnBox();
@@ -1277,6 +1302,8 @@
     game.messages = [];
     game.particles = [];
     game.specialMusic = null;
+    game.noEanPuzzle = null;
+    game.noEanCooldownUntil = 0;
   }
   function profileId() { return `shift-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
   function profileAvatarFor(name) {
@@ -1723,11 +1750,30 @@
   function pointInsideZone(p, z) {
     return tileInsideZone(worldToTile(p.x, p.y), z);
   }
+  function dockDrivewayRect() {
+    const d = game.zones.dock;
+    return { left: 0, top: d.top + 4.35, width: d.left + d.width + 3.0, height: 2.95 };
+  }
+  function tileInsideDockDriveway(t) {
+    const r = dockDrivewayRect();
+    return t.x >= r.left && t.x < r.left + r.width && t.y >= r.top && t.y < r.top + r.height;
+  }
+  function pointInsideDockDriveway(p) {
+    return tileInsideDockDriveway(worldToTile(p.x, p.y));
+  }
   function tileInsideSafeZone(t) {
-    return tileInsideZone(t, game.zones.dock) || game.zones.kitchens.some(k => tileInsideZone(t, k));
+    return tileInsideZone(t, game.zones.dock) ||
+      tileInsideZone(t, game.zones.elevator) ||
+      tileInsideDockDriveway(t) ||
+      game.zones.kitchens.some(k => tileInsideZone(t, k));
   }
   function playerInsideSafeZone() {
-    return !!game.player && (pointInsideZone(game.player, game.zones.dock) || game.zones.kitchens.some(k => pointInsideZone(game.player, k)));
+    return !!game.player && (
+      pointInsideZone(game.player, game.zones.dock) ||
+      pointInsideZone(game.player, game.zones.elevator) ||
+      pointInsideDockDriveway(game.player) ||
+      game.zones.kitchens.some(k => pointInsideZone(game.player, k))
+    );
   }
   function updateSpecialMusic() {
     let wanted = null;
@@ -1921,7 +1967,8 @@
     const pt = worldToTile(game.player.x, game.player.y);
     const et = worldToTile(enemy.x, enemy.y);
     if (tileInsideSafeZone(et)) {
-      const safeZone = tileInsideZone(et, game.zones.dock) ? game.zones.dock : game.zones.kitchens.find(k => tileInsideZone(et, k));
+      const safeZone = tileInsideZone(et, game.zones.dock) ? game.zones.dock :
+        (tileInsideZone(et, game.zones.elevator) ? game.zones.elevator : game.zones.kitchens.find(k => tileInsideZone(et, k)));
       const outside = safeZone ? tileNearZoneEdge(safeZone) : randomFloorTile(0, true);
       const reset = tileCenter(outside);
       enemy.x = reset.x; enemy.y = reset.y; enemy.path = [];
@@ -1992,13 +2039,13 @@
 
   const lootTable = [
     { id: 'heart', weight: 8 }, { id: 'coffee', weight: 13 },
-    { id: 'emailTask', weight: 30 }, { id: 'workdayTask', weight: 30 }, { id: 'sopToken', weight: 2 },
+    { id: 'emailTask', weight: 25 }, { id: 'workdayTask', weight: 25 }, { id: 'noean', weight: 16 }, { id: 'sopToken', weight: 2 },
     { id: 'return', weight: 8 }, { id: 'mixed', weight: 7 }, { id: 'mould', weight: 8 }, { id: 'break', weight: 6 },
     { id: 'ops', weight: 3 }, { id: 'empty', weight: 5 }
   ];
   const smallBoxLoot = [
     { id: 'empty', weight: 38 }, { id: 'heart', weight: 8 }, { id: 'coffee', weight: 10 },
-    { id: 'emailTask', weight: 20 }, { id: 'workdayTask', weight: 20 }, { id: 'sopToken', weight: 2 }
+    { id: 'emailTask', weight: 17 }, { id: 'workdayTask', weight: 17 }, { id: 'noean', weight: 10 }, { id: 'sopToken', weight: 2 }
   ];
   function weightedFrom(table) {
     const total = table.reduce((sum, item) => sum + item.weight, 0);
@@ -2069,6 +2116,7 @@
       case 'coffee': collectCoffee(); return;
       case 'emailTask': addTaskProgress('email', 1, 'EMAIL TASK FOUND'); return;
       case 'workdayTask': addTaskProgress('workday', 1, 'WORKDAY TASK FOUND'); return;
+      case 'noean': game.stats.noEanTasks++; teleportTo(game.zones.dock, 'NO EAN ON SHIPPING NOTICE — SCANNER TASK', null); startNoEanBriefing(); return;
       case 'sopToken':
         game.tasks.tokens++;
         game.stats.sopTokensFound++;
@@ -2324,6 +2372,330 @@
     addMessage(`QUARANTINE SORT COMPLETE  +${pz.scoreEarned}  DISPOSE ${pz.disposeCount}  DESTROY ${pz.destroyCount}`, '#ff7700', 3400);
     updateBest();
   }
+
+  function startNoEanBriefing() {
+    if (game.mode !== 'play' || performance.now() < game.noEanCooldownUntil) return false;
+    setGameplayControlsVisible(false);
+    keys.clear(); stopSprint();
+    game.noEanBriefUntil = performance.now() + 5200;
+    game.mode = 'noEanBriefing';
+    game.specialMusic = 'inventory';
+    music.play('inventory', true);
+    return true;
+  }
+
+  function createNoEanPuzzle() {
+    const now = performance.now();
+    const scannerY = H * .795;
+    const target = choice(NOEAN_TARGETS);
+    game.noEanPuzzle = {
+      startedAt: now,
+      until: now + NOEAN_DURATION,
+      target,
+      targetLabel: target === 'shoes' ? 'SHOES' : (target === 'tops' ? 'TOPS' : 'PANTS'),
+      toastUntil: now + 2000,
+      nextSpawnAt: now + 1000,
+      items: [],
+      path: makeNoEanPath(),
+      scanner: { x: W / 2, y: scannerY, minX: W * .062, maxX: W * .784, speed: 540, angle: 90, lastAngleStepAt: 0 },
+      beam: null,
+      feedback: null,
+      wrongFlashUntil: 0,
+      scoreEarned: 0,
+      correctHits: 0,
+      wrongHits: 0,
+      missedTargets: 0
+    };
+    game.mode = 'noEanPuzzle';
+  }
+
+  function noEanSpawnInterval(elapsed) {
+    if (elapsed < 20000) return rand(1600, 2000);
+    if (elapsed < 40000) return rand(1300, 1700);
+    return rand(1000, 1400);
+  }
+  function makeNoEanPath() {
+    const sx = W / 1280, sy = H / 720;
+    const points = [];
+    const add = (x, y) => points.push({ x: x * sx, y: y * sy });
+    const addLine = (a, b, steps = 18) => {
+      for (let i = points.length ? 1 : 0; i <= steps; i++) {
+        const t = i / steps; add(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t);
+      }
+    };
+    const addQuad = (a, c, b, steps = 14) => {
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps, mt = 1 - t;
+        add(mt * mt * a[0] + 2 * mt * t * c[0] + t * t * b[0], mt * mt * a[1] + 2 * mt * t * c[1] + t * t * b[1]);
+      }
+    };
+    addLine([150, 118], [1040, 118], 28);
+    addQuad([1040, 118], [1160, 130], [1122, 242], 16);
+    addLine([1122, 242], [275, 303], 26);
+    addQuad([275, 303], [130, 365], [205, 430], 16);
+    addLine([205, 430], [1035, 482], 26);
+    addQuad([1035, 482], [1165, 505], [1118, 600], 16);
+    addLine([1118, 600], [1118, 765], 14);
+    const lengths = [0];
+    let total = 0;
+    for (let i = 1; i < points.length; i++) { total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y); lengths.push(total); }
+    return { points, lengths, total };
+  }
+  function pointOnNoEanPath(path, distance) {
+    const d = clamp(distance, 0, path.total);
+    let i = 1;
+    while (i < path.lengths.length && path.lengths[i] < d) i++;
+    const a = path.points[i - 1] || path.points[0], b = path.points[i] || a;
+    const span = Math.max(1, (path.lengths[i] || 0) - (path.lengths[i - 1] || 0));
+    const t = clamp((d - (path.lengths[i - 1] || 0)) / span, 0, 1);
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+  }
+  function noEanClothingFrame(category) {
+    const tops = [2, 3, 5, 7, 9, 11];
+    const pants = [0, 1, 6, 10];
+    return choice(category === 'tops' ? tops : pants);
+  }
+  function createNoEanItem(now) {
+    const category = choice(NOEAN_TARGETS);
+    const shoeKeys = shoeImageKeys();
+    const isShoe = category === 'shoes';
+    return {
+      category,
+      image: isShoe ? (choice(shoeKeys.length ? shoeKeys : ['shoe'])) : 'clothes',
+      frame: isShoe ? 0 : noEanClothingFrame(category),
+      distance: 0,
+      speed: rand(112, 142),
+      w: isShoe ? rand(76, 96) : rand(62, 82),
+      h: isShoe ? rand(48, 62) : rand(72, 92),
+      x: -999,
+      y: -999,
+      hitAt: 0,
+      removing: false,
+      flashUntil: 0
+    };
+  }
+  function noEanAdvanceAngle(pz, direction, now) {
+    const scanner = pz.scanner;
+    const currentIndex = NOEAN_ANGLES.indexOf(scanner.angle);
+    let next;
+    if (currentIndex < 0) {
+      next = direction > 0 ? NOEAN_ANGLES.find(a => a > scanner.angle) : [...NOEAN_ANGLES].reverse().find(a => a < scanner.angle);
+    } else next = NOEAN_ANGLES[clamp(currentIndex + direction, 0, NOEAN_ANGLES.length - 1)];
+    if (typeof next === 'number') scanner.angle = next;
+    scanner.lastAngleStepAt = now;
+  }
+  function resetNoEanScanner() {
+    const pz = game.noEanPuzzle;
+    if (!pz) return;
+    pz.scanner.x = W / 2;
+    pz.scanner.angle = 90;
+    pz.scanner.lastAngleStepAt = performance.now();
+  }
+  function scannerBeamOrigin(scanner) {
+    const rad = scanner.angle * Math.PI / 180;
+    const dx = Math.cos(rad), dy = -Math.sin(rad);
+    return { x: scanner.x + dx * 42, y: scanner.y + dy * 42, dx, dy };
+  }
+  function distancePointToRay(px, py, ray) {
+    const vx = px - ray.x, vy = py - ray.y;
+    const along = vx * ray.dx + vy * ray.dy;
+    const perp = Math.abs(vx * ray.dy - vy * ray.dx);
+    return { along, perp };
+  }
+  function setNoEanFeedback(type, now) {
+    const pz = game.noEanPuzzle;
+    if (!pz) return;
+    pz.feedback = { type, start: now, until: now + 1500 };
+  }
+  function applyNoEanPenalty(pz, now, reason) {
+    if (game.score >= 30) game.score -= 30;
+    else { game.score = 0; game.health = Math.max(0, game.health - 1); }
+    if (reason === 'wrong') { pz.wrongHits++; game.stats.noEanWrong++; }
+    if (reason === 'missed') { pz.missedTargets++; game.stats.noEanMissed++; }
+    synth.note(160, .12, 'sawtooth', .045);
+    shake(8);
+    updateBest();
+    if (game.health <= 0) {
+      finishNoEanPuzzle(true);
+      game.mode = 'play';
+      triggerDeath();
+    }
+  }
+  function fireNoEanScanner(now) {
+    const pz = game.noEanPuzzle;
+    if (!pz || now < (pz.nextShotAt || 0)) return;
+    pz.nextShotAt = now + 100;
+    const ray = scannerBeamOrigin(pz.scanner);
+    let best = null;
+    pz.items.forEach(item => {
+      if (item.removing) return;
+      const hit = distancePointToRay(item.x, item.y, ray);
+      const radius = Math.min(item.w, item.h) * .40;
+      if (hit.along > 0 && hit.along < W * 1.35 && hit.perp <= radius && (!best || hit.along < best.along)) best = { item, along: hit.along };
+    });
+    const beamEnd = best ? { x: ray.x + ray.dx * best.along, y: ray.y + ray.dy * best.along } : { x: ray.x + ray.dx * W * 1.45, y: ray.y + ray.dy * W * 1.45 };
+    pz.beam = { x1: ray.x, y1: ray.y, x2: beamEnd.x, y2: beamEnd.y, until: now + 130 };
+    synth.note(760, .035, 'square', .025);
+    if (!best) return;
+    const item = best.item;
+    if (item.category === pz.target) {
+      item.flashUntil = now + 140;
+      item.removing = true;
+      item.hitAt = now;
+      pz.correctHits++;
+      pz.scoreEarned += 15;
+      game.stats.noEanScans++;
+      game.score += 15;
+      setNoEanFeedback('correct', now);
+      synth.note(1040, .08, 'sine', .05);
+      burst(item.x, item.y, '#ff3b3b', 12);
+      updateBest();
+    } else {
+      setNoEanFeedback('wrong', now);
+      pz.wrongFlashUntil = now + 300;
+      applyNoEanPenalty(pz, now, 'wrong');
+    }
+  }
+  function updateNoEanPuzzle(dt, now) {
+    const pz = game.noEanPuzzle;
+    if (!pz) return;
+    let move = 0;
+    if (keys.has('ArrowLeft') || keys.has('KeyA')) move--;
+    if (keys.has('ArrowRight') || keys.has('KeyD')) move++;
+    pz.scanner.x = clamp(pz.scanner.x + move * pz.scanner.speed * dt, pz.scanner.minX, pz.scanner.maxX);
+    const upHeld = keys.has('ArrowUp') || keys.has('KeyW');
+    const downHeld = keys.has('ArrowDown') || keys.has('KeyS');
+    if ((upHeld || downHeld) && now - (pz.scanner.lastAngleStepAt || 0) >= 1000) noEanAdvanceAngle(pz, upHeld ? 1 : -1, now);
+    const elapsed = now - pz.startedAt;
+    if (now >= pz.nextSpawnAt && now < pz.until && pz.items.length < 5) {
+      const last = pz.items[pz.items.length - 1];
+      if (!last || last.distance > 165) {
+        pz.items.push(createNoEanItem(now));
+        pz.nextSpawnAt = now + noEanSpawnInterval(elapsed);
+      } else pz.nextSpawnAt = now + 260;
+    }
+    for (let i = pz.items.length - 1; i >= 0; i--) {
+      const item = pz.items[i];
+      if (item.removing) {
+        if (now - item.hitAt > 260) pz.items.splice(i, 1);
+        continue;
+      }
+      item.distance += item.speed * dt;
+      const point = pointOnNoEanPath(pz.path, item.distance);
+      item.x = point.x; item.y = point.y;
+      if (item.distance >= pz.path.total) {
+        if (item.category === pz.target) applyNoEanPenalty(pz, now, 'missed');
+        else synth.note(320, .05, 'triangle', .018);
+        pz.items.splice(i, 1);
+      }
+    }
+  }
+  function finishNoEanPuzzle(silent = false) {
+    const pz = game.noEanPuzzle;
+    if (!pz) return;
+    const exitTile = tileNearZoneEdge(game.zones.dock);
+    const pos = tileCenter(exitTile);
+    if (game.player) { game.player.x = pos.x; game.player.y = pos.y; game.player.invulnerableUntil = performance.now() + 2300; }
+    game.noEanCooldownUntil = performance.now() + 30000;
+    game.noEanPuzzle = null;
+    game.specialMusic = null;
+    game.mode = 'play';
+    keys.clear();
+    setGameplayControlsVisible(true);
+    centerCamera();
+    if (!silent) addMessage(`NO EAN SCAN COMPLETE  +${pz.scoreEarned}  SCANNED ${pz.correctHits}`, '#ff7700', 3400);
+    music.playGameplay();
+    updateBest();
+  }
+
+  function drawNoEanBriefing() {
+    if (images.noEanWelcome) drawCoverImage(images.noEanWelcome, 0, 0, W, H);
+    else { ctx.fillStyle = '#27313c'; ctx.fillRect(0, 0, W, H); }
+    ctx.fillStyle = 'rgba(8,10,13,.62)'; ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff6900'; ctx.font = 'bold 48px Trebuchet MS'; ctx.fillText('NO EAN ON SHIPPING NOTICE', W / 2, 138);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 24px Trebuchet MS'; ctx.lineWidth = 5; ctx.strokeStyle = '#000';
+    const lines = [
+      'In a recent delivery we have many items which had no EAN on the shipping notice.',
+      'Scan the items missing the EAN so we can add them to a Jira ticket.'
+    ];
+    lines.forEach((line, i) => { ctx.strokeText(line, W / 2, 245 + i * 42); ctx.fillText(line, W / 2, 245 + i * 42); });
+    ctx.fillStyle = 'rgba(15,18,22,.80)'; ctx.fillRect(W / 2 - 430, 365, 860, 120);
+    ctx.strokeStyle = '#ff6900'; ctx.strokeRect(W / 2 - 430, 365, 860, 120);
+    ctx.fillStyle = '#ffd054'; ctx.font = 'bold 23px Trebuchet MS'; ctx.fillText('AIM WITH ARROWS / WASD  •  SPACE TO SCAN  •  ENTER TO RESET', W / 2, 412);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 20px Trebuchet MS'; ctx.fillText('Be careful — you may not need to scan every item.', W / 2, 455);
+    const seconds = Math.max(1, Math.ceil((game.noEanBriefUntil - performance.now()) / 1000));
+    ctx.fillStyle = '#ffd054'; ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText(`STARTING IN ${seconds}...`, W / 2, 548);
+    ctx.restore();
+  }
+  function drawNoEanItem(item, alpha = 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (item.category === 'shoes' && images[item.image]) drawContain(images[item.image], item.x - item.w / 2, item.y - item.h / 2, item.w, item.h, alpha, true);
+    else if (images.clothes) drawClothingItem(item.frame, item.x - item.w / 2, item.y - item.h / 2, item.w, item.h, alpha);
+    if (performance.now() < item.flashUntil) {
+      ctx.globalAlpha = .45; ctx.fillStyle = '#ff1f2a'; ctx.beginPath(); ctx.ellipse(item.x, item.y, item.w * .55, item.h * .55, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+  function drawNoEanScannerSprite(pz, now) {
+    const s = pz.scanner;
+    const w = 132, h = 94;
+    const rad = (90 - s.angle) * Math.PI / 180;
+    let feedbackImg = null, feedbackAlpha = 0;
+    if (pz.feedback && now < pz.feedback.until) {
+      const progress = (now - pz.feedback.start) / 1500;
+      feedbackAlpha = progress < .2 ? progress / .2 : (progress > .8 ? (1 - progress) / .2 : 1);
+      feedbackImg = pz.feedback.type === 'correct' ? images.scannerCorrect : images.scannerWrong;
+    }
+    const baseImg = images.scanner;
+    const drawRotated = (img, alpha) => {
+      ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(rad); ctx.globalAlpha = alpha;
+      if (img) { drawShadow(-w / 2, -h / 2, w, h, .20 * alpha); ctx.drawImage(img, -w / 2, -h / 2, w, h); }
+      else { ctx.fillStyle = '#333'; ctx.fillRect(-w/2, -h/2, w, h); ctx.fillStyle = '#ff3333'; ctx.fillRect(-8, -h/2, 16, 28); }
+      ctx.restore();
+    };
+    drawRotated(baseImg, 1);
+    if (feedbackImg && feedbackAlpha > 0) drawRotated(feedbackImg, feedbackAlpha);
+  }
+  function drawNoEanPuzzle(now) {
+    const pz = game.noEanPuzzle;
+    if (!pz) return;
+    if (images.noEanBg) drawCoverImage(images.noEanBg, 0, 0, W, H);
+    else { ctx.fillStyle = '#293037'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#6a6d70'; ctx.fillRect(70, 110, W - 180, 58); ctx.fillRect(220, 300, W - 350, 58); ctx.fillRect(190, 470, W - 270, 58); }
+    pz.items.forEach(item => {
+      const fade = item.removing ? clamp(1 - (now - item.hitAt) / 260, 0, 1) : 1;
+      drawNoEanItem(item, fade);
+    });
+    if (pz.beam && now < pz.beam.until) {
+      ctx.save();
+      ctx.globalAlpha = clamp((pz.beam.until - now) / 130, 0, 1);
+      ctx.strokeStyle = 'rgba(255,0,30,.85)'; ctx.lineWidth = 4; ctx.shadowBlur = 16; ctx.shadowColor = '#ff1f2a';
+      ctx.beginPath(); ctx.moveTo(pz.beam.x1, pz.beam.y1); ctx.lineTo(pz.beam.x2, pz.beam.y2); ctx.stroke();
+      ctx.restore();
+    }
+    drawNoEanScannerSprite(pz, now);
+    ctx.save();
+    ctx.fillStyle = 'rgba(12,15,18,.82)'; ctx.fillRect(34, 34, 324, 136);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; ctx.strokeRect(34, 34, 324, 136);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 20px Trebuchet MS'; ctx.fillText(`SCORE  ${formatScore(game.score)}`, 58, 74);
+    ctx.fillText(`HEARTS  ${'♥'.repeat(Math.max(0, game.health))}`, 58, 108);
+    ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, 58, 142);
+    ctx.fillStyle = '#ffd054'; ctx.font = 'bold 18px Trebuchet MS'; ctx.fillText(`TARGET: ${pz.targetLabel}`, 205, 142);
+    if (now < pz.toastUntil) {
+      ctx.fillStyle = 'rgba(15,18,22,.88)'; ctx.fillRect(55, 225, 360, 70);
+      ctx.strokeStyle = '#ff6900'; ctx.strokeRect(55, 225, 360, 70);
+      ctx.fillStyle = '#ffd054'; ctx.font = 'bold 28px Trebuchet MS'; ctx.textAlign = 'center';
+      ctx.fillText(`SHOOT ALL ${pz.targetLabel}`, 235, 270);
+    }
+    if (pz.wrongFlashUntil && now < pz.wrongFlashUntil) {
+      ctx.globalAlpha = clamp((pz.wrongFlashUntil - now) / 300, 0, 1) * .35;
+      ctx.fillStyle = '#ff1f2a'; ctx.fillRect(0, 0, W, H);
+    }
+    ctx.restore();
+  }
+
   function handleQSPointerDown(x, y, pointerId = null) {
     const pz = game.qsPuzzle;
     if (!pz) return false;
@@ -2514,6 +2886,7 @@
     game.office = null;
     game.inventoryPuzzle = null;
     game.qsPuzzle = null;
+    game.noEanPuzzle = null;
     game.fire = null;
     hideFireOverlay();
     game.nextFireAt = performance.now() + 9999999;
@@ -2574,6 +2947,7 @@
     if (action === 'hearts') { game.health = MAX_HEARTS; addMessage('ADMIN HEARTS RESTORED', '#ffd054', 1400); return; }
     if (action === 'inventory') { adminReturnToWarehouse(); game.inventoryCooldownUntil = 0; startInventoryBriefing(); return; }
     if (action === 'qs') { adminReturnToWarehouse(); game.qsCooldownUntil = 0; startQSPuzzle(); return; }
+    if (action === 'noean') { adminReturnToWarehouse(); game.noEanCooldownUntil = 0; startNoEanBriefing(); return; }
     if (action === 'fire') { adminReturnToWarehouse(); game.fire = null; startFireEvent(now); return; }
     if (action === 'office') { adminReturnToWarehouse(); game.tasks.alm = Math.max(game.tasks.alm, 5); game.tasks.sl = Math.max(game.tasks.sl, 5); game.tasks.email = Math.max(game.tasks.email, 5); game.tasks.workday = Math.max(game.tasks.workday, 5); game.mode = 'office'; game.office = { page: 'menu', selectedType: null, puzzle: null, hotspots: [], result: null }; setGameplayControlsVisible(false); return; }
     if (action === 'alm' || action === 'sl' || action === 'email' || action === 'workday') { adminDirectPuzzle(action); return; }
@@ -2616,6 +2990,11 @@
     } else if (game.mode === 'qsPuzzle' && game.qsPuzzle) {
       updateQSPuzzle(dt, now);
       if (now >= game.qsPuzzle.until) finishQSPuzzle();
+    } else if (game.mode === 'noEanBriefing' && now >= game.noEanBriefUntil) {
+      createNoEanPuzzle();
+    } else if (game.mode === 'noEanPuzzle' && game.noEanPuzzle) {
+      updateNoEanPuzzle(dt, now);
+      if (game.noEanPuzzle && now >= game.noEanPuzzle.until) finishNoEanPuzzle();
     } else if (game.mode === 'dying') {
       updatePlayerAction(now);
       game.messages = game.messages.filter(message => message.until > now);
@@ -2746,7 +3125,7 @@
       if (!images[item.image] || !onScreenRect(item.x - 90, item.y - 70, 180, 120, 80)) return;
       const w = (item.collectible ? 126 : 170) * item.size;
       const h = (item.collectible ? 80 : 100) * item.size;
-      drawContain(images[item.image], item.x - w / 2, item.y - h * .62, w, h, 1, true);
+      drawContain(images[item.image], item.x - w / 2, item.y - h * .72, w, h, 1, true);
     });
   }
   function drawObstacles() {
@@ -2830,23 +3209,29 @@
   function drawElevator(now = performance.now()) {
     const e = game.zones.elevator;
     if (!e || !isZoneVisible(e, 140)) return;
-    const x = e.left * TILE, y = e.top * TILE;
-    if (images.elevator) drawContain(images.elevator, x, y, e.width * TILE, e.height * TILE, .98, true);
-    else { ctx.save(); ctx.fillStyle = '#b7c0cb'; ctx.fillRect(x, y, e.width * TILE, e.height * TILE); ctx.restore(); }
+    const zoneX = e.left * TILE, zoneY = e.top * TILE;
+    const imgW = e.width * TILE * .60;
+    const imgH = imgW * .50; // elevator.png is 1000 x 500
+    const x = zoneX + (e.width * TILE - imgW) / 2;
+    const y = zoneY + (e.height * TILE - imgH) / 2;
+    if (images.elevator) drawContain(images.elevator, x, y, imgW, imgH, .98, true);
+    else { ctx.save(); ctx.fillStyle = '#b7c0cb'; ctx.fillRect(x, y, imgW, imgH); ctx.restore(); }
     const labels = currentElevatorDestinations(now);
     const flash = elevatorChangeFlashing(now) && Math.floor(now / 250) % 2 === 0;
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.font = 'bold 13px Trebuchet MS';
+    ctx.font = 'bold 11px Trebuchet MS';
     labels.forEach((dest, i) => {
       if (!dest) return;
-      const tx = x + (i + .5) * (e.width * TILE / 3);
-      const ty = y + TILE * .42;
+      const tx = x + (i + .5) * (imgW / 3);
+      const ty = y + imgH * .205;
+      const labelMax = imgW / 3 - 18;
       ctx.fillStyle = flash ? '#d3ffb5' : '#58d34c';
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = 'rgba(0,0,0,.82)';
-      ctx.strokeText(dest.label, tx, ty);
-      ctx.fillText(dest.label, tx, ty);
+      ctx.strokeStyle = 'rgba(0,0,0,.92)';
+      ctx.lineWidth = 4;
+      const text = dest.label.length > 13 ? dest.label.replace(' / ', '/').replace('QUARANTINE', 'QS').replace('INVENTORY', 'INV.') : dest.label;
+      ctx.strokeText(text, tx, ty, labelMax);
+      ctx.fillText(text, tx, ty, labelMax);
     });
     ctx.restore();
   }
@@ -3302,7 +3687,7 @@
 
     const summary = [
       ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks],
-      ['ARTICLES IN BAD CONDITION', game.stats.quarantineSorts], ['FIRES OUT', game.stats.firesExtinguished], ['CNR RETURN', game.stats.returnsProcessed],
+      ['ARTICLES IN BAD CONDITION', game.stats.quarantineSorts], ['NO EAN SCANS', game.stats.noEanScans], ['FIRES OUT', game.stats.firesExtinguished], ['CNR RETURN', game.stats.returnsProcessed],
       ['INVENTORY PAIRS', game.stats.inventoryMatches], ['ALM TICKETS', game.stats.almTasksCompleted], ['SL TICKETS', game.stats.slTasksCompleted],
       ['EMAIL TASKS', game.stats.emailTasksCompleted], ['WORKDAY TASKS', game.stats.workdayTasksCompleted], ['SOP USED', game.stats.sopTokensUsed],
       ['TASKS FAILED', game.stats.taskFailures]
@@ -3618,6 +4003,8 @@
     else if (game.mode === 'inventoryPuzzle') drawInventoryPuzzle(now);
     else if (game.mode === 'office') drawOffice(now);
     else if (game.mode === 'qsPuzzle') drawQSPuzzle(now);
+    else if (game.mode === 'noEanBriefing') drawNoEanBriefing(now);
+    else if (game.mode === 'noEanPuzzle') drawNoEanPuzzle(now);
     else if (game.mode === 'transition') drawTransition(now);
     else if (game.mode === 'gameover') drawGameOver();
   }
@@ -3782,7 +4169,7 @@
 
   document.addEventListener('keydown', event => {
     const prevent = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code);
-    if (prevent && (game.mode === 'play' || game.mode === 'qsPuzzle')) event.preventDefault();
+    if (prevent && (game.mode === 'play' || game.mode === 'qsPuzzle' || game.mode === 'noEanPuzzle' || game.mode === 'noEanBriefing')) event.preventDefault();
     if (event.code === 'Escape' && game.mode === 'title') {
       const now = performance.now();
       game.adminEscapeCount = now <= game.adminEscapeUntil ? game.adminEscapeCount + 1 : 1;
@@ -3810,6 +4197,10 @@
       finishQSPuzzle();
       return;
     }
+    if (event.code === 'Escape' && (game.mode === 'noEanPuzzle' || game.mode === 'noEanBriefing')) {
+      finishNoEanPuzzle();
+      return;
+    }
     if (event.code === 'Escape') {
       if (game.adminMode) { exitAdminMode(); return; }
       game.mode = 'title';
@@ -3826,6 +4217,13 @@
       refreshSavedButton();
       startTitleMusic();
       return;
+    }
+    if (game.mode === 'noEanPuzzle') {
+      const now = performance.now();
+      if ((event.code === 'ArrowUp' || event.code === 'KeyW') && !keys.has(event.code)) noEanAdvanceAngle(game.noEanPuzzle, 1, now);
+      if ((event.code === 'ArrowDown' || event.code === 'KeyS') && !keys.has(event.code)) noEanAdvanceAngle(game.noEanPuzzle, -1, now);
+      if (event.code === 'Enter') { resetNoEanScanner(); event.preventDefault(); return; }
+      if (event.code === 'Space' && !keys.has('Space')) { fireNoEanScanner(now); actionControl.classList.add('active'); }
     }
     if (event.code === 'Space' && game.mode === 'play' && !keys.has('Space')) {
       const now = performance.now();
