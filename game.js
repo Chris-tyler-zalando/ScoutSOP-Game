@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.45';
+  const VERSION = 'V2.46';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -72,6 +72,9 @@
   const NOEAN_TARGETS = ['shoes', 'tops', 'pants'];
   const NOEAN_FRAME_BOUNDS = {"pants": [[76, 46, 266, 400], [81, 47, 272, 400], [93, 45, 296, 400], [93, 43, 275, 400], [73, 33, 268, 399], [66, 33, 285, 398], [83, 35, 299, 400], [94, 33, 272, 397], [77, 19, 237, 375], [76, 18, 259, 376], [48, 89, 324, 325], [83, 19, 286, 372]], "shoes": [[17, 168, 342, 374], [32, 118, 350, 374], [17, 90, 317, 381], [23, 187, 349, 375], [18, 119, 340, 400], [22, 90, 350, 310], [5, 95, 317, 301], [25, 47, 340, 313], [11, 0, 310, 256], [22, 40, 346, 257], [3, 38, 334, 248], [25, 47, 344, 256]], "tops": [[22, 87, 342, 388], [14, 70, 335, 368], [12, 57, 338, 400], [26, 44, 357, 400], [8, 52, 348, 398], [4, 24, 336, 385], [19, 46, 329, 386], [25, 0, 358, 340], [58, 36, 297, 311], [58, 18, 271, 317], [4, 46, 333, 339], [28, 21, 353, 334]]};
   const PALLET_JACK_DURATION = 30000;
+  const PALLET_JACK_ROBOT_DISABLE = 300000;
+  const TASK_COOLDOWN = 300000;
+  const FIRE_COOLDOWN = 600000;
   const PUZZLE_COLS = 6;
   const PUZZLE_ROWS = 5;
   const PUZZLE_SIZE = PUZZLE_COLS * PUZZLE_ROWS;
@@ -136,9 +139,10 @@
     jiraScreen: ['jira.jpg'], errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png'],
     noEanWelcome: ['welcome3.jpg'], noEanBg: ['conveyor.jpg', 'conveyor.png', 'noeanbg.jpg', 'noeanbg.png', 'scannerbg.jpg', 'scannerbg.png', 'conveyorbg.jpg', 'conveyorbg.png'],
     scanner: ['scanner.png'], scannerCorrect: ['scanner2.png'], scannerWrong: ['scanner3.png'],
-    noEanShoes: ['shoes.webp'], noEanTops: ['tops.webp'], noEanPants: ['pants.webp']
+    noEanShoes: ['shoes.webp'], noEanTops: ['tops.webp'], noEanPants: ['pants.webp'],
+    minimap: ['minimap.webp', 'minimap.png', 'minimap.jpg']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -236,6 +240,9 @@
     noEanBriefUntil: 0,
     noEanPuzzle: null,
     noEanCooldownUntil: 0,
+    taskCooldowns: {},
+    noEanTargetHistory: [],
+    debugOverlay: false,
     fire: null,
     nextFireAt: 0,
     tokenFlashUntil: 0,
@@ -251,6 +258,8 @@
   function anyTaskReady() { return TASK_TYPES.some(type => taskJobsReady(type) > 0); }
   function requiredTasksComplete() { return TASK_TYPES.every(type => game.tasks.completed[type]); }
   function completionChecklist() { return TASK_TYPES.map(type => `${TASK_LABELS[type]} ${game.tasks.completed[type] ? '✓' : '✗'}`).join('   '); }
+  function taskCooldownRemaining(type, now = performance.now()) { return Math.max(0, Math.ceil(((game.taskCooldowns && game.taskCooldowns[type]) || 0) - now)); }
+  function taskAvailable(type, now = performance.now()) { return taskJobsReady(type) > 0 && taskCooldownRemaining(type, now) <= 0; }
   function addTaskProgress(type, amount, source) {
     const before = taskJobsReady(type);
     game.tasks[type] += amount;
@@ -272,6 +281,7 @@
       synth.points();
       if (requiredTasksComplete()) addMessage('YOU FINISHED YOUR WORK! FIND THE EXIT AND LEAVE THIS WAREHOUSE.', '#71dd8d', 3800);
     } else game.stats.taskFailures++;
+    if (game.taskCooldowns && type) game.taskCooldowns[type] = performance.now() + TASK_COOLDOWN;
     updateBest();
     return true;
   }
@@ -920,15 +930,15 @@
     const width = 3.05, height = 1.04, gap = 0.08;
     const totalW = count * width + Math.max(0, count - 1) * gap;
     const hasEnd = !!images.conveyorEnd && options.noEndCap !== true;
-    const endW = hasEnd ? 4.85 : 0;
-    const endH = hasEnd ? 2.25 : height;
+    const endW = hasEnd ? width : 0;
+    const endH = hasEnd ? width * (437 / 940) : height;
     let feederSide = options.feederSide || (Math.random() < .5 ? 'left' : 'right');
-    if (hasEnd && feederSide === 'left' && left - endW + 1.2 < 0) feederSide = 'right';
-    if (hasEnd && feederSide === 'right' && left + totalW + endW - 1.2 > MAP_W) feederSide = 'left';
+    if (hasEnd && feederSide === 'left' && left - endW < 0) feederSide = 'right';
+    if (hasEnd && feederSide === 'right' && left + totalW + endW > MAP_W) feederSide = 'left';
 
-    const visualLeft = hasEnd && feederSide === 'left' ? left - endW + 1.2 : left;
-    const visualRight = hasEnd && feederSide === 'right' ? left + totalW + endW - 1.2 : left + totalW;
-    const rect = { left: visualLeft, top: hasEnd ? top - .88 : top, width: visualRight - visualLeft, height: hasEnd ? endH : height };
+    const visualLeft = hasEnd && feederSide === 'left' ? left - endW : left;
+    const visualRight = hasEnd && feederSide === 'right' ? left + totalW + endW : left + totalW;
+    const rect = { left: visualLeft, top: hasEnd ? top - .98 : top, width: visualRight - visualLeft, height: hasEnd ? endH : height };
 
     if (!withinMap(rect) || (!options.allowZoneOverlap && isZoneBlocked(rect, .25)) || (!options.allowPropOverlap && game.obstacles.some(o => overlaps(rect, o))) || (!options.allowPropOverlap && game.zoneProps.some(o => overlaps(rect, o))) || (!options.allowElevatorOverlap && game.zones.elevator && overlaps(rect, paddedRect(game.zones.elevator, 1)))) return false;
     markBlocked({ left: visualLeft, top: top + .35, width: visualRight - visualLeft, height: .52 });
@@ -940,8 +950,9 @@
       const collectible = shoeImageKeys().length && Math.random() < .18;
       const image = collectible ? (nextShoeImage() || 'shoe') : 'conveyorBox';
       const size = collectible ? rand(.62, .88) : rand(.42, .78);
-      const minX = (visualLeft + .55) * TILE;
-      const maxX = (visualRight - .55) * TILE;
+      // Items travel on the visible belt only and stop at the machine entrance.
+      const minX = (left + .45) * TILE;
+      const maxX = (left + totalW - .45) * TILE;
       const item = {
         conveyor, image, collectible, size,
         minX, maxX,
@@ -1168,7 +1179,7 @@
     // Fixed coffee point beside the right-hand side of each kitchen refrigerator.
     // It reappears once the player leaves the pickup spot, so it cannot be collected continuously while standing still.
     game.kitchenCoffees = game.zones.kitchens.map(k => ({
-      x: (k.left + 6.56) * TILE,
+      x: (k.left + k.width - .85) * TILE,
       y: (k.top + 2.55) * TILE,
       bob: rand(0, Math.PI * 2),
       available: true
@@ -1223,7 +1234,7 @@
   }
   function disableEnemyFromPalletJack(attacker, now, forklift = false) {
     if (!attacker) return;
-    attacker.disabledUntil = now + 30000;
+    attacker.disabledUntil = now + PALLET_JACK_ROBOT_DISABLE;
     attacker.path = [];
     const exile = tileCenter(randomFloorTile(0, true));
     attacker.x = exile.x;
@@ -1242,24 +1253,18 @@
   function spawnEnemies() {
     game.enemies = [];
     let index = 0;
-    [
-      game.zones.quarantine, game.zones.quarantine, game.zones.quarantine, game.zones.quarantine,
-      game.zones.quarantine, game.zones.quarantine, game.zones.quarantine, game.zones.quarantine,
-      game.zones.quarantine, game.zones.quarantine, game.zones.quarantine, game.zones.quarantine,
-      game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock,
-      game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock,
-      game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock
-    ].forEach(z => {
-      const t = tileNearZoneEdge(z);
-      if (t) game.enemies.push(makeRobotAtTile(t, true, index++));
-    });
-    const roamingCount = (2 + Math.floor((game.level - 1) * 0.72)) * 6;
-    for (let i = 0; i < roamingCount; i++) game.enemies.push(makeRobotAtTile(randomFloorTile(700, true), false, index++));
+    const densityStep = [10, 8, 6][(game.level - 1) % 3];
+    const targetCount = clamp(Math.ceil(MAP_W / densityStep), 6, 18);
+    const patrolTiles = shuffle(availableFloorTiles(true).filter(t => !tileInsideSafeZone(t) && !tileInsideVisibleScenery(t)));
+    for (let i = 0; i < targetCount && i < patrolTiles.length; i++) {
+      game.enemies.push(makeRobotAtTile(patrolTiles[i], i < 2, index++));
+    }
 
-    // Four forklift threats patrol every warehouse.
+    // Forklifts are rarer than robots and also follow the same safe-zone rules.
     game.forklifts = [];
-    for (let i = 0; i < 4; i++) {
-      const ft = i === 0 ? tileNearZoneEdge(game.zones.dock) : randomFloorTile(900, true);
+    const forkliftCount = game.level >= 3 ? 2 : 1;
+    for (let i = 0; i < forkliftCount; i++) {
+      const ft = patrolTiles[targetCount + i] || randomFloorTile(900, true);
       const fp = tileCenter(ft);
       game.forklifts.push({
         x: fp.x, y: fp.y, path: [], nextPathAt: 0, speed: 137 + game.level * 11 + i * 8,
@@ -1290,8 +1295,12 @@
     game.qsCooldownUntil = 0;
     game.noEanPuzzle = null;
     game.noEanCooldownUntil = 0;
+    game.inventoryCooldownUntil = 0;
+    game.qsCooldownUntil = 0;
+    game.taskCooldowns = {};
+    game.noEanTargetHistory = [];
     game.fire = null;
-    game.nextFireAt = performance.now() + randInt(45000, 90000);
+    game.nextFireAt = performance.now() + randInt(240000, FIRE_COOLDOWN);
     for (let i = 0; i < activeBoxCount(); i++) spawnBox();
     for (let i = 0; i < activeCoffeeCount(); i++) spawnLooseCoffee();
     placeKitchenCoffees();
@@ -1319,6 +1328,10 @@
     game.specialMusic = null;
     game.noEanPuzzle = null;
     game.noEanCooldownUntil = 0;
+    game.inventoryCooldownUntil = 0;
+    game.qsCooldownUntil = 0;
+    game.taskCooldowns = {};
+    game.noEanTargetHistory = [];
   }
   function profileId() { return `shift-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
   function profileAvatarFor(name) {
@@ -1926,8 +1939,8 @@
     }
     // Exit does not require Action, but it is locked until all four task categories have been completed.
     if (pointInsideZone(p, game.zones.exit)) triggerLevelWin();
-    if (!game.fire && pointInsideZone(p, game.zones.inventory) && now >= game.inventoryCooldownUntil) startInventoryBriefing();
-    if (!game.fire && pointInsideZone(p, game.zones.quarantine) && now >= game.qsCooldownUntil) startQSPuzzle();
+    if (!game.fire && !playerRidingPalletJack(now) && pointInsideZone(p, game.zones.inventory) && now >= game.inventoryCooldownUntil) startInventoryBriefing();
+    if (!game.fire && !playerRidingPalletJack(now) && pointInsideZone(p, game.zones.quarantine) && now >= game.qsCooldownUntil) startQSPuzzle();
     updateSpecialMusic();
     centerCamera();
   }
@@ -2017,7 +2030,7 @@
     else game.stats.robotHits++;
     game.player.invulnerableUntil = now + 2600;
     if (attacker) {
-      attacker.disabledUntil = now + 30000;
+      attacker.disabledUntil = now + PALLET_JACK_ROBOT_DISABLE;
       attacker.path = [];
       const dx = game.player.x - attacker.x;
       const dy = game.player.y - attacker.y;
@@ -2173,11 +2186,13 @@
   }
 
   function startInventoryBriefing() {
-    if (game.mode !== 'play' || performance.now() < game.inventoryCooldownUntil) return;
+    const now = performance.now();
+    if (playerRidingPalletJack(now)) { addMessage('GET OFF THE PALLET JACK BEFORE INVENTORY CHECK', '#ffd054', 2200); return false; }
+    if (game.mode !== 'play' || now < game.inventoryCooldownUntil) return false;
     game.stats.inventoryChecks++;
     game.mode = 'inventoryBriefing';
     setGameplayControlsVisible(false);
-    game.inventoryBriefUntil = performance.now() + 3400;
+    game.inventoryBriefUntil = now + 3400;
     keys.clear();
     game.specialMusic = 'inventory';
     music.play('inventory', true);
@@ -2265,7 +2280,7 @@
     const pos = tileCenter(exitTile);
     game.player.x = pos.x; game.player.y = pos.y;
     game.player.invulnerableUntil = performance.now() + 2300;
-    game.inventoryCooldownUntil = performance.now() + 30000;
+    game.inventoryCooldownUntil = performance.now() + TASK_COOLDOWN;
     game.inventoryPuzzle = null;
     game.specialMusic = null;
     game.mode = 'play';
@@ -2289,7 +2304,7 @@
       y: -72,
       w: randInt(112, 148),
       h: randInt(124, 168),
-      speed: rand(178, 224),
+      speed: rand(214, 269),
       phase: rand(0, Math.PI * 2),
       drift: rand(14, 33),
       driftSpeed: rand(1.3, 2.2),
@@ -2315,7 +2330,9 @@
     game.mode = 'qsPuzzle';
   }
   function startQSPuzzle() {
-    if (game.mode !== 'play' || performance.now() < game.qsCooldownUntil) return;
+    const now = performance.now();
+    if (playerRidingPalletJack(now)) { addMessage('GET OFF THE PALLET JACK BEFORE SPERRLAGER', '#ffd054', 2200); return false; }
+    if (game.mode !== 'play' || now < game.qsCooldownUntil) return false;
     setGameplayControlsVisible(false);
     keys.clear();
     stopSprint();
@@ -2376,7 +2393,7 @@
     game.player.x = pos.x;
     game.player.y = pos.y;
     game.player.invulnerableUntil = performance.now() + 2300;
-    game.qsCooldownUntil = performance.now() + 30000;
+    game.qsCooldownUntil = performance.now() + TASK_COOLDOWN;
     game.qsPuzzle = null;
     game.specialMusic = null;
     game.mode = 'play';
@@ -2384,15 +2401,16 @@
     setGameplayControlsVisible(true);
     centerCamera();
     music.playGameplay();
-    addMessage(`QUARANTINE SORT COMPLETE  +${pz.scoreEarned}  DISPOSE ${pz.disposeCount}  DESTROY ${pz.destroyCount}`, '#ff7700', 3400);
+    addMessage(`SPERRLAGER COMPLETE  +${pz.scoreEarned}  DISPOSE ${pz.disposeCount}  DESTROY ${pz.destroyCount}`, '#ff7700', 3400);
     updateBest();
   }
 
   function startNoEanBriefing() {
-    if (game.mode !== 'play' || performance.now() < game.noEanCooldownUntil) return false;
+    const now = performance.now();
+    if (game.mode !== 'play' || now < game.noEanCooldownUntil) return false;
     setGameplayControlsVisible(false);
     keys.clear(); stopSprint();
-    game.noEanBriefUntil = performance.now() + 5200;
+    game.noEanBriefUntil = now + 5200;
     game.mode = 'noEanBriefing';
     game.specialMusic = 'inventory';
     music.play('inventory', true);
@@ -2402,7 +2420,7 @@
   function createNoEanPuzzle() {
     const now = performance.now();
     const scannerY = H * (748 / 941);
-    const target = choice(NOEAN_TARGETS);
+    const target = nextNoEanTarget();
     game.noEanPuzzle = {
       startedAt: now,
       until: now + NOEAN_DURATION,
@@ -2422,6 +2440,15 @@
       missedTargets: 0
     };
     game.mode = 'noEanPuzzle';
+  }
+
+  function nextNoEanTarget() {
+    const recent = game.noEanTargetHistory || [];
+    let options = NOEAN_TARGETS.filter(target => !recent.slice(-1).includes(target));
+    if (!options.length) options = NOEAN_TARGETS.slice();
+    const chosen = choice(options);
+    game.noEanTargetHistory = [...recent.slice(-2), chosen];
+    return chosen;
   }
 
   function noEanSpawnInterval(elapsed) {
@@ -2450,13 +2477,13 @@
     };
 
     // Feeder/top-left -> top belt -> right curve -> middle belt -> left U-turn -> lower belt -> lower-right exit.
-    addLine([330, 118], [1448, 118], 42);
-    addQuad([1448, 118], [1630, 130], [1582, 301], 28);
-    addLine([1582, 301], [312, 301], 48);
+    addLine([330, 118], [1408, 118], 42);
+    addQuad([1408, 118], [1572, 132], [1528, 301], 28);
+    addLine([1528, 301], [312, 301], 48);
     addQuad([312, 301], [118, 390], [258, 510], 34);
-    addLine([258, 510], [1450, 510], 44);
-    addQuad([1450, 510], [1628, 548], [1556, 675], 28);
-    addLine([1556, 675], [1556, 970], 24);
+    addLine([258, 510], [1410, 510], 44);
+    addQuad([1410, 510], [1566, 548], [1502, 675], 28);
+    addLine([1502, 675], [1502, 970], 24);
 
     const lengths = [0];
     let total = 0;
@@ -2657,7 +2684,7 @@
     const exitTile = tileNearZoneEdge(game.zones.dock);
     const pos = tileCenter(exitTile);
     if (game.player) { game.player.x = pos.x; game.player.y = pos.y; game.player.invulnerableUntil = performance.now() + 2300; }
-    game.noEanCooldownUntil = performance.now() + 30000;
+    game.noEanCooldownUntil = performance.now() + TASK_COOLDOWN;
     game.noEanPuzzle = null;
     game.specialMusic = null;
     game.mode = 'play';
@@ -2876,7 +2903,7 @@
     game.zones.kitchens.forEach((zone, index) => stations.push({ label: `KITCHEN ${index + 1}`, pos: destinationPosition(zone) }));
     return stations;
   }
-  function scheduleNextFire(now) { game.nextFireAt = now + randInt(50000, 115000); }
+  function scheduleNextFire(now) { game.nextFireAt = now + FIRE_COOLDOWN; }
   function startFireEvent(now) {
     if (game.fire || game.mode !== 'play') return;
     let tile = randomFloorTile(TILE * 6, true);
@@ -3262,17 +3289,17 @@
     game.conveyors.forEach(conveyor => {
       const visualX = (conveyor.visualLeft ?? conveyor.left) * TILE;
       const visualW = ((conveyor.visualRight ?? (conveyor.left + conveyor.width)) - (conveyor.visualLeft ?? conveyor.left)) * TILE;
-      if (!images.conveyor || !onScreenRect(visualX, (conveyor.top - 1.0) * TILE, visualW, 2.5 * TILE, 100)) return;
+      if (!images.conveyor || !onScreenRect(visualX, (conveyor.top - 1.1) * TILE, visualW, 2.4 * TILE, 100)) return;
       for (let i = 0; i < conveyor.pieces; i++) {
         drawContain(images.conveyor, (conveyor.left + i * 3.13) * TILE, conveyor.top * TILE, 3.05 * TILE, conveyor.height * TILE, 1, true);
       }
       if (images.conveyorEnd) {
-        const endW = (conveyor.endW || 4.85) * TILE;
-        const endH = (conveyor.endH || 2.25) * TILE;
-        const endY = (conveyor.top - .90) * TILE;
+        const endW = (conveyor.endW || 3.05) * TILE;
+        const endH = (conveyor.endH || 1.42) * TILE;
+        const endY = (conveyor.top - 1.02) * TILE;
         const machineLeft = conveyor.feederSide === 'left'
-          ? (conveyor.left - (conveyor.endW || 4.85) + 1.2) * TILE
-          : (conveyor.left + conveyor.width - 1.2) * TILE;
+          ? (conveyor.left - (conveyor.endW || 3.05)) * TILE
+          : (conveyor.left + conveyor.width) * TILE;
         drawContain(images.conveyorEnd, machineLeft, endY, endW, endH, 1, true, conveyor.feederSide === 'left');
       }
     });
@@ -3375,11 +3402,11 @@
     const flash = elevatorChangeFlashing(now) && Math.floor(now / 250) % 2 === 0;
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.font = 'bold 11px Trebuchet MS';
+    ctx.font = 'bold 10px Trebuchet MS';
     labels.forEach((dest, i) => {
       if (!dest) return;
       const tx = x + (i + .5) * (imgW / 3);
-      const ty = y + imgH * .205;
+      const ty = y + imgH * .083;
       const labelMax = imgW / 3 - 18;
       ctx.fillStyle = flash ? '#d3ffb5' : '#58d34c';
       ctx.strokeStyle = 'rgba(0,0,0,.92)';
@@ -3756,6 +3783,61 @@
     game.mode = 'play';
     setGameplayControlsVisible(true);
   }
+  function miniMapScreenRect() {
+    const w = Math.min(280, W * .22), h = w * (5 / 8);
+    return { x: W - w - 18, y: 82, w, h };
+  }
+  function drawMiniMapMarker(x, y, emoji, now, size = 15, flash = true) {
+    const alpha = flash ? (.55 + .45 * Math.sin(now / 180)) : 1;
+    ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `${size}px Arial`;
+    ctx.shadowColor = '#ffd054'; ctx.shadowBlur = emoji === '🧍‍♂️' ? 16 : 10;
+    ctx.fillText(emoji, x, y); ctx.restore();
+  }
+  function miniMapPointFromWorld(rect, wx, wy) {
+    return { x: rect.x + clamp(wx / WORLD_W, 0, 1) * rect.w, y: rect.y + clamp(wy / WORLD_H, 0, 1) * rect.h };
+  }
+  function drawMiniMap(now) {
+    if (game.mode !== 'play' && game.mode !== 'dying' && game.mode !== 'cockpitHelp') return;
+    const r = miniMapScreenRect();
+    ctx.save();
+    ctx.fillStyle = 'rgba(11,14,18,.72)'; roundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8, true, false);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; roundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8, false, true);
+    if (images.minimap) drawContain(images.minimap, r.x, r.y, r.w, r.h, .92, false);
+    else { ctx.fillStyle = 'rgba(180,190,190,.35)'; ctx.fillRect(r.x, r.y, r.w, r.h); }
+    const zoneRect = (z, color) => { ctx.fillStyle = color; ctx.fillRect(r.x + (z.left / MAP_W) * r.w, r.y + (z.top / MAP_H) * r.h, (z.width / MAP_W) * r.w, (z.height / MAP_H) * r.h); };
+    zoneRect(game.zones.dock, 'rgba(255,105,0,.22)'); zoneRect(game.zones.elevator, 'rgba(80,210,100,.22)');
+    if (game.fire) {
+      const fp = miniMapPointFromWorld(r, game.fire.x, game.fire.y); drawMiniMapMarker(fp.x, fp.y, '🔥', now, 17, true);
+      if (!game.fire.hasExtinguisher && game.fire.station) { const ep = miniMapPointFromWorld(r, game.fire.station.pos.x, game.fire.station.pos.y); drawMiniMapMarker(ep.x, ep.y, '🧯', now, 15, true); }
+    }
+    if (game.truck) { const tp = miniMapPointFromWorld(r, game.zones.dock.left * TILE + TILE * 2, game.zones.dock.top * TILE + TILE * 5.8); drawMiniMapMarker(tp.x, tp.y, '🚚', now, 15, false); }
+    if (game.debugOverlay) [...game.enemies, ...game.forklifts].forEach(enemy => { if (now < enemy.disabledUntil) return; const ep = miniMapPointFromWorld(r, enemy.x, enemy.y); drawMiniMapMarker(ep.x, ep.y, '🤖', now, 10, false); });
+    if (game.player) { const pp = miniMapPointFromWorld(r, game.player.x, game.player.y); drawMiniMapMarker(pp.x, pp.y, '🧍‍♂️', now, 18, true); }
+    ctx.restore();
+  }
+  function drawDebugWorldOverlay() {
+    if (!game.debugOverlay) return;
+    ctx.save(); ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,0,0,.85)';
+    game.colliders.forEach(c => ctx.strokeRect(c.left, c.top, c.width, c.height));
+    ctx.strokeStyle = 'rgba(0,255,110,.86)';
+    [game.zones.dock, game.zones.elevator, game.zones.inventory, game.zones.quarantine, game.zones.exit, ...game.zones.kitchens].filter(Boolean).forEach(z => ctx.strokeRect(z.left * TILE, z.top * TILE, z.width * TILE, z.height * TILE));
+    extinguisherStations().forEach(st => ctx.strokeRect(st.pos.x - TILE * .45, st.pos.y - TILE * .45, TILE * .9, TILE * .9));
+    ctx.restore();
+  }
+  function drawScreenDebugBoxes() {
+    if (!game.debugOverlay) return;
+    ctx.save(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,255,110,.9)';
+    const c = cockpitRect(); ctx.strokeRect(c.x, c.y, c.w, c.h);
+    ctx.restore();
+  }
+  function drawOfficeDebugBoxes() {
+    if (!(game.debugOverlay || game.adminMode) || !game.office) return;
+    ctx.save(); ctx.lineWidth = 3;
+    (game.office.hotspots || []).forEach(h => { ctx.strokeStyle = h.active ? 'rgba(0,255,110,.95)' : 'rgba(0,255,110,.35)'; ctx.strokeRect(h.x, h.y, h.w, h.h); });
+    ctx.restore();
+  }
+
   function drawTokenCelebration(now) { if (now >= game.tokenFlashUntil) return; const alpha = clamp((game.tokenFlashUntil - now) / 900, 0, 1) * .36; ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#ff6900'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
   function drawHUD(now) {
     ctx.save();
@@ -3803,6 +3885,8 @@
     }
     ctx.restore();
     drawTaskBoard();
+    drawMiniMap(now);
+    drawScreenDebugBoxes();
     drawGuidanceArrow(now);
     drawCarrierToast(now);
     drawTokenCelebration(now);
@@ -3877,6 +3961,7 @@
     drawPlayer(now);
     drawForegroundSceneryOverPlayer();
     drawParticles();
+    drawDebugWorldOverlay();
     ctx.restore();
     if (hud) drawHUD(now);
   }
@@ -3908,10 +3993,11 @@
     if (!pz) return;
     const m = puzzleGridMetrics();
     ctx.save();
-    ctx.fillStyle = 'rgba(16,18,22,.88)'; ctx.fillRect(35, 24, W - 70, 74);
-    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(35, 24, W - 70, 74);
+    const barRight = W - 178;
+    ctx.fillStyle = 'rgba(16,18,22,.88)'; ctx.fillRect(35, 24, barRight - 35, 74);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(35, 24, barRight - 35, 74);
     ctx.fillStyle = '#fff4df'; ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText('INVENTORY CHECK', 62, 70);
-    ctx.fillStyle = '#ffd054'; ctx.textAlign = 'right'; ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, W - 58, 70);
+    ctx.fillStyle = '#ffd054'; ctx.textAlign = 'right'; ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, barRight - 28, 70);
     ctx.textAlign = 'left'; ctx.fillStyle = '#fff4df'; ctx.font = 'bold 22px Trebuchet MS'; ctx.fillText(`BONUS  +${pz.scoreEarned}`, 63, 112);
     for (let i = 0; i < PUZZLE_SIZE; i++) {
       const col = i % m.cols, row = Math.floor(i / m.cols);
@@ -3948,7 +4034,7 @@
     ctx.save();
     ctx.fillStyle = 'rgba(12,15,18,.91)'; ctx.fillRect(36, 20, W - 72, 74);
     ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(36, 20, W - 72, 74);
-    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText('QUARANTINE CHAOS', 62, 65);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText('SPERRLAGER: ITEMS IN BAD CONDITION', 62, 65);
     ctx.textAlign = 'right'; ctx.fillStyle = '#ffd054'; ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, W - 60, 65);
     ctx.textAlign = 'left'; ctx.font = 'bold 18px Trebuchet MS';
     ctx.fillStyle = '#fff4df'; ctx.fillText(`DISPOSED  ${pz.disposeCount}    DESTROYED  ${pz.destroyCount}    BONUS  +${pz.scoreEarned}`, 62, 118);
@@ -4011,11 +4097,13 @@
     const r = OFFICE_APP_MONITOR;
     const buttonStyle = page === 'jira' ? 'jira' : 'default';
     drawOfficeHeader(title, tokenMode ? 'Choose one ready task for SOP Scout to complete instantly.' : 'Choose the backlog category to process.');
-    types.forEach((type, i) => officeButton(r.x + 24, r.y + 92 + i * 46, r.width - 48, 36, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0), buttonStyle));
+    types.forEach((type, i) => officeButton(r.x + 24, r.y + 92 + i * 46, r.width - 48, 36, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskAvailable(type) && (!tokenMode || game.tasks.tokens > 0), buttonStyle));
     officeButton(r.x + r.width - 125, r.y + r.height - 39, 101, 27, 'BACK', 'office-menu', true, buttonStyle);
   }
   function startOfficePuzzle(type) {
     if (taskJobsReady(type) < 1) return;
+    const remaining = taskCooldownRemaining(type);
+    if (remaining > 0) { addMessage(`${TASK_LABELS[type]} COOLDOWN ${Math.ceil(remaining / 1000)}s`, '#ffd054', 1800); return; }
     const data = TASK_PUZZLES[type];
     let index = randInt(0, data.puzzles.length - 1);
     if (data.puzzles.length > 1) {
@@ -4144,11 +4232,12 @@
     else if (game.office.page === 'result') drawOfficeResult(now);
     if (images.officeFrame) drawCoverImage(images.officeFrame, 0, 0, W, H);
     officeButton(W - 178, H - 62, 148, 42, 'LEAVE OFFICE', 'leave-office', true);
+    drawOfficeDebugBoxes();
     ctx.save(); ctx.fillStyle = '#fff4df'; ctx.font = 'bold 16px Trebuchet MS'; ctx.fillText('ESC — LEAVE OFFICE', 22, H - 23); ctx.restore();
     drawTokenCelebration(now);
   }
 
-  function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskJobsReady('alm') || taskJobsReady('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskJobsReady('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskJobsReady('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id === 'buy-hint') { buyOfficeHint(); return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) { if (!game.office.puzzle.locked.includes(emoji)) chosen.splice(idx, 1); } else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
+  function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskAvailable('alm') || taskAvailable('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskAvailable('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskAvailable('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id === 'buy-hint') { buyOfficeHint(); return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) { if (!game.office.puzzle.locked.includes(emoji)) chosen.splice(idx, 1); } else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
   function draw(now) {
     if (game.mode !== 'play' && game.mode !== 'cockpitHelp') hideFireOverlay();
     ctx.clearRect(0, 0, W, H);
@@ -4332,6 +4421,7 @@
       if (game.adminEscapeCount >= 5) enterAdminMode();
       return;
     }
+    if (event.code === 'Space' && event.ctrlKey && event.shiftKey) { game.debugOverlay = !game.debugOverlay; event.preventDefault(); addMessage(game.debugOverlay ? 'DEBUG ZONES ON' : 'DEBUG ZONES OFF', '#71dd8d', 1400); return; }
     if (document.activeElement === nameInput) return;
     synth.init();
     const directionButton = controlButtonForCode(event.code);

@@ -791,3 +791,5 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
 /* V2.44 No EAN sprite cards + no active cap */
 
 /* V2.45 No EAN crop bounds + conveyor2 end caps */
+
+/* V2.46 cooldowns, minimap, debug zones */
