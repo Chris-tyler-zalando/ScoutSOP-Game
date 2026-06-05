@@ -59,7 +59,7 @@ V2.29 updates:
 - Added even collectible shoe rotation using shoe.png, shoe1.png, shoe2.png and shoe3.png when available.
 
 
-V2.33 updates:
+V2.34 updates:
 - Dock is pinned to the top-left and the map size is reduced by roughly 25%.
 - Added lane-style light/dark floor overlays.
 - Added central elevator using elevator.png with rotating destination labels.
@@ -70,12 +70,20 @@ V2.33 updates:
 - Wrong office task answers show error.jpg inside the computer monitor for 2 seconds before the failure message.
 
 
-V2.33:
+V2.34:
 - Reworked title panel into a compact two-line layout.
 - Removed Saved Shifts / Max 3 text from visible title UI.
 - Start button now spans both rows and says Start.
 - Empty save slots now appear as 1, 2, 3.
 
 
-V2.33:
+V2.34:
 - Moved the compact title panel down so the empty space below it is not stupidly large.
+
+V2.34:
+- Office/dock collision restored with a forgiving inset footprint instead of being fully removed.
+- Inventory Check now runs 60 seconds, uses a 6x5 grid, larger cells, and one-click neighbour-only swaps.
+- Quarantine Chaos now runs 60 seconds, lets the crate move half off-screen so each side can reach the screen edge, and removes extra drawn Dispose/Destroy labels.
+- Area sign images are restored behind labels without artificial black backing.
+- Conveyors added to the top/bottom of QS and Inventory zones so those areas read as side-entry work zones.
+- Fire extinguishing now plays a spray noise, shows a spray effect, fades the fire out, and shows the fire-extinguished points toast.

@@ -52,7 +52,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const MAX_HEARTS = 3;
-  const VERSION = 'V2.33';
+  const VERSION = 'V2.34';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -65,11 +65,11 @@
   const MUTE_KEY = 'zalandoScoutAudioMuted';
   const VOLUME_KEY = 'zalandoScoutAudioVolume';
   const DISPLAY_MODE_KEY = 'zalandoScoutDisplayMode';
-  const INVENTORY_DURATION = 30000;
-  const QS_DURATION = 30000;
+  const INVENTORY_DURATION = 60000;
+  const QS_DURATION = 60000;
   const PALLET_JACK_DURATION = 30000;
-  const PUZZLE_COLS = 5;
-  const PUZZLE_ROWS = 6;
+  const PUZZLE_COLS = 6;
+  const PUZZLE_ROWS = 5;
   const PUZZLE_SIZE = PUZZLE_COLS * PUZZLE_ROWS;
   const FLOOR_TINTS = ['rgba(255,118,36,.055)', 'rgba(41,117,154,.045)', 'rgba(120,94,48,.05)', 'rgba(74,124,89,.045)', 'rgba(128,70,110,.04)'];
   const TASK_TYPES = ['alm', 'sl', 'email', 'workday'];
@@ -296,6 +296,28 @@
     route() { [523, 659, 784, 1047].forEach((f, i) => this.note(f, .12, 'square', .045, i * .08)); }
     powerDown() { this.note(260, .07, 'sawtooth', .045); this.note(130, .17, 'sawtooth', .045, .07); }
     jump() { this.note(360, .06, 'square', .045); this.note(650, .11, 'triangle', .05, .05); this.note(920, .09, 'square', .035, .13); }
+    spray(duration = .85) {
+      if (game.muted || game.volume <= 0 || !game.soundReady || !this.audio) return;
+      const t = this.audio.currentTime;
+      const bufferSize = Math.max(1, Math.floor(this.audio.sampleRate * duration));
+      const buffer = this.audio.createBuffer(1, bufferSize, this.audio.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+      const source = this.audio.createBufferSource();
+      const filter = this.audio.createBiquadFilter();
+      const gain = this.audio.createGain();
+      filter.type = 'highpass';
+      filter.frequency.setValueAtTime(850, t);
+      gain.gain.setValueAtTime(.0001, t);
+      gain.gain.linearRampToValueAtTime(.11 * game.volume, t + .04);
+      gain.gain.exponentialRampToValueAtTime(.001, t + duration);
+      source.buffer = buffer;
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.audio.destination);
+      source.start(t);
+      source.stop(t + duration);
+    }
   }
 
   class MusicController {
@@ -636,8 +658,8 @@
     // Kitchen artwork is visible, with the reduced inner footprint used for collision.
     game.zones.kitchens.forEach(k => addZoneProp('kitchen', { left: k.left + 0, top: k.top + 1, width: 6, height: 3 }, { collisionRect: { left: k.left + 0, top: k.top + 1, width: 6, height: 3 }, collisionInset: 0.20, flipX: false }));
     const d = game.zones.dock;
-    // Dock entrance is visual-only so the scout can walk right up to the office door.
-    // The dock safe zone still works, but the office door is no longer blocked by building collision.
+    // Dock office is collidable again, but with a forgiving inset footprint so the scout can still reach the door.
+    addCollider({ left: d.left + .28, top: d.top + 1.0, width: 8.1, height: 3.0 }, 'dock-office', .20);
     if (images.cone) {
       // Never block the Dock spawn point at d.left + 7, d.top + 6.
       for (let i = 0; i < 4; i++) addZoneProp('cone', { left: d.left + 8 + i, top: d.top + 4, width: 1, height: 1 }, { flipX: i % 2 === 0 });
@@ -796,7 +818,7 @@
     const width = 3.05, height = 1.04, gap = 0.08;
     const totalW = count * width + Math.max(0, count - 1) * gap;
     const rect = { left, top, width: totalW, height };
-    if (!withinMap(rect) || isZoneBlocked(rect, .25) || game.obstacles.some(o => overlaps(rect, o)) || game.zoneProps.some(o => overlaps(rect, o)) || (game.zones.elevator && overlaps(rect, paddedRect(game.zones.elevator, 1)))) return false;
+    if (!withinMap(rect) || (!options.allowZoneOverlap && isZoneBlocked(rect, .25)) || (!options.allowPropOverlap && game.obstacles.some(o => overlaps(rect, o))) || (!options.allowPropOverlap && game.zoneProps.some(o => overlaps(rect, o))) || (!options.allowElevatorOverlap && game.zones.elevator && overlaps(rect, paddedRect(game.zones.elevator, 1)))) return false;
     markBlocked({ left, top: top + .35, width: totalW, height: .52 });
     addCollider({ left, top: top + .35, width: totalW, height: .52 }, 'conveyor', .02);
     const conveyor = { left, top, width: totalW, height, pieces: count, moving: [] };
@@ -821,12 +843,19 @@
 
   function installConveyors() {
     if (!images.conveyor) return;
-    const special = [
-      { z: game.zones.dock, dx: 1, dy: 9, count: 3 },
-      { z: game.zones.inventory, dx: -1, dy: -2, count: 4 },
-      { z: game.zones.quarantine, dx: 1, dy: -2, count: 3 }
-    ];
-    special.forEach(cfg => addConveyorRun(cfg.z.left + cfg.dx, cfg.z.top + cfg.dy, cfg.count));
+    const q = game.zones.quarantine;
+    const inv = game.zones.inventory;
+    const d = game.zones.dock;
+
+    // Enclose QS and Inventory from top/bottom so they read as work zones with side entry.
+    addConveyorRun(q.left + 1.05, q.top + .35, 3, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
+    addConveyorRun(q.left + 1.05, q.top + q.height - 1.25, 3, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
+    addConveyorRun(inv.left + .75, inv.top + .35, 4, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
+    addConveyorRun(inv.left + .75, inv.top + inv.height - 1.25, 4, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
+
+    // Dock conveyor divider, plus a few normal lane dividers.
+    addConveyorRun(d.left + 2.0, d.top + 8.75, 3, { allowZoneOverlap: true, allowPropOverlap: true });
+
     const target = game.level >= 5 ? 18 : 10;
     let attempts = 0;
     while (game.conveyors.length < target && attempts++ < target * 40) {
@@ -1988,7 +2017,7 @@
     game.mode = 'inventoryPuzzle';
   }
   function puzzleGridMetrics() {
-    return { x: 58, y: 124, cell: 70, gap: 8, cols: PUZZLE_COLS, rows: PUZZLE_ROWS };
+    return { x: 50, y: 124, cell: 80, gap: 8, cols: PUZZLE_COLS, rows: PUZZLE_ROWS };
   }
   function puzzleCellAt(px, py) {
     const m = puzzleGridMetrics();
@@ -2003,16 +2032,23 @@
     const puzzle = game.inventoryPuzzle;
     if (!puzzle || game.mode !== 'inventoryPuzzle') return;
     const index = puzzleCellAt(x, y);
-    if (index < 0) return;
-    if (index === puzzle.emptyIndex) { puzzle.selectedEmpty = true; return; }
-    if (!puzzle.selectedEmpty) return;
+    if (index < 0 || index === puzzle.emptyIndex) return;
+    const empty = puzzle.emptyIndex;
+    const indexRow = Math.floor(index / PUZZLE_COLS), indexCol = index % PUZZLE_COLS;
+    const emptyRow = Math.floor(empty / PUZZLE_COLS), emptyCol = empty % PUZZLE_COLS;
+    const isNeighbour = Math.abs(indexRow - emptyRow) + Math.abs(indexCol - emptyCol) === 1;
+    if (!isNeighbour) {
+      puzzle.flashText = 'ONLY NEIGHBOUR ITEMS CAN MOVE';
+      puzzle.flashUntil = performance.now() + 850;
+      synth.note(190, .08, 'square', .03);
+      return;
+    }
     const movedType = puzzle.cells[index];
-    puzzle.cells[puzzle.emptyIndex] = movedType;
+    puzzle.cells[empty] = movedType;
     puzzle.cells[index] = null;
-    const movedTo = puzzle.emptyIndex;
     puzzle.emptyIndex = index;
     puzzle.selectedEmpty = false;
-    checkInventoryMatch(movedTo);
+    checkInventoryMatch(empty);
   }
   function checkInventoryMatch(index) {
     const pz = game.inventoryPuzzle;
@@ -2118,7 +2154,7 @@
       let dx = 0;
       if (keys.has('ArrowLeft') || keys.has('KeyA')) dx--;
       if (keys.has('ArrowRight') || keys.has('KeyD')) dx++;
-      b.x = clamp(b.x + dx * b.speed * dt, b.w / 2 + 18, W - b.w / 2 - 18);
+      b.x = clamp(b.x + dx * b.speed * dt, 0, W);
     }
     const elapsed = now - pz.startedAt;
     while (now >= pz.nextSpawnAt && now < pz.until) {
@@ -2189,7 +2225,7 @@
     if (!pz || !pz.basket.dragging) return false;
     const b = pz.basket;
     if (b.pointerId !== null && pointerId !== null && b.pointerId !== pointerId) return false;
-    b.x = clamp(x - b.offsetX, b.w / 2 + 18, W - b.w / 2 - 18);
+    b.x = clamp(x - b.offsetX, 0, W);
     return true;
   }
   function handleQSPointerUp(x, y, pointerId = null) {
@@ -2223,31 +2259,46 @@
     synth.hurt();
   }
   function tryFireAction(now) {
-    if (!game.fire || game.mode !== 'play') return false;
+    if (!game.fire || game.mode !== 'play' || game.fire.extinguishing) return false;
     if (!game.fire.hasExtinguisher && dist(game.player, game.fire.station.pos) < TILE * 3.0) {
       game.fire.hasExtinguisher = true;
       synth.pickup();
       addMessage('EXTINGUISHER COLLECTED — GET TO THE FIRE!', '#ffd054', 3500);
       return true;
     }
-    if (game.fire.hasExtinguisher && dist(game.player, game.fire) < TILE * 1.7) {
+    if (game.fire.hasExtinguisher && dist(game.player, game.fire) < TILE * 1.9) {
       const seconds = (now - game.fire.startedAt) / 1000;
       const reward = seconds <= 60 ? 200 : seconds <= 90 ? 150 : seconds <= 120 ? 100 : seconds <= 150 ? 50 : 0;
-      game.score += reward;
-      game.stats.firesExtinguished++;
-      game.stats.firePoints += reward;
-      burst(game.fire.x, game.fire.y, '#ffd054', 28);
-      game.fire = null;
-      hideFireOverlay();
-      scheduleNextFire(now);
-      synth.points();
-      addMessage(`FIRE EXTINGUISHED  +${reward}`, '#71dd8d', 3500);
-      updateBest();
+      game.fire.extinguishing = true;
+      game.fire.extinguishStartedAt = now;
+      game.fire.extinguishUntil = now + 1450;
+      game.fire.reward = reward;
+      game.player.facing = game.fire.x < game.player.x ? 'left' : 'right';
+      synth.spray();
+      burst(game.fire.x, game.fire.y, '#d9ecff', 34);
       return true;
     }
     return false;
   }
+  function finishFireExtinguish(now) {
+    if (!game.fire) return;
+    const reward = game.fire.reward || 0;
+    game.score += reward;
+    game.stats.firesExtinguished++;
+    game.stats.firePoints += reward;
+    burst(game.fire.x, game.fire.y, '#ffd054', 28);
+    game.fire = null;
+    hideFireOverlay();
+    scheduleNextFire(now);
+    synth.points();
+    addMessage(`FIRE EXTINGUISHED!  +${reward}`, '#71dd8d', 3800);
+    updateBest();
+  }
   function updateFireEvent(now) {
+    if (game.fire && game.fire.extinguishing && now >= game.fire.extinguishUntil) {
+      finishFireExtinguish(now);
+      return;
+    }
     if (!game.fire && now >= game.nextFireAt) startFireEvent(now);
   }
 
@@ -2615,17 +2666,20 @@
     });
   }
   function drawZoneSign(text, z, width = 300, height = 78) {
-    const x = z.left * TILE + z.width * TILE / 2;
-    const y = z.top * TILE + height * .63;
+    const cx = z.left * TILE + z.width * TILE / 2;
+    const top = z.top * TILE + 6;
+    const left = cx - width / 2;
     ctx.save();
-    ctx.font = 'bold 27px Trebuchet MS';
+    if (images.sign) {
+      drawContain(images.sign, left, top, width, height, 1, true);
+    } else {
+      ctx.fillStyle = 'rgba(255,183,82,.82)';
+      ctx.fillRect(left, top, width, height);
+    }
+    ctx.font = 'bold 25px Trebuchet MS';
     ctx.textAlign = 'center';
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = 'rgba(255,244,223,.94)';
-    ctx.strokeText(text, x, y);
-    ctx.fillStyle = '#ff6900';
-    ctx.fillText(text, x, y);
+    ctx.fillStyle = '#1d2228';
+    ctx.fillText(text, cx, top + height * .60);
     ctx.restore();
   }
   function drawDock(z) {
@@ -2771,19 +2825,51 @@
     ctx.fillText('PRESS ACTION', station.x, station.y + 37);
     ctx.restore();
   }
+  function drawFireSpray(now) {
+    if (!game.fire || !game.fire.extinguishing || !game.player) return;
+    const t = clamp((now - game.fire.extinguishStartedAt) / Math.max(1, game.fire.extinguishUntil - game.fire.extinguishStartedAt), 0, 1);
+    const sx = game.player.x + (game.fire.x < game.player.x ? -26 : 26);
+    const sy = game.player.y - 40;
+    const ex = game.fire.x;
+    const ey = game.fire.y - 150;
+    ctx.save();
+    ctx.globalAlpha = .82 * (1 - t * .45);
+    ctx.strokeStyle = '#e9f6ff';
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 18; i++) {
+      const wobble = Math.sin(now / 45 + i) * 18;
+      const endX = ex + rand(-42, 42) + wobble * .18;
+      const endY = ey + rand(-58, 48);
+      ctx.beginPath();
+      ctx.moveTo(sx, sy + rand(-6, 6));
+      ctx.quadraticCurveTo((sx + endX) / 2, (sy + endY) / 2 - 22 + rand(-12, 12), endX, endY);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(240,248,255,.72)';
+    for (let i = 0; i < 25; i++) {
+      ctx.beginPath();
+      ctx.arc(ex + rand(-95, 95), ey + rand(-82, 72), rand(2, 7), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
   function drawFireWorld(now) {
     if (!game.fire) { hideFireOverlay(); return; }
+    const extinguishing = !!game.fire.extinguishing;
+    const fade = extinguishing ? clamp((game.fire.extinguishUntil - now) / Math.max(1, game.fire.extinguishUntil - game.fire.extinguishStartedAt), 0, 1) : 1;
     const pulse = 1 + Math.sin(now / 130) * .05;
     const fireW = 496 * pulse, fireH = 640 * pulse;
     if (onScreenRect(game.fire.x - fireW / 2, game.fire.y - fireH * .78, fireW, fireH, 90)) {
-      if (images.fireAnim) drawContain(images.fireAnim, game.fire.x - fireW / 2, game.fire.y - fireH * .78, fireW, fireH, .75, true);
-      else { ctx.save(); ctx.globalAlpha = .75; ctx.font = '300px Arial'; ctx.textAlign = 'center'; ctx.fillText('🔥', game.fire.x, game.fire.y); ctx.restore(); }
+      if (images.fireAnim) drawContain(images.fireAnim, game.fire.x - fireW / 2, game.fire.y - fireH * .78, fireW, fireH, .75 * fade, true);
+      else { ctx.save(); ctx.globalAlpha = .75 * fade; ctx.font = '300px Arial'; ctx.textAlign = 'center'; ctx.fillText('🔥', game.fire.x, game.fire.y); ctx.restore(); }
     }
-    positionFireOverlay(now);
+    if (!extinguishing) positionFireOverlay(now); else hideFireOverlay();
+    drawFireSpray(now);
     drawExtinguisherStation(now);
   }
   function drawFireAlarm(now) {
-    if (!game.fire) return;
+    if (!game.fire || game.fire.extinguishing) return;
     const pulse = .14 + .15 * (1 + Math.sin(now / 175)) / 2;
     const grad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .28, W / 2, H / 2, Math.max(W, H) * .70);
     grad.addColorStop(0, 'rgba(255,0,0,0)');
@@ -3154,7 +3240,7 @@
       const x = m.x + col * (m.cell + m.gap), y = m.y + row * (m.cell + m.gap);
       ctx.fillStyle = pz.cells[i] === null ? 'rgba(0,0,0,.18)' : 'rgba(255,255,255,.08)';
       ctx.fillRect(x, y, m.cell, m.cell);
-      ctx.lineWidth = pz.cells[i] === null && pz.selectedEmpty ? 5 : 3;
+      ctx.lineWidth = pz.cells[i] === null ? 4 : 3;
       ctx.strokeStyle = pz.cells[i] === null ? '#27a9ff' : 'rgba(255,255,255,.28)';
       ctx.strokeRect(x, y, m.cell, m.cell);
       if (pz.cells[i] !== null) drawClothingItem(pz.cells[i], x + 5, y + 4, m.cell - 10, m.cell - 8);
@@ -3195,9 +3281,6 @@
       ctx.fillStyle = '#b58652'; ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
       ctx.strokeStyle = '#ff6900'; ctx.strokeRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
     }
-    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 15px Trebuchet MS'; ctx.textAlign = 'center';
-    ctx.fillText('DISPOSE', b.x - b.w / 4, b.y + 6); ctx.fillText('DESTROY', b.x + b.w / 4, b.y + 6);
-    ctx.strokeStyle = 'rgba(255,255,255,.72)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(b.x, b.y - b.h / 2 + 12); ctx.lineTo(b.x, b.y + b.h / 2 - 12); ctx.stroke();
     if (now < pz.flashUntil) {
       ctx.fillStyle = pz.flashText.startsWith('+5') ? '#71dd8d' : '#ee394d';
       ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText(pz.flashText, W / 2, 174);
