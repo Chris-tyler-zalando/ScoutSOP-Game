@@ -953,3 +953,7 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
 .map-builder-palette button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .map-builder-palette img { width: 28px; height: 25px; }
 .map-builder-panel.collapsed { width: 218px; }
+
+
+/* V2.53a: Build a Map startup/runtime guard */
+.map-builder-panel { z-index: 90; }
