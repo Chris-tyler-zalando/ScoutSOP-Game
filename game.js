@@ -54,7 +54,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.60';
+  const VERSION = 'V2.60a';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -146,7 +146,7 @@
     minimap: ['minimap.webp', 'minimap.png', 'minimap.jpg'],
     bossIntro: ['it2.jpg'], bossBg: ['bossbg.jpg'], bossBgWin: ['bossbg1.jpg'], bossIvan: ['boss1.webp'], fireball: ['fireball.webp'], fireballSheet: ['fireball_sheet.png'], bossCarSheet: ['car_battle_sheet.png'], bossCar: ['car.webp'], bossCarWin: ['car.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap', 'printers', 'bathroom', 'bossIntro', 'bossBg', 'bossBgWin', 'bossIvan', 'fireball', 'fireballSheet', 'bossCarSheet', 'bossCar', 'bossCarWin']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap', 'printers', 'bathroom', 'bossIntro', 'bossBg', 'bossBgWin', 'bossIvan', 'fireball', 'fireballSheet', 'bossCarSheet', 'bossCar', 'bossCarWin', 'score']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -3733,7 +3733,7 @@
   });
 
   loadAssets().catch(error => {
-    loading.textContent = `Asset loading failed: ${error.message}`;
+    loading.textContent = `Asset loading failed: ${error.message}. Check the assets folder was copied with the game files.`;
     console.error(error);
   });
 })();
