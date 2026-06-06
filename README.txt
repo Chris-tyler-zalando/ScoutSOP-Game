@@ -1,4 +1,4 @@
-ZALANDO SCOUT — SYSTEM UPDATE V2.57
+ZALANDO SCOUT — SYSTEM UPDATE V2.58
 ====================================
 
 This ZIP contains the system files only:
@@ -285,3 +285,14 @@ V2.57:
 V2.57:
 - Dock/carrier delivery response timer changed from 30 seconds to 60 seconds.
 - Delivery prompt text updated to say 60 seconds.
+
+V2.58 boss hotfix:
+- Boss music now starts as soon as the boss intro screen appears.
+- Removed main-canvas rectangle tinting that caused visible square backgrounds around boss/player/fireball assets.
+- Rebuilt car_battle_sheet.png from car.webp with edge-connected black background removed and square 1100x1100 frames.
+- Added fireball_sheet.png from fireball.webp so fireballs animate manually.
+- Boss victory now switches to bossVictory mode immediately, stops future fireballs/voices, clears current fireballs and clears shoe projectiles.
+- Fireballs now originate from Ivan's chest cannon area and are larger/glowing.
+- Space/action now throws boss shoes from the boss fight, with larger spinning projectiles and a wider boss hitbox.
+- Boss battle car is drawn square to preserve the original character/car aspect ratio.
+- Victory car is larger and the winning scout animation is about double size with correct sprite-frame aspect ratio.

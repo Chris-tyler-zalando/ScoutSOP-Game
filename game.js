@@ -54,7 +54,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.57';
+  const VERSION = 'V2.58';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -144,9 +144,9 @@
     scanner: ['scanner.png'], scannerCorrect: ['scanner2.png'], scannerWrong: ['scanner3.png'],
     noEanShoes: ['shoes.webp'], noEanTops: ['tops.webp'], noEanPants: ['pants.webp'],
     minimap: ['minimap.webp', 'minimap.png', 'minimap.jpg'],
-    bossIntro: ['it2.jpg'], bossBg: ['bossbg.jpg'], bossBgWin: ['bossbg1.jpg'], bossIvan: ['boss1.webp'], fireball: ['fireball.webp'], bossCarSheet: ['car_battle_sheet.png'], bossCar: ['car.webp'], bossCarWin: ['car.png']
+    bossIntro: ['it2.jpg'], bossBg: ['bossbg.jpg'], bossBgWin: ['bossbg1.jpg'], bossIvan: ['boss1.webp'], fireball: ['fireball.webp'], fireballSheet: ['fireball_sheet.png'], bossCarSheet: ['car_battle_sheet.png'], bossCar: ['car.webp'], bossCarWin: ['car.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap', 'printers', 'bathroom', 'bossIntro', 'bossBg', 'bossBgWin', 'bossIvan', 'fireball', 'bossCarSheet', 'bossCar', 'bossCarWin']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap', 'printers', 'bathroom', 'bossIntro', 'bossBg', 'bossBgWin', 'bossIvan', 'fireball', 'fireballSheet', 'bossCarSheet', 'bossCar', 'bossCarWin']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -3135,7 +3135,7 @@
       fireballs: [], shoes: [], nextFireAt: performance.now() + 3600, nextVoiceAt: performance.now() + randInt(10000, 15000),
       startedAt: performance.now(), victoryStart: 0, rewardShown: false, summaryUntil: 0, fade: 1
     };
-    music.stop();
+    music.play('boss', true);
   }
   function startBossFight() {
     if (!game.boss) return;
@@ -3159,10 +3159,14 @@
     if (!img) return;
     ctx.save();
     ctx.globalAlpha = alpha;
-    if (flipX) { ctx.translate(x + w, y); ctx.scale(-1, 1); x = 0; y = 0; }
-    ctx.filter = 'brightness(90%) sepia(20%) saturate(115%) hue-rotate(-14deg)';
-    ctx.drawImage(img, x, y, w, h);
-    if (redTint) { ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = 'rgba(160,15,25,.16)'; ctx.fillRect(x, y, w, h); }
+    // V2.58: never tint by filling the main canvas rectangle. That was causing the visible square backgrounds.
+    // A drawImage filter only affects the sprite pixels being drawn, so transparent alpha stays transparent.
+    ctx.filter = redTint ? 'brightness(86%) sepia(18%) saturate(118%) hue-rotate(-10deg)' : 'none';
+    if (flipX) {
+      ctx.translate(x + w, y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, w, h);
+    } else ctx.drawImage(img, 0, 0, img.width, img.height, x, y, w, h);
     ctx.restore();
   }
   function bossAlphaHit(a, b, pad = 0) {
@@ -3184,9 +3188,14 @@
     const bz = game.boss;
     if (!bz || bz.phase === 'victory') return;
     bz.phase = 'victory';
+    game.mode = 'bossVictory';
     bz.victoryStart = performance.now();
     bz.boss.dead = true;
+    bz.nextFireAt = Number.POSITIVE_INFINITY;
+    bz.nextVoiceAt = Number.POSITIVE_INFINITY;
     bz.fireballs = [];
+    bz.shoes = [];
+    keys.delete('Space');
     music.stop();
     playOneShot('success.mp3', .75);
     game.maxHearts += 1;
@@ -3201,7 +3210,7 @@
     if (now < (bz.nextShoeAt || 0)) return false;
     bz.nextShoeAt = now + 320;
     const keysPool = shoeImageKeys();
-    bz.shoes.push({ x: bz.player.x, y: bz.player.y - 80, w: 74, h: 46, vy: -720, spin: 0, image: choice(keysPool.length ? keysPool : ['shoe']) });
+    bz.shoes.push({ x: bz.player.x, y: bz.player.y - 185, w: 98, h: 70, vy: -780, spin: 0, image: choice(keysPool.length ? keysPool : ['shoe']) });
     synth.jump();
     return true;
   }
@@ -3241,7 +3250,7 @@
   }
   function updateBossFight(dt, now) {
     const bz = game.boss;
-    if (!bz) return;
+    if (!bz || bz.phase !== 'fight' || bz.boss.dead) return;
     let dx = 0, dy = 0;
     if (keys.has('ArrowLeft') || keys.has('KeyA')) dx--;
     if (keys.has('ArrowRight') || keys.has('KeyD')) dx++;
@@ -3255,15 +3264,16 @@
     if (b.x < 360 || b.x > 1640) { b.vx *= -1; b.x = clamp(b.x, 360, 1640); }
     b.y = H * .38 + Math.sin(now / 900) * 22;
     if (now >= bz.nextVoiceAt) { playOneShot(choice(['robot1.mp3','robot2.mp3','robot3.mp3']), .62); bz.nextVoiceAt = now + randInt(10000, 15000); }
-    if (now >= bz.nextFireAt) {
-      bz.fireballs.push({ x: b.x - b.w * .02, y: b.y + b.h * .10, w: 92, h: 92, vx: (bz.player.x - b.x) * .58, vy: 255, born: now });
+    if (!b.dead && bz.phase === 'fight' && now >= bz.nextFireAt) {
+      // Fireball starts from Ivan's chest cannon area.
+      bz.fireballs.push({ x: b.x, y: b.y - b.h * .06, w: 104, h: 104, vx: (bz.player.x - b.x) * .58, vy: 255, born: now });
       bz.nextFireAt = now + randInt(1400, 2300);
     }
     bz.fireballs.forEach(f => { f.x += f.vx * dt; f.y += f.vy * dt; });
     bz.fireballs = bz.fireballs.filter(f => f.y < H + 80 && f.x > -120 && f.x < 2120);
     bz.shoes.forEach(s => { s.y += s.vy * dt; s.spin += dt * Math.PI * 5.4; });
     bz.shoes = bz.shoes.filter(s => s.y > -90);
-    for (const s of bz.shoes) if (!s.hit && bossAlphaHit({ x: s.x, y: s.y, w: s.w, h: s.h }, { x: b.x, y: b.y, w: b.w * .62, h: b.h * .74 }, 6)) { s.hit = true; damageBoss(1, 'shoe'); }
+    for (const s of bz.shoes) if (!s.hit && bossAlphaHit({ x: s.x, y: s.y, w: s.w, h: s.h }, { x: b.x, y: b.y, w: b.w * .76, h: b.h * .82 }, 4)) { s.hit = true; damageBoss(1, 'shoe'); }
     bz.shoes = bz.shoes.filter(s => !s.hit);
     const verticalRam = Math.abs(bz.player.x - b.x) < b.w * .32 && bz.player.y < b.y + b.h * .58 && bz.player.y > b.y + b.h * .18;
     if (verticalRam && now > (bz.nextRamAt || 0)) { damageBoss(2, 'ram'); bz.nextRamAt = now + 850; }
@@ -4329,7 +4339,6 @@
     ctx.filter = 'brightness(92%) sepia(12%) saturate(112%) hue-rotate(-8deg)';
     if (flip) { ctx.translate(dx + dw, dy); ctx.scale(-1, 1); ctx.drawImage(img, col * sw, row * sh, sw, sh, 0, 0, dw, dh); }
     else ctx.drawImage(img, col * sw, row * sh, sw, sh, dx, dy, dw, dh);
-    if (redTint) { ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = 'rgba(170,18,28,.12)'; ctx.fillRect(flip ? 0 : dx, flip ? 0 : dy, dw, dh); }
     ctx.restore();
   }
 
@@ -4344,7 +4353,6 @@
     ctx.filter = 'brightness(92%) sepia(12%) saturate(112%) hue-rotate(-8deg)';
     if (flip) { ctx.translate(dx + dw, dy); ctx.scale(-1, 1); ctx.drawImage(img, col * sw, row * sh, sw, sh, 0, 0, dw, dh); }
     else ctx.drawImage(img, col * sw, row * sh, sw, sh, dx, dy, dw, dh);
-    if (redTint) { ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = 'rgba(170,18,28,.12)'; ctx.fillRect(flip ? 0 : dx, flip ? 0 : dy, dw, dh); }
     ctx.restore();
   }
 
@@ -5458,19 +5466,25 @@
     const bz = game.boss; if (!bz) return;
     const x = bz.player.x * view.scale - view.cameraX, y = bz.player.y;
     if (bz.phase === 'victory') {
-      if (images.bossCarWin) drawContain(images.bossCarWin, x - 220, H - 255, 440, 250, 1, true);
+      if (images.bossCarWin) drawContain(images.bossCarWin, x - 310, H - 330, 620, 360, 1, true);
       if (images.actionssprite) {
         const frame = Math.floor(((now - bz.victoryStart) / 140) % 10);
         const f = frame < 5 ? frame : 9 - frame;
-        spriteFrame(images.actionssprite, 5, 3, f, 1, x - 66, H - 245, 132, 178, false, 1, true);
+        // Double-size victory scout, using the sprite frame's real aspect ratio instead of squeezing it.
+        const sw = images.actionssprite.width / 5;
+        const sh = images.actionssprite.height / 3;
+        const dh = 356;
+        const dw = dh * (sw / sh);
+        spriteFrame(images.actionssprite, 5, 3, f, 1, x - dw / 2, H - 405, dw, dh, false, 1, true);
       }
       return;
     }
     const alpha = now < (bz.player.invulnerableUntil || 0) && Math.floor(now/100)%2 === 0 ? .55 : 1;
     if (images.bossCarSheet) {
-      const frame = Math.floor(now / 115) % 7;
-      drawTintedSpriteFrameContain(images.bossCarSheet, 7, 1, frame, 0, x, y - 55, 300, 470, false, alpha, true, true);
-    } else if (images.bossCar) tintDraw(images.bossCar, x - 150, y - 255, 300, 470, alpha, false, true);
+      const frame = Math.floor(now / 105) % 7;
+      // V2.58: car.webp frames are square. Draw into a square target so the scout/car never gets squashed.
+      drawTintedSpriteFrameContain(images.bossCarSheet, 7, 1, frame, 0, x, y - 70, 360, 360, false, alpha, true, true);
+    } else if (images.bossCar) tintDraw(images.bossCar, x - 180, y - 250, 360, 360, alpha, false, true);
     else { ctx.font = '110px Arial'; ctx.textAlign='center'; ctx.fillText('🚜', x, y); }
   }
   function drawBossProjectiles(now, view) {
@@ -5481,7 +5495,13 @@
       ctx.globalAlpha = .85; ctx.shadowColor = '#ff3b00'; ctx.shadowBlur = 34; ctx.fillStyle = 'rgba(255,78,0,.48)';
       ctx.beginPath(); ctx.arc(x, f.y, Math.max(f.w, f.h) * .42, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
-      if (images.fireball) { ctx.save(); ctx.shadowColor='#ff5b00'; ctx.shadowBlur=28; drawContain(images.fireball, x - f.w/2, f.y - f.h/2, f.w, f.h, 1, false); ctx.restore(); } else { ctx.font='44px Arial'; ctx.fillText('🔥', x, f.y); }
+      if (images.fireballSheet) {
+        ctx.save();
+        ctx.shadowColor='#ff5b00'; ctx.shadowBlur=32;
+        const frame = Math.floor((now - f.born) / 55) % 17;
+        drawTintedSpriteFrameContain(images.fireballSheet, 17, 1, frame, 0, x, f.y, f.w, f.h, false, 1, false, false);
+        ctx.restore();
+      } else if (images.fireball) { ctx.save(); ctx.shadowColor='#ff5b00'; ctx.shadowBlur=28; drawContain(images.fireball, x - f.w/2, f.y - f.h/2, f.w, f.h, 1, false); ctx.restore(); } else { ctx.font='44px Arial'; ctx.fillText('🔥', x, f.y); }
     });
     bz.shoes.forEach(s => { const x = s.x * view.scale - view.cameraX; ctx.save(); ctx.translate(x, s.y); ctx.rotate(s.spin); if (images[s.image]) tintDraw(images[s.image], -s.w/2, -s.h/2, s.w, s.h, 1, false, true); else { ctx.font='42px Arial'; ctx.fillText('👟',0,0); } ctx.restore(); });
   }
@@ -5515,7 +5535,7 @@
     const bz = game.boss; if (!bz) return;
     const victory = bz.phase === 'victory';
     const view = drawBossBackground(victory);
-    drawBossProjectiles(now, view);
+    if (!victory) drawBossProjectiles(now, view);
     if (!victory || now - bz.victoryStart < 1600) drawBossActor(now, view, victory);
     if (victory && now - bz.victoryStart < 1700) { ctx.save(); ctx.globalAlpha = .55 * (1 - (now - bz.victoryStart)/1700); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.restore(); }
     drawBossPlayer(now, view);
@@ -5623,9 +5643,12 @@
   });
   actionControl.addEventListener('pointerdown', event => {
     event.preventDefault();
-    if (game.mode !== 'play') return;
+    if (game.mode !== 'play' && game.mode !== 'bossFight') return;
     synth.init();
-    if (!keys.has('Space')) handleActionPress(performance.now());
+    if (!keys.has('Space')) {
+      if (game.mode === 'bossFight') throwBossShoe(performance.now());
+      else handleActionPress(performance.now());
+    }
     keys.add('Space');
     actionControl.classList.add('active');
   });
@@ -5803,7 +5826,7 @@
       if (event.code === 'Enter') { resetNoEanScanner(); event.preventDefault(); return; }
       if (event.code === 'Space' && !keys.has('Space')) { fireNoEanScanner(now); actionControl.classList.add('active'); }
     }
-    if (event.code === 'Space' && game.mode === 'bossFight' && !keys.has('Space')) { synth.init(); throwBossShoe(performance.now()); }
+    if (event.code === 'Space' && game.mode === 'bossFight' && !keys.has('Space')) { event.preventDefault(); synth.init(); throwBossShoe(performance.now()); actionControl.classList.add('active'); }
     if (event.code === 'Space' && game.mode === 'play' && !keys.has('Space')) {
       const now = performance.now();
       handleActionPress(now);
