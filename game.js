@@ -54,7 +54,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.55';
+  const VERSION = 'V2.56';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -3544,6 +3544,9 @@
     return `${prefix || 'id'}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
   }
 
+  const MAP_BUILDER_SAVE_KEY = 'zalandoScout.mapBuilder.namedLayouts';
+  const MAP_BUILDER_AUTOSAVE_KEY = 'zalandoScout.mapBuilder.autosave';
+
   function mapBuilderPalette() {
     return ['box1','box2','box3','box4','box5','box6','box7','smallbox','smallbox2','smallbox3','conveyor','conveyorEnd','cone','printers','bathroom','kitchen','table','table2','coffee','shoe','shoe1','shoe2','shoe3'].filter(key => images[key]);
   }
@@ -3566,18 +3569,84 @@
     return templatePathRects().map(r => ({ id: uid('path'), kind:'path', name:'Clear Path', left:r.left, top:r.top, width:r.width, height:r.height }));
   }
 
+  function mapBuilderPayload() {
+    const mb=game.mapBuilder;
+    return {
+      version:'v2.56-map-builder',
+      mapTiles:{width:MAP_W,height:MAP_H},
+      paths:(mb?.paths||[]).map(p=>({id:p.id||uid('path'),kind:'path',left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2)})),
+      areas:(mb?.areas||[]).map(p=>({id:p.id||uid('area'),kind:'area',name:p.name||'Area',image:p.image||null,lockedType:p.lockedType||null,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2)})),
+      props:(mb?.props||[]).map(p=>({id:p.id||uid('prop'),kind:'prop',image:p.image,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2),baseWidth:+(p.baseWidth||p.width).toFixed(2),baseHeight:+(p.baseHeight||p.height).toFixed(2),scale:+(p.scale||1).toFixed(2),flipX:!!p.flipX,collision:p.collision||'block'}))
+    };
+  }
+
+  function mapBuilderApplyPayload(payload) {
+    if (!payload || !game.mapBuilder) return;
+    game.mapBuilder.paths = (payload.paths||[]).map(p=>({...p,id:p.id||uid('path'),kind:'path'}));
+    game.mapBuilder.areas = (payload.areas||[]).map(p=>({...p,id:p.id||uid('area'),kind:'area'}));
+    game.mapBuilder.props = (payload.props||[]).map(p=>({...p,id:p.id||uid('prop'),kind:'prop',baseWidth:p.baseWidth||p.width,baseHeight:p.baseHeight||p.height,scale:p.scale||1}));
+    game.mapBuilder.selectedIds = [];
+    game.mapBuilder.contextMenu = null;
+  }
+
+  function mapBuilderAutosave() {
+    try { localStorage.setItem(MAP_BUILDER_AUTOSAVE_KEY, JSON.stringify(mapBuilderPayload())); } catch (err) { console.warn('Map builder autosave failed', err); }
+  }
+
+  function mapBuilderReadNamedSaves() {
+    try { return JSON.parse(localStorage.getItem(MAP_BUILDER_SAVE_KEY) || '{}') || {}; } catch { return {}; }
+  }
+
+  function mapBuilderWriteNamedSaves(saves) {
+    localStorage.setItem(MAP_BUILDER_SAVE_KEY, JSON.stringify(saves));
+  }
+
+  function mapBuilderSaveNamed() {
+    const name = window.prompt('Save map as:', `layout-${new Date().toISOString().slice(0,10)}`);
+    if (!name) return;
+    const clean = name.trim();
+    if (!clean) return;
+    const saves = mapBuilderReadNamedSaves();
+    saves[clean] = { savedAt: new Date().toISOString(), layout: mapBuilderPayload() };
+    mapBuilderWriteNamedSaves(saves);
+    mapBuilderAutosave();
+    addMessage(`MAP SAVED: ${clean}`, '#71dd8d', 1800);
+  }
+
+  function mapBuilderLoadNamed() {
+    const saves = mapBuilderReadNamedSaves();
+    const names = Object.keys(saves).sort();
+    if (!names.length) { addMessage('NO SAVED MAPS YET', '#ffd054', 1800); return; }
+    const picked = window.prompt(`Load which map?\n\n${names.join('\n')}`, names[names.length - 1]);
+    if (!picked || !saves[picked]) return;
+    mapBuilderApplyPayload(saves[picked].layout);
+    addMessage(`MAP LOADED: ${picked}`, '#71dd8d', 1800);
+  }
+
   function startMapBuilder() {
     adminReturnToWarehouse();
     game.mode = 'mapBuilder';
     setGameplayControlsVisible(false);
     keys.clear();
+    let restored = null;
+    try { restored = JSON.parse(localStorage.getItem(MAP_BUILDER_AUTOSAVE_KEY) || 'null'); } catch {}
     game.mapBuilder = {
-      zoom:.18, panX:24, panY:56, selected:'box5', tool:'place', placeMode:'prop',
+      zoom:.18, panX:24, panY:56, selected:'box5', tool:'place', placeMode:'prop', propScale:1,
       props:[], areas:defaultMapBuilderAreas(), paths:defaultMapBuilderPaths(),
       selectedIds:[], dragging:null, marquee:null, drawing:null, panning:null, contextMenu:null
     };
+    if (restored && restored.paths && restored.areas) mapBuilderApplyPayload(restored);
     showMapBuilderPanel();
-    addMessage('MAP BUILDER: place, draw, move, select, export JSON', '#ffd054', 3000);
+    addMessage('MAP BUILDER: save/export before leaving', '#ffd054', 3000);
+  }
+
+  function mapBuilderExitToGame() {
+    mapBuilderAutosave();
+    game.mode='play';
+    game.mapBuilder=null;
+    hideMapBuilderPanel();
+    setGameplayControlsVisible(true);
+    addMessage('MAP AUTOSAVED', '#71dd8d', 1200);
   }
 
   function mapBuilderAllObjects() {
@@ -3627,6 +3696,15 @@
     mb.contextMenu=null;
   }
 
+  function mapBuilderListForObject(obj) {
+    const mb=game.mapBuilder;
+    if(!mb||!obj) return null;
+    if(obj.kind==='prop') return mb.props;
+    if(obj.kind==='area') return mb.areas;
+    if(obj.kind==='path') return mb.paths;
+    return null;
+  }
+
   function mapBuilderDeleteSelected(){
     const mb=game.mapBuilder;
     if(!mb||!mb.selectedIds?.length) return;
@@ -3636,6 +3714,7 @@
     mb.paths=mb.paths.filter(p=>!ids.has(p.id));
     mb.selectedIds=[];
     mb.contextMenu=null;
+    mapBuilderAutosave();
   }
 
   function mapBuilderDuplicateSelected(){
@@ -3651,11 +3730,13 @@
     });
     mb.selectedIds=copies;
     mb.contextMenu=null;
+    mapBuilderAutosave();
   }
 
   function mapBuilderFlipSelected(){
     mapBuilderSelectedObjects().forEach(obj=>{ if(obj.kind==='prop') obj.flipX=!obj.flipX; });
     if(game.mapBuilder) game.mapBuilder.contextMenu=null;
+    mapBuilderAutosave();
   }
 
   function mapBuilderCycleCollisionSelected(){
@@ -3666,23 +3747,65 @@
       obj.collision=order[(current+1)%order.length];
     });
     if(game.mapBuilder) game.mapBuilder.contextMenu=null;
+    mapBuilderAutosave();
+  }
+
+  function mapBuilderMoveSelectedLayer(mode){
+    const mb=game.mapBuilder;
+    if(!mb||!mb.selectedIds?.length) return;
+    const ids=new Set(mb.selectedIds);
+    const operate = list => {
+      if(!list || !list.some(o=>ids.has(o.id))) return list;
+      if(mode==='front') return [...list.filter(o=>!ids.has(o.id)), ...list.filter(o=>ids.has(o.id))];
+      if(mode==='back') return [...list.filter(o=>ids.has(o.id)), ...list.filter(o=>!ids.has(o.id))];
+      const next=[...list];
+      if(mode==='forward'){
+        for(let i=next.length-2;i>=0;i--) if(ids.has(next[i].id)&&!ids.has(next[i+1].id)) [next[i],next[i+1]]=[next[i+1],next[i]];
+      }
+      if(mode==='backward'){
+        for(let i=1;i<next.length;i++) if(ids.has(next[i].id)&&!ids.has(next[i-1].id)) [next[i],next[i-1]]=[next[i-1],next[i]];
+      }
+      return next;
+    };
+    mb.props=operate(mb.props);
+    mb.areas=operate(mb.areas);
+    mb.paths=operate(mb.paths);
+    mb.contextMenu=null;
+    mapBuilderAutosave();
+  }
+
+  function mapBuilderSetSelectedScale(scale){
+    const selected=mapBuilderSelectedObjects();
+    selected.forEach(obj=>{
+      if(obj.kind==='prop'){
+        obj.baseWidth=obj.baseWidth||obj.width;
+        obj.baseHeight=obj.baseHeight||obj.height;
+        obj.scale=scale;
+        obj.width=obj.baseWidth*scale;
+        obj.height=obj.baseHeight*scale;
+      } else {
+        const cx=obj.left+obj.width/2, cy=obj.top+obj.height/2;
+        obj.width=Math.max(.75,obj.width*scale);
+        obj.height=Math.max(.75,obj.height*scale);
+        obj.left=cx-obj.width/2;
+        obj.top=cy-obj.height/2;
+      }
+      obj.left=mapBuilderClampLeft(obj,obj.left);
+      obj.top=mapBuilderClampTop(obj,obj.top);
+    });
+    if(game.mapBuilder) game.mapBuilder.contextMenu=null;
+    mapBuilderAutosave();
   }
 
   function mapBuilderExport(){
-    const mb=game.mapBuilder;
-    const payload={
-      version:'v2.54-map-builder',
-      mapTiles:{width:MAP_W,height:MAP_H},
-      paths:(mb.paths||[]).map(p=>({id:p.id,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2)})),
-      areas:(mb.areas||[]).map(p=>({id:p.id,name:p.name||'Area',image:p.image||null,lockedType:p.lockedType||null,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2)})),
-      props:(mb.props||[]).map(p=>({image:p.image,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2),flipX:!!p.flipX,collision:p.collision||'block'}))
-    };
+    const payload=mapBuilderPayload();
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
     a.download='custom_map_layout.json';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    mapBuilderAutosave();
     addMessage('MAP JSON EXPORTED','#71dd8d',1800);
   }
 
@@ -3729,48 +3852,66 @@
       <header class="map-builder-header">
         <strong>BUILD A MAP</strong>
         <div class="admin-window-controls">
-          <button type="button" data-map-builder="collapse" class="admin-exit" aria-label="Collapse map builder">—</button>
-          <button type="button" data-map-builder="back" class="admin-exit" aria-label="Back to game">✕</button>
+          <button type="button" data-map-builder="back" class="admin-exit" title="Back to game">↩️</button>
+          <button type="button" data-map-builder="collapse" class="admin-exit" title="Collapse">—</button>
+          <button type="button" data-map-builder="back" class="admin-exit" title="Close">✕</button>
         </div>
       </header>
       <div class="map-builder-body">
         <div class="map-builder-row map-builder-tools">
-          <button type="button" data-tool="place">Place</button>
-          <button type="button" data-tool="erase">Erase</button>
-          <button type="button" data-tool="move">Move</button>
-          <button type="button" data-tool="select">Select</button>
+          <button type="button" data-tool="place" title="Place">📍</button>
+          <button type="button" data-tool="erase" title="Erase">🧽</button>
+          <button type="button" data-tool="move" title="Move">✋</button>
+          <button type="button" data-tool="select" title="Select">⬚</button>
+        </div>
+        <div class="map-builder-row map-builder-modes">
+          <button type="button" data-place-mode="prop" title="Props">📦</button>
+          <button type="button" data-place-mode="area" title="Green Area"><span class="green-dot"></span></button>
+          <button type="button" data-place-mode="path" title="Yellow Path"><span class="yellow-dot"></span></button>
         </div>
         <div class="map-builder-row">
-          <button type="button" data-place-mode="prop">Props</button>
-          <button type="button" data-place-mode="area">Green Area</button>
-          <button type="button" data-place-mode="path">Yellow Path</button>
+          <button type="button" data-map-builder="save" title="Save named map">🏷️</button>
+          <button type="button" data-map-builder="load" title="Load named map">📂</button>
+          <button type="button" data-map-builder="export" title="Export JSON">💾</button>
         </div>
         <div class="map-builder-row">
-          <button type="button" data-map-builder="back">Back</button>
-          <button type="button" data-map-builder="export">Export JSON</button>
+          <button type="button" data-map-builder="zoomIn" title="Zoom in">➕</button>
+          <button type="button" data-map-builder="zoomOut" title="Zoom out">➖</button>
+          <button type="button" data-map-builder="rescale" title="Rescale selected">📏</button>
         </div>
-        <div class="map-builder-row">
-          <button type="button" data-map-builder="zoomIn">Zoom +</button>
-          <button type="button" data-map-builder="zoomOut">Zoom -</button>
+        <div class="map-builder-row map-builder-scale-row">
+          <button type="button" data-prop-scale="1" title="New props 1x">1×</button>
+          <button type="button" data-prop-scale="2" title="New props 2x">2×</button>
+          <button type="button" data-prop-scale="3" title="New props 3x">3×</button>
         </div>
-        <div class="map-builder-hint">Yellow/green: drag a box. Middle mouse drag pans. Right-click selected items for actions.</div>
+        <div class="map-builder-rescale hidden">
+          <button type="button" data-rescale="1">1×</button>
+          <button type="button" data-rescale="2">2×</button>
+          <button type="button" data-rescale="3">3×</button>
+        </div>
+        <div class="map-builder-hint">Middle mouse pans. Right-click selected objects for layer/delete/duplicate.</div>
         <div class="map-builder-palette"></div>
       </div>`;
     document.body.appendChild(mapBuilderPanel);
     makeViewportDraggable(mapBuilderPanel, mapBuilderPanel.querySelector('.map-builder-header'));
     mapBuilderPanel.addEventListener('click', event => {
-      const button = event.target.closest('[data-map-builder], [data-prop], [data-tool], [data-place-mode]');
+      const button = event.target.closest('[data-map-builder], [data-prop], [data-tool], [data-place-mode], [data-prop-scale], [data-rescale]');
       if (!button) return;
       event.preventDefault();
       event.stopPropagation();
       const mb=game.mapBuilder;
       const action=button.dataset.mapBuilder;
-      if(action==='back'){ game.mode='play'; game.mapBuilder=null; hideMapBuilderPanel(); setGameplayControlsVisible(true); return; }
+      if(action==='back'){ mapBuilderExitToGame(); return; }
       if(action==='collapse'){ mapBuilderPanel.classList.toggle('collapsed'); refreshMapBuilderPanel(); return; }
       if(!mb) return;
+      if(action==='save'){ mapBuilderSaveNamed(); return; }
+      if(action==='load'){ mapBuilderLoadNamed(); refreshMapBuilderPanel(); return; }
       if(action==='export'){ mapBuilderExport(); return; }
       if(action==='zoomIn'){ mb.zoom=Math.min(.42,mb.zoom+.025); refreshMapBuilderPanel(); return; }
       if(action==='zoomOut'){ mb.zoom=Math.max(.08,mb.zoom-.025); refreshMapBuilderPanel(); return; }
+      if(action==='rescale'){ mapBuilderPanel.querySelector('.map-builder-rescale')?.classList.toggle('hidden'); return; }
+      if(button.dataset.rescale){ mapBuilderSetSelectedScale(Number(button.dataset.rescale)); mapBuilderPanel.querySelector('.map-builder-rescale')?.classList.add('hidden'); return; }
+      if(button.dataset.propScale){ mb.propScale=Number(button.dataset.propScale); refreshMapBuilderPanel(); return; }
       if(button.dataset.tool){ mb.tool=button.dataset.tool; mb.contextMenu=null; refreshMapBuilderPanel(); return; }
       if(button.dataset.placeMode){ mb.placeMode=button.dataset.placeMode; mb.tool='place'; mb.contextMenu=null; refreshMapBuilderPanel(); return; }
       if(button.dataset.prop){ mb.selected=button.dataset.prop; mb.placeMode='prop'; mb.tool='place'; mb.contextMenu=null; refreshMapBuilderPanel(); return; }
@@ -3786,6 +3927,7 @@
     if(!mb||!paletteEl) return;
     panel.querySelectorAll('[data-tool]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.tool===mb.tool));
     panel.querySelectorAll('[data-place-mode]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.placeMode===mb.placeMode));
+    panel.querySelectorAll('[data-prop-scale]').forEach(btn=>btn.classList.toggle('selected',Number(btn.dataset.propScale)===(mb.propScale||1)));
     paletteEl.innerHTML='';
     mapBuilderPalette().forEach(key=>{
       const button=document.createElement('button');
@@ -3809,18 +3951,32 @@
     const img=images[mb.selected];
     const baseW=mb.selected==='conveyorEnd'?3.05:(mb.selected==='conveyor'?3.05:(mb.selected==='printers'||mb.selected==='bathroom'?9.8:2.4));
     const baseH=img?baseW*(img.height/img.width):1.6;
-    mb.props.push({id:uid('prop'),kind:'prop',image:mb.selected,left:Math.round(t.x*2)/2,top:Math.round(t.y*2)/2,width:baseW,height:baseH,collision:mb.selected==='cone'?'decor':(mb.selected==='smallbox3'?'pushable':'block')});
+    const scale=mb.propScale||1;
+    mb.props.push({id:uid('prop'),kind:'prop',image:mb.selected,left:Math.round(t.x*2)/2,top:Math.round(t.y*2)/2,width:baseW*scale,height:baseH*scale,baseWidth:baseW,baseHeight:baseH,scale,collision:mb.selected==='cone'?'decor':(mb.selected==='smallbox3'?'pushable':'block')});
+    mapBuilderAutosave();
+  }
+
+  function mapBuilderClampLeft(obj, left) {
+    return clamp(left, 1 - Math.max(.5, obj.width), MAP_W - 1);
+  }
+
+  function mapBuilderClampTop(obj, top) {
+    return clamp(top, 1 - Math.max(.5, obj.height), MAP_H - 1);
   }
 
   function mapBuilderHandleContextCommand(x,y){
     const mb=game.mapBuilder;
     if(!mb||!mb.contextMenu) return false;
-    if(x<mb.contextMenu.x||x>mb.contextMenu.x+150||y<mb.contextMenu.y||y>mb.contextMenu.y+138) return false;
+    if(x<mb.contextMenu.x||x>mb.contextMenu.x+170||y<mb.contextMenu.y||y>mb.contextMenu.y+272) return false;
     const row=Math.floor((y-mb.contextMenu.y)/34);
-    if(row===0) mapBuilderDuplicateSelected();
-    else if(row===1) mapBuilderDeleteSelected();
-    else if(row===2) mapBuilderFlipSelected();
-    else if(row===3) mapBuilderCycleCollisionSelected();
+    if(row===0) mapBuilderMoveSelectedLayer('front');
+    else if(row===1) mapBuilderMoveSelectedLayer('forward');
+    else if(row===2) mapBuilderMoveSelectedLayer('backward');
+    else if(row===3) mapBuilderMoveSelectedLayer('back');
+    else if(row===4) mapBuilderDuplicateSelected();
+    else if(row===5) mapBuilderDeleteSelected();
+    else if(row===6) mapBuilderFlipSelected();
+    else if(row===7) mapBuilderCycleCollisionSelected();
     refreshMapBuilderPanel();
     return true;
   }
@@ -3828,16 +3984,6 @@
   function handleMapBuilderClick(x,y){
     const mb=game.mapBuilder; if(!mb) return;
     if(mapBuilderHandleContextCommand(x,y)) return;
-  }
-
-  function mapBuilderClampLeft(obj, left) {
-    // Allow objects to hang outside the map, as long as at least 1 tile remains on-board.
-    return clamp(left, 1 - Math.max(.5, obj.width), MAP_W - 1);
-  }
-
-  function mapBuilderClampTop(obj, top) {
-    // Allow objects to hang outside the map, as long as at least 1 tile remains on-board.
-    return clamp(top, 1 - Math.max(.5, obj.height), MAP_H - 1);
   }
 
   function beginMapBuilderPointer(x,y,pointerId,sourceEvent){
@@ -3853,7 +3999,7 @@
       const t=mapBuilderScreenToTile(x,y);
       const obj=mapBuilderObjectAt(t);
       if(obj&&!(mb.selectedIds||[]).includes(obj.id)) mapBuilderSelectObject(obj,false);
-      if((mb.selectedIds||[]).length) mb.contextMenu={x:Math.min(x,W-156),y:Math.min(y,H-142)};
+      if((mb.selectedIds||[]).length) mb.contextMenu={x:Math.min(x,W-176),y:Math.min(y,H-276)};
       return true;
     }
 
@@ -3877,6 +4023,7 @@
         mb.areas=mb.areas.filter(p=>p.id!==obj.id);
         mb.paths=mb.paths.filter(p=>p.id!==obj.id);
         mb.selectedIds=(mb.selectedIds||[]).filter(id=>id!==obj.id);
+        mapBuilderAutosave();
       }
       return true;
     }
@@ -3949,6 +4096,7 @@
       if(d.kind==='path') mb.paths.push({id:uid('path'),kind:'path',name:'Clear Path',left:Math.round(x1*2)/2,top:Math.round(y1*2)/2,width:Math.round(w*2)/2,height:Math.round(h*2)/2});
       else mb.areas.push({id:uid('area'),kind:'area',name:'Area Pod',left:Math.round(x1*2)/2,top:Math.round(y1*2)/2,width:Math.round(w*2)/2,height:Math.round(h*2)/2});
       mb.drawing=null;
+      mapBuilderAutosave();
       return true;
     }
 
@@ -3960,7 +4108,7 @@
       return true;
     }
 
-    if(mb.dragging&&mb.dragging.pointerId===pointerId){ mb.dragging=null; return true; }
+    if(mb.dragging&&mb.dragging.pointerId===pointerId){ mb.dragging=null; mapBuilderAutosave(); return true; }
     return false;
   }
 
@@ -4039,17 +4187,17 @@
 
     ctx.save();
     ctx.fillStyle='rgba(10,13,17,.72)';
-    roundRect(18,16,560,42,8,true,false);
+    roundRect(18,16,610,42,8,true,false);
     ctx.strokeStyle='rgba(255,105,0,.8)';
-    roundRect(18,16,560,42,8,false,true);
+    roundRect(18,16,610,42,8,false,true);
     ctx.fillStyle='#fff4df'; ctx.font='bold 14px Trebuchet MS';
-    ctx.fillText(`Build a Map — ${mb.tool.toUpperCase()} ${mb.placeMode==='prop'?mb.selected:mb.placeMode.toUpperCase()} — zoom ${Math.round(mb.zoom*100)}%`,34,43);
+    ctx.fillText(`Build a Map — ${mb.tool.toUpperCase()} ${mb.placeMode==='prop'?mb.selected:mb.placeMode.toUpperCase()} — ${mb.propScale||1}× — zoom ${Math.round(mb.zoom*100)}%`,34,43);
     if(mb.contextMenu){
-      const rows=['Duplicate','Delete','Flip','Collision'];
+      const rows=['Bring front','Move forward','Move backward','Send back','Duplicate','Delete','Flip','Collision'];
       ctx.fillStyle='rgba(12,15,18,.98)';
-      roundRect(mb.contextMenu.x,mb.contextMenu.y,150,rows.length*34,8,true,false);
+      roundRect(mb.contextMenu.x,mb.contextMenu.y,170,rows.length*34,8,true,false);
       ctx.strokeStyle='#ff6900';
-      roundRect(mb.contextMenu.x,mb.contextMenu.y,150,rows.length*34,8,false,true);
+      roundRect(mb.contextMenu.x,mb.contextMenu.y,170,rows.length*34,8,false,true);
       rows.forEach((label,i)=>{
         ctx.fillStyle='#fff4df'; ctx.font='bold 13px Trebuchet MS';
         ctx.fillText(label,mb.contextMenu.x+12,mb.contextMenu.y+22+i*34);
@@ -5518,7 +5666,7 @@
       const t = mapBuilderScreenToTile(x, y);
       const obj = mapBuilderObjectAt(t);
       if (obj && !(mb.selectedIds || []).includes(obj.id)) mapBuilderSelectObject(obj, false);
-      if ((mb.selectedIds || []).length) mb.contextMenu = { x: Math.min(x, W - 156), y: Math.min(y, H - 142) };
+      if ((mb.selectedIds || []).length) mb.contextMenu = { x: Math.min(x, W - 176), y: Math.min(y, H - 276) };
     }
   });
   canvas.addEventListener('click', event => {
@@ -5613,7 +5761,7 @@
       skipIntro();
       return;
     }
-    if (event.code === 'Escape' && game.mode === 'mapBuilder') { game.mode='play'; game.mapBuilder=null; hideMapBuilderPanel(); setGameplayControlsVisible(true); return; }
+    if (event.code === 'Escape' && game.mode === 'mapBuilder') { mapBuilderExitToGame(); return; }
     if (event.code === 'Escape' && game.mode === 'office') {
       game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return;
     }

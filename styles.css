@@ -1000,3 +1000,78 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
   object-fit: contain;
 }
 .map-builder-panel.collapsed { width: 190px; }
+
+
+/* V2.56 map builder save/layers/emoji controls */
+.map-builder-panel { width: 286px; }
+.map-builder-header { padding: 7px 8px; }
+.map-builder-body { padding: 5px; }
+.map-builder-row {
+  gap: 4px;
+  margin-bottom: 4px;
+  grid-template-columns: repeat(3, 1fr);
+}
+.map-builder-row.map-builder-tools { grid-template-columns: repeat(4, 1fr); }
+.map-builder-row button {
+  min-height: 24px;
+  padding: 1px 3px;
+  font-size: 14px;
+  line-height: 1;
+}
+.map-builder-row button.selected,
+.map-builder-tools button.selected,
+.map-builder-row button[data-place-mode].selected,
+.map-builder-row button[data-prop-scale].selected {
+  background: rgba(255,105,0,.45);
+  border-color: rgba(255,177,94,.95);
+}
+.map-builder-hint {
+  margin: 3px 0 5px;
+  font-size: 9px;
+  line-height: 1.15;
+}
+.green-dot,
+.yellow-dot {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+}
+.green-dot { background: #58d34c; color: #58d34c; }
+.yellow-dot { background: #ffd054; color: #ffd054; }
+.map-builder-rescale {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin: 0 0 4px;
+}
+.map-builder-rescale.hidden { display: none; }
+.map-builder-rescale button {
+  min-height: 24px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,105,0,.48);
+  background: #282e35;
+  color: #fff4df;
+  font: bold 11px "Trebuchet MS", Arial, sans-serif;
+}
+.map-builder-palette {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  max-height: calc(100vh - 248px);
+}
+.map-builder-palette button {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  align-items: center;
+  min-height: 40px;
+  padding: 2px;
+}
+.map-builder-palette button span { display: none; }
+.map-builder-palette img {
+  width: 42px;
+  height: 34px;
+  object-fit: contain;
+}
+.map-builder-panel.collapsed { width: 190px; }
