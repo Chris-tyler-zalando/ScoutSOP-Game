@@ -1075,3 +1075,50 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
   object-fit: contain;
 }
 .map-builder-panel.collapsed { width: 190px; }
+
+
+/* V2.59: grouped, colour-coded admin buttons */
+.admin-panel button[data-admin] {
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.admin-panel button.admin-system,
+.admin-panel button[data-admin].admin-system {
+  background: rgba(104, 78, 18, .98);
+  border-color: rgba(255, 208, 84, .85);
+  color: #ffeab0;
+}
+.admin-panel button.admin-gameplay,
+.admin-panel button[data-admin].admin-gameplay {
+  background: #282e35;
+  border-color: rgba(200, 215, 230, .38);
+  color: #fff4df;
+}
+.admin-panel button.admin-task,
+.admin-panel button[data-admin].admin-task {
+  background: rgba(28, 82, 47, .98);
+  border-color: rgba(113, 221, 141, .72);
+  color: #d9ffe2;
+}
+.admin-panel button.admin-event,
+.admin-panel button[data-admin].admin-event {
+  background: rgba(99, 58, 22, .98);
+  border-color: rgba(255, 154, 59, .75);
+  color: #ffe0bc;
+}
+.admin-panel button.admin-danger,
+.admin-panel button[data-admin].admin-danger {
+  background: rgba(95, 20, 35, .98);
+  border-color: rgba(238, 57, 77, .75);
+  color: #ffd6dd;
+}
+.admin-panel button.admin-boss,
+.admin-panel button[data-admin].admin-boss {
+  background: rgba(120, 18, 32, .98);
+  border-color: rgba(255, 60, 60, .92);
+  color: #ffe3e3;
+  box-shadow: inset 0 0 10px rgba(255, 0, 0, .18);
+}
+.admin-panel button[data-admin]:hover {
+  filter: brightness(1.13);
+}

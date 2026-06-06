@@ -54,7 +54,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.58';
+  const VERSION = 'V2.59';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -3131,7 +3131,7 @@
     game.boss = {
       phase: 'intro', introStart: performance.now(), cameraX: 0, countdown: 3,
       player: { x: W / 2, y: H + 220, speed: 430, invulnerableUntil: performance.now() + 2300 },
-      boss: { x: 1000, y: -350, w: 430, h: 604, vx: 115, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
+      boss: { x: 1000, y: -350, w: 560, h: 560, vx: 135, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
       fireballs: [], shoes: [], nextFireAt: performance.now() + 3600, nextVoiceAt: performance.now() + randInt(10000, 15000),
       startedAt: performance.now(), victoryStart: 0, rewardShown: false, summaryUntil: 0, fade: 1
     };
@@ -3173,16 +3173,24 @@
     return a.x - a.w / 2 + pad < b.x + b.w / 2 && a.x + a.w / 2 - pad > b.x - b.w / 2 && a.y - a.h / 2 + pad < b.y + b.h / 2 && a.y + a.h / 2 - pad > b.y - b.h / 2;
   }
   function damageBoss(amount, source) {
-    const b = game.boss && game.boss.boss;
-    if (!b || b.dead || performance.now() < (b.rehitUntil || 0)) return;
+    const bz = game.boss;
+    const b = bz && bz.boss;
+    if (!b || b.dead || bz.phase !== 'fight') return false;
+    const now = performance.now();
+    if (source === 'ram' && now < (b.ramHitUntil || 0)) return false;
+    if (source === 'shoe' && now < (b.shoeHitUntil || 0)) return false;
+    if (source === 'ram') b.ramHitUntil = now + 750;
+    if (source === 'shoe') b.shoeHitUntil = now + 140;
     b.hearts = Math.max(0, b.hearts - amount);
-    b.hitFlashUntil = performance.now() + 420;
-    b.rehitUntil = performance.now() + 450;
+    b.hitFlashUntil = now + 420;
     game.stats.bossHits += amount;
-    if (source === 'ram') game.stats.bossRams++; else game.stats.bossShoeHits++;
-    burst(b.x, b.y, '#ff3c3c', 24);
+    if (source === 'ram') game.stats.bossRams++;
+    else if (source === 'shoe') game.stats.bossShoeHits++;
+    burst(b.x, b.y, '#ff3c3c', source === 'ram' ? 36 : 24);
     synth.hurt();
+    addMessage(source === 'ram' ? 'RAM HIT!  -2 IVAN HEARTS' : 'OFFLINE STOCK HIT!  -1 IVAN HEART', '#ffd054', 900);
     if (b.hearts <= 0) startBossVictory();
+    return true;
   }
   function startBossVictory() {
     const bz = game.boss;
@@ -3206,12 +3214,25 @@
   }
   function throwBossShoe(now) {
     const bz = game.boss;
-    if (!bz || bz.phase !== 'fight') return false;
+    if (!bz || bz.phase !== 'fight' || bz.boss.dead) return false;
     if (now < (bz.nextShoeAt || 0)) return false;
-    bz.nextShoeAt = now + 320;
+    bz.nextShoeAt = now + 260;
     const keysPool = shoeImageKeys();
-    bz.shoes.push({ x: bz.player.x, y: bz.player.y - 185, w: 98, h: 70, vy: -780, spin: 0, image: choice(keysPool.length ? keysPool : ['shoe']) });
+    const size = 128;
+    const startY = bz.player.y - 96;
+    bz.shoes.push({
+      x: bz.player.x,
+      y: startY,
+      prevY: startY,
+      w: size,
+      h: size,
+      vy: -920,
+      spin: 0,
+      born: now,
+      image: choice(keysPool.length ? keysPool : ['shoe'])
+    });
     synth.jump();
+    addMessage('OFFLINE STOCK THROWN!', '#ffd054', 550);
     return true;
   }
   function updateBossIntro(dt, now) {
@@ -3233,7 +3254,7 @@
     if (!bz) return;
     const t = clamp((now - bz.enterStart) / 2600, 0, 1);
     const eased = 1 - Math.pow(1 - t, 3);
-    bz.boss.y = -350 + (H * .38 + 350) * eased;
+    bz.boss.y = -350 + (H * .37 + 350) * eased;
     bz.player.y = H + 260 + (H * .84 - H - 260) * eased;
     if (t >= 1) {
       bz.phase = 'countdown';
@@ -3262,21 +3283,39 @@
     const b = bz.boss;
     b.x += b.vx * dt;
     if (b.x < 360 || b.x > 1640) { b.vx *= -1; b.x = clamp(b.x, 360, 1640); }
-    b.y = H * .38 + Math.sin(now / 900) * 22;
+    b.y = H * .37 + Math.sin(now / 900) * 22;
     if (now >= bz.nextVoiceAt) { playOneShot(choice(['robot1.mp3','robot2.mp3','robot3.mp3']), .62); bz.nextVoiceAt = now + randInt(10000, 15000); }
-    if (!b.dead && bz.phase === 'fight' && now >= bz.nextFireAt) {
+    if (!b.dead && bz.phase === 'fight' && b.hearts > 0 && now >= bz.nextFireAt) {
       // Fireball starts from Ivan's chest cannon area.
       bz.fireballs.push({ x: b.x, y: b.y - b.h * .06, w: 104, h: 104, vx: (bz.player.x - b.x) * .58, vy: 255, born: now });
       bz.nextFireAt = now + randInt(1400, 2300);
     }
     bz.fireballs.forEach(f => { f.x += f.vx * dt; f.y += f.vy * dt; });
     bz.fireballs = bz.fireballs.filter(f => f.y < H + 80 && f.x > -120 && f.x < 2120);
-    bz.shoes.forEach(s => { s.y += s.vy * dt; s.spin += dt * Math.PI * 5.4; });
-    bz.shoes = bz.shoes.filter(s => s.y > -90);
-    for (const s of bz.shoes) if (!s.hit && bossAlphaHit({ x: s.x, y: s.y, w: s.w, h: s.h }, { x: b.x, y: b.y, w: b.w * .76, h: b.h * .82 }, 4)) { s.hit = true; damageBoss(1, 'shoe'); }
+
+    bz.shoes.forEach(s => {
+      s.prevY = s.y;
+      s.y += s.vy * dt;
+      s.spin += dt * Math.PI * 7.2;
+    });
+    bz.shoes = bz.shoes.filter(s => s.y > -150);
+    const bossTop = b.y - b.h * .48;
+    const bossBottom = b.y + b.h * .42;
+    for (const s of bz.shoes) {
+      if (s.hit) continue;
+      const shoeTop = Math.min(s.prevY, s.y) - s.h * .35;
+      const shoeBottom = Math.max(s.prevY, s.y) + s.h * .35;
+      const xAligned = Math.abs(s.x - b.x) < (b.w * .39 + s.w * .18);
+      const yCrossed = shoeTop <= bossBottom && shoeBottom >= bossTop;
+      if (xAligned && yCrossed) {
+        s.hit = true;
+        damageBoss(1, 'shoe');
+      }
+    }
     bz.shoes = bz.shoes.filter(s => !s.hit);
-    const verticalRam = Math.abs(bz.player.x - b.x) < b.w * .32 && bz.player.y < b.y + b.h * .58 && bz.player.y > b.y + b.h * .18;
-    if (verticalRam && now > (bz.nextRamAt || 0)) { damageBoss(2, 'ram'); bz.nextRamAt = now + 850; }
+
+    const verticalRam = Math.abs(bz.player.x - b.x) < b.w * .34 && bz.player.y < b.y + b.h * .62 && bz.player.y > b.y + b.h * .18;
+    if (verticalRam && now > (bz.nextRamAt || 0)) { if (damageBoss(2, 'ram')) bz.nextRamAt = now + 850; }
     for (const f of bz.fireballs) {
       if (!f.hit && now > (bz.player.invulnerableUntil || 0) && bossAlphaHit({ x: f.x, y: f.y, w: f.w, h: f.h }, { x: bz.player.x, y: bz.player.y, w: 132, h: 150 }, 10)) {
         f.hit = true; game.health = Math.max(0, game.health - 1); bz.player.invulnerableUntil = now + 1500; synth.hurt(); shake(10); addMessage('IVAN FIREBALL HIT!', '#ff3949', 1500); if (game.health <= 0) triggerDeath();
@@ -5458,8 +5497,9 @@
     const b = bz.boss;
     if (victory && Math.floor((now - bz.victoryStart) / 130) % 2 === 0 && now - bz.victoryStart < 1600) return;
     const sx = b.x * view.scale - view.cameraX, sy = b.y;
-    const w = b.w, h = b.h;
-    if (images.bossIvan) tintDraw(images.bossIvan, sx - w/2, sy - h/2, w, h, (now < b.hitFlashUntil ? .55 : 1), false, true);
+    // Ivan's source art is square. Always draw him into a square target so he is never squeezed tall/narrow.
+    const size = Math.max(b.w, b.h);
+    if (images.bossIvan) tintDraw(images.bossIvan, sx - size/2, sy - size/2, size, size, (now < b.hitFlashUntil ? .55 : 1), false, true);
     else { ctx.font = '140px Arial'; ctx.textAlign='center'; ctx.fillText('🤖', sx, sy); }
   }
   function drawBossPlayer(now, view) {
@@ -5473,9 +5513,9 @@
         // Double-size victory scout, using the sprite frame's real aspect ratio instead of squeezing it.
         const sw = images.actionssprite.width / 5;
         const sh = images.actionssprite.height / 3;
-        const dh = 356;
+        const dh = 430;
         const dw = dh * (sw / sh);
-        spriteFrame(images.actionssprite, 5, 3, f, 1, x - dw / 2, H - 405, dw, dh, false, 1, true);
+        spriteFrame(images.actionssprite, 5, 3, f, 1, x - dw / 2, H - 515, dw, dh, false, 1, true);
       }
       return;
     }
@@ -5503,7 +5543,17 @@
         ctx.restore();
       } else if (images.fireball) { ctx.save(); ctx.shadowColor='#ff5b00'; ctx.shadowBlur=28; drawContain(images.fireball, x - f.w/2, f.y - f.h/2, f.w, f.h, 1, false); ctx.restore(); } else { ctx.font='44px Arial'; ctx.fillText('🔥', x, f.y); }
     });
-    bz.shoes.forEach(s => { const x = s.x * view.scale - view.cameraX; ctx.save(); ctx.translate(x, s.y); ctx.rotate(s.spin); if (images[s.image]) tintDraw(images[s.image], -s.w/2, -s.h/2, s.w, s.h, 1, false, true); else { ctx.font='42px Arial'; ctx.fillText('👟',0,0); } ctx.restore(); });
+    bz.shoes.forEach(s => {
+      const x = s.x * view.scale - view.cameraX;
+      ctx.save();
+      ctx.translate(x, s.y);
+      ctx.rotate(s.spin);
+      ctx.shadowColor = '#ffd054';
+      ctx.shadowBlur = 12;
+      if (images[s.image]) tintDraw(images[s.image], -s.w/2, -s.h/2, s.w, s.h, 1, false, true);
+      else { ctx.font='64px Arial'; ctx.textAlign='center'; ctx.fillText('👟',0,0); }
+      ctx.restore();
+    });
   }
   function drawBossUI(now) {
     const bz = game.boss; if (!bz) return;
@@ -5519,15 +5569,40 @@
   }
   function drawBossVictorySummary(now) {
     const bz = game.boss; if (!bz || !bz.summaryUntil) return;
-    ctx.save(); ctx.fillStyle='rgba(0,0,0,.66)'; ctx.fillRect(0,0,W,H);
-    const boardW=720, boardH=330, x=(W-boardW)/2, y=130;
-    if (images.score) drawContain(images.score, x, y, boardW, boardH, .95, true); else { ctx.fillStyle='rgba(14,16,20,.92)'; roundRect(x,y,boardW,boardH,18,true,false); ctx.strokeStyle='#ff6900'; ctx.lineWidth=3; roundRect(x,y,boardW,boardH,18,false,true); }
-    ctx.textAlign='center'; ctx.fillStyle='#ffd054'; ctx.font='bold 40px Trebuchet MS'; ctx.fillText('CRAZY IVAN DEFEATED!', W/2, y+72);
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,.58)';
+    ctx.fillRect(0,0,W,H);
+    const boardW=900, boardH=500, x=(W-boardW)/2, y=72;
+    if (images.score) drawContain(images.score, x, y, boardW, boardH, .98, true);
+    else {
+      ctx.fillStyle='rgba(255,214,132,.96)';
+      roundRect(x,y,boardW,boardH,18,true,false);
+      ctx.strokeStyle='#5b2c09'; ctx.lineWidth=4;
+      roundRect(x,y,boardW,boardH,18,false,true);
+    }
+    ctx.textAlign='center';
+    ctx.shadowColor='rgba(255,245,190,.7)';
+    ctx.shadowBlur=3;
+    ctx.fillStyle='#2b1607';
+    ctx.font='bold 43px Trebuchet MS';
+    ctx.fillText('CRAZY IVAN DEFEATED!', W/2, y+86);
     const spin = (now - bz.victoryStart) / 300;
-    ctx.save(); ctx.translate(W/2, y+138); ctx.rotate(spin); ctx.fillStyle='#ed4959'; ctx.font='bold 54px Trebuchet MS'; ctx.fillText('♥',0,0); ctx.restore();
-    ctx.fillStyle='#fff4df'; ctx.font='bold 24px Trebuchet MS'; ctx.fillText('You won an extra heart!', W/2, y+184);
-    ctx.font='bold 20px Trebuchet MS'; ctx.fillText(`Max hearts now: ${game.maxHearts}`, W/2, y+226);
-    ctx.fillText(`Boss hits: ${game.stats.bossHits}   Rams: ${game.stats.bossRams}   Offline stock hits: ${game.stats.bossShoeHits}`, W/2, y+262);
+    ctx.save();
+    ctx.translate(W/2, y+160);
+    ctx.rotate(spin);
+    ctx.fillStyle='#ed1d3b';
+    ctx.font='bold 72px Trebuchet MS';
+    ctx.fillText('♥',0,0);
+    ctx.restore();
+    ctx.fillStyle='#2b1607';
+    ctx.font='bold 30px Trebuchet MS';
+    ctx.fillText('You won an extra heart!', W/2, y+230);
+    ctx.font='bold 25px Trebuchet MS';
+    ctx.fillText(`Max hearts now: ${game.maxHearts}`, W/2, y+285);
+    ctx.font='bold 23px Trebuchet MS';
+    ctx.fillText(`Ivan hearts removed: ${game.stats.bossHits} / 6`, W/2, y+338);
+    ctx.fillText(`Rams: ${game.stats.bossRams} × 2 hearts`, W/2, y+382);
+    ctx.fillText(`Offline stock hits: ${game.stats.bossShoeHits} × 1 heart`, W/2, y+426);
     ctx.restore();
   }
   function drawBoss(now) {
