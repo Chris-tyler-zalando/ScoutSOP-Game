@@ -226,3 +226,13 @@ V2.48a:
 
 V2.49:
 - Cleared pending list items: removed return reward, improved filtered loot, stronger shoe availability, pushable smallbox3, area-edge shelves/boxes, conveyor-machine alignment, No EAN path pull-left, QS timer layout, elevator label/helper text, live minimap visibility, admin drag/collapse/edit, and carry-forward resources between warehouses.
+
+V2.51:
+- Rebuilt car_battle_sheet.png from car.webp using edge-connected black removal so only visible car pixels draw.
+- Boss car now draws from the cropped transparent sprite sheet and preserves aspect ratio.
+- Boss/car/fireball visuals adjusted: Ivan larger, fireballs larger/glowing from chest, victory car larger.
+- Forklift enemies now flip horizontally when moving right so they face their travel direction.
+- Conveyor drawing now uses same-scale same-top placement for conveyor.png and conveyor2.png; no fake vertical centering.
+- Moving conveyor item lane adjusted to sit on the visible belt surface.
+- Filler room prop installer now actually runs, supports printers/bathroom, and adds denser box/shelf walls around pods.
+- Added Admin Build a Map mode with prop palette, grid view, place/erase, zoom hotkeys, and JSON export.

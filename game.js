@@ -53,7 +53,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.50';
+  const VERSION = 'V2.51';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -190,6 +190,7 @@
     adminMode: false,
     adminEscapeCount: 0,
     adminEscapeUntil: 0,
+    mapBuilder: null,
     lastPuzzleIndex: { alm: -1, sl: -1, email: -1, workday: -1 },
     playerName: localStorage.getItem(NAME_KEY) || '',
     selectedProfileId: localStorage.getItem(ACTIVE_PROFILE_KEY) || '',
@@ -826,21 +827,23 @@
 
   function installFillerAreaProps() {
     const fillerImages = ['printers', 'bathroom'].filter(key => images[key]);
-    const shelfImages = ['box4', 'box5', 'box6', 'box7', 'box3'].filter(key => images[key]);
-    const slots = (game.zones.areaSlots || []).slice(0, 4);
+    const shelfImages = ['box1', 'box2', 'box3', 'box4', 'box5', 'box6', 'box7'].filter(key => images[key]);
+    const slots = (game.zones.areaSlots || []).slice();
     slots.forEach((slot, i) => {
       const z = zone(slot.left + .8, slot.top + .8, Math.max(8, slot.width - 1.6), Math.max(5, slot.height - 1.6), i % 2 ? 'BATHROOM / FIRST AID' : 'PRINT ROOM', 5, 3);
-      const img = fillerImages[i % Math.max(1, fillerImages.length)];
+      const img = fillerImages.length ? fillerImages[i % fillerImages.length] : null;
       if (img) addZoneProp(img, { left: z.left + .8, top: z.top + .8, width: z.width - 1.6, height: z.height - 1.6 }, { collisionInset: .12 });
       if (!shelfImages.length) return;
-      for (let x = z.left; x < z.left + z.width - 2; x += 3) {
-        addZoneProp(shelfImages[(Math.floor(x) + i) % shelfImages.length], { left: x, top: z.top - .85, width: 2.65, height: 1.55 }, { collisionInset: .08 });
-        addZoneProp(shelfImages[(Math.floor(x) + i + 1) % shelfImages.length], { left: x, top: z.top + z.height - .65, width: 2.65, height: 1.55 }, { collisionInset: .08 });
+      // Build a clearer wall of boxes/shelves around each filler pod, with left/right walk gaps.
+      for (let x = z.left - .2; x < z.left + z.width - 1.6; x += 2.25) {
+        addZoneProp(shelfImages[(Math.floor(x) + i) % shelfImages.length], { left: x, top: z.top - .95, width: 2.15, height: 1.48 }, { collisionInset: .08 });
+        addZoneProp(shelfImages[(Math.floor(x) + i + 1) % shelfImages.length], { left: x, top: z.top + z.height - .50, width: 2.15, height: 1.48 }, { collisionInset: .08 });
       }
-      for (let y = z.top + 1; y < z.top + z.height - 1; y += 2) {
-        if (Math.abs(y - (z.top + z.height / 2)) < 1.4) { if (images.smallbox3) addPushableSmallBox(z.left - .95, y); continue; }
-        addZoneProp(shelfImages[(Math.floor(y) + i) % shelfImages.length], { left: z.left - 1.05, top: y, width: 1.55, height: 1.45 }, { collisionInset: .08 });
-        addZoneProp(shelfImages[(Math.floor(y) + i + 2) % shelfImages.length], { left: z.left + z.width - .50, top: y, width: 1.55, height: 1.45 }, { collisionInset: .08 });
+      const openY = z.top + z.height / 2;
+      for (let y = z.top + .55; y < z.top + z.height - .75; y += 1.55) {
+        if (Math.abs(y - openY) < 1.0) { if (images.smallbox3) { addPushableSmallBox(z.left - .95, y); addPushableSmallBox(z.left + z.width + .05, y); } continue; }
+        addZoneProp(shelfImages[(Math.floor(y) + i + 2) % shelfImages.length], { left: z.left - 1.05, top: y, width: 1.55, height: 1.34 }, { collisionInset: .08 });
+        addZoneProp(shelfImages[(Math.floor(y) + i + 3) % shelfImages.length], { left: z.left + z.width - .50, top: y, width: 1.55, height: 1.34 }, { collisionInset: .08 });
       }
     });
   }
@@ -1035,7 +1038,7 @@
         conveyor, image, collectible, size,
         minX, maxX,
         x: minX + Math.random() * Math.max(10, maxX - minX),
-        y: (top + .28 + Math.random() * .08) * TILE,
+        y: (top + .22 + Math.random() * .06) * TILE,
         dir: Math.random() < .5 ? -1 : 1, speed: rand(28, 68)
       };
       conveyor.moving.push(item);
@@ -1165,6 +1168,7 @@
     installDenseShelfWalls();
     installExitApproachMaze();
     installSpecialAreaProps();
+    installFillerAreaProps();
     installTaskAreaEdgeProps();
     sealUnexpectedOpenPatches();
     installConveyors();
@@ -3126,7 +3130,7 @@
     game.boss = {
       phase: 'intro', introStart: performance.now(), cameraX: 0, countdown: 3,
       player: { x: W / 2, y: H + 220, speed: 430, invulnerableUntil: performance.now() + 2300 },
-      boss: { x: 1000, y: -320, w: 329, h: 462, vx: 115, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
+      boss: { x: 1000, y: -350, w: 430, h: 604, vx: 115, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
       fireballs: [], shoes: [], nextFireAt: performance.now() + 3600, nextVoiceAt: performance.now() + randInt(10000, 15000),
       startedAt: performance.now(), victoryStart: 0, rewardShown: false, summaryUntil: 0, fade: 1
     };
@@ -3219,8 +3223,8 @@
     if (!bz) return;
     const t = clamp((now - bz.enterStart) / 2600, 0, 1);
     const eased = 1 - Math.pow(1 - t, 3);
-    bz.boss.y = -320 + (H * .40 + 320) * eased;
-    bz.player.y = H + 210 + (H * .78 - H - 210) * eased;
+    bz.boss.y = -350 + (H * .38 + 350) * eased;
+    bz.player.y = H + 260 + (H * .84 - H - 260) * eased;
     if (t >= 1) {
       bz.phase = 'countdown';
       game.mode = 'bossCountdown';
@@ -3244,14 +3248,14 @@
     if (keys.has('ArrowDown') || keys.has('KeyS')) dy++;
     if (dx || dy) { const l = Math.hypot(dx, dy); dx /= l; dy /= l; }
     bz.player.x = clamp(bz.player.x + dx * bz.player.speed * dt, 80, 1920);
-    bz.player.y = clamp(bz.player.y + dy * bz.player.speed * dt, H * .56, H - 70);
+    bz.player.y = clamp(bz.player.y + dy * bz.player.speed * dt, H * .58, H - 45);
     const b = bz.boss;
     b.x += b.vx * dt;
     if (b.x < 360 || b.x > 1640) { b.vx *= -1; b.x = clamp(b.x, 360, 1640); }
     b.y = H * .38 + Math.sin(now / 900) * 22;
     if (now >= bz.nextVoiceAt) { playOneShot(choice(['robot1.mp3','robot2.mp3','robot3.mp3']), .62); bz.nextVoiceAt = now + randInt(10000, 15000); }
     if (now >= bz.nextFireAt) {
-      bz.fireballs.push({ x: b.x - b.w * .02, y: b.y + b.h * .05, w: 66, h: 66, vx: (bz.player.x - b.x) * .58, vy: 255, born: now });
+      bz.fireballs.push({ x: b.x - b.w * .02, y: b.y + b.h * .10, w: 92, h: 92, vx: (bz.player.x - b.x) * .58, vy: 255, born: now });
       bz.nextFireAt = now + randInt(1400, 2300);
     }
     bz.fireballs.forEach(f => { f.x += f.vx * dt; f.y += f.vy * dt; });
@@ -3532,6 +3536,83 @@
     writeProfiles(profiles); refreshSavedButton(); addMessage('ADMIN SAVE EDITED', '#ffd054', 1800); closeAdminEditor();
   }
 
+
+  function mapBuilderPalette() {
+    return ['box1','box2','box3','box4','box5','box6','box7','smallbox','smallbox2','smallbox3','conveyor','conveyorEnd','cone','printers','bathroom','kitchen','table','table2','coffee','shoe','shoe1','shoe2','shoe3'].filter(key => images[key]);
+  }
+  function startMapBuilder() {
+    adminReturnToWarehouse();
+    game.mode = 'mapBuilder';
+    setGameplayControlsVisible(false);
+    keys.clear();
+    game.mapBuilder = { zoom: .18, panX: 24, panY: 56, selected: 'box5', tool: 'place', props: [], dragging: false };
+    addMessage('MAP BUILDER: drag/click props, export JSON when ready', '#ffd054', 3000);
+  }
+  function mapBuilderScreenToTile(x, y) {
+    const mb = game.mapBuilder;
+    return { x: (x - mb.panX) / (TILE * mb.zoom), y: (y - mb.panY) / (TILE * mb.zoom) };
+  }
+  function mapBuilderExport() {
+    const mb = game.mapBuilder;
+    const payload = { version: 'v2.51-map-builder', mapTiles: { width: MAP_W, height: MAP_H }, props: mb.props.map(p => ({ image: p.image, left: +p.left.toFixed(2), top: +p.top.toFixed(2), width: +p.width.toFixed(2), height: +p.height.toFixed(2), flipX: !!p.flipX, collision: p.collision || 'block' })) };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'custom_map_layout.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    addMessage('MAP JSON EXPORTED', '#71dd8d', 1800);
+  }
+  function handleMapBuilderClick(x, y) {
+    const mb = game.mapBuilder; if (!mb) return;
+    const palette = mapBuilderPalette();
+    const sideX = W - 220;
+    if (x > sideX) {
+      if (y < 52) { game.mode = 'play'; game.mapBuilder = null; setGameplayControlsVisible(true); return; }
+      if (y >= 56 && y < 90) { mapBuilderExport(); return; }
+      if (y >= 94 && y < 128) { mb.tool = mb.tool === 'erase' ? 'place' : 'erase'; return; }
+      let py = 144;
+      for (const key of palette) {
+        const rowH = 42;
+        if (y >= py && y <= py + rowH) { mb.selected = key; mb.tool = 'place'; return; }
+        py += rowH;
+      }
+      return;
+    }
+    const t = mapBuilderScreenToTile(x, y);
+    if (t.x < 0 || t.y < 0 || t.x > MAP_W || t.y > MAP_H) return;
+    if (mb.tool === 'erase') {
+      const idx = mb.props.findIndex(p => t.x >= p.left && t.x <= p.left + p.width && t.y >= p.top && t.y <= p.top + p.height);
+      if (idx >= 0) mb.props.splice(idx, 1);
+      return;
+    }
+    const img = images[mb.selected];
+    const baseW = mb.selected === 'conveyorEnd' ? 3.05 : (mb.selected === 'conveyor' ? 3.05 : (mb.selected === 'printers' || mb.selected === 'bathroom' ? 9.8 : 2.4));
+    const baseH = img ? baseW * (img.height / img.width) : 1.6;
+    mb.props.push({ image: mb.selected, left: Math.round(t.x * 2) / 2, top: Math.round(t.y * 2) / 2, width: baseW, height: baseH, collision: mb.selected === 'cone' ? 'decor' : (mb.selected === 'smallbox3' ? 'pushable' : 'block') });
+  }
+  function drawMapBuilder(now) {
+    const mb = game.mapBuilder; if (!mb) return;
+    ctx.save();
+    ctx.fillStyle = '#11161a'; ctx.fillRect(0,0,W,H);
+    ctx.translate(mb.panX, mb.panY); ctx.scale(mb.zoom, mb.zoom);
+    ctx.fillStyle = '#31383d'; ctx.fillRect(0,0,WORLD_W,WORLD_H);
+    ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1/mb.zoom;
+    for (let x=0;x<=MAP_W;x++) { ctx.beginPath(); ctx.moveTo(x*TILE,0); ctx.lineTo(x*TILE,WORLD_H); ctx.stroke(); }
+    for (let y=0;y<=MAP_H;y++) { ctx.beginPath(); ctx.moveTo(0,y*TILE); ctx.lineTo(WORLD_W,y*TILE); ctx.stroke(); }
+    ctx.fillStyle='rgba(255,210,84,.18)'; templatePathRects().forEach(r => ctx.fillRect(r.left*TILE,r.top*TILE,r.width*TILE,r.height*TILE));
+    [game.zones.dock, game.zones.elevator, game.zones.inventory, game.zones.quarantine, game.zones.exit, ...game.zones.kitchens].filter(Boolean).forEach(z => { ctx.fillStyle='rgba(70,180,90,.20)'; ctx.fillRect(z.left*TILE,z.top*TILE,z.width*TILE,z.height*TILE); ctx.strokeStyle='#58d34c'; ctx.strokeRect(z.left*TILE,z.top*TILE,z.width*TILE,z.height*TILE); });
+    mb.props.forEach(p => { if (images[p.image]) drawContain(images[p.image], p.left*TILE, p.top*TILE, p.width*TILE, p.height*TILE, 1, true, !!p.flipX); ctx.strokeStyle=p.collision==='decor'?'#58d34c':(p.collision==='pushable'?'#ffd054':'#ff3949'); ctx.lineWidth=2/mb.zoom; ctx.strokeRect(p.left*TILE,p.top*TILE,p.width*TILE,p.height*TILE); });
+    ctx.restore();
+    ctx.save(); ctx.fillStyle='rgba(10,13,17,.92)'; ctx.fillRect(W-220,0,220,H); ctx.strokeStyle='#ff6900'; ctx.strokeRect(W-220,0,220,H);
+    ctx.fillStyle='#ffd054'; ctx.font='bold 18px Trebuchet MS'; ctx.fillText('BUILD A MAP', W-204, 28);
+    const button = (label, y) => { ctx.fillStyle='rgba(35,42,48,.95)'; roundRect(W-204,y,188,30,6,true,false); ctx.strokeStyle='#ff6900'; roundRect(W-204,y,188,30,6,false,true); ctx.fillStyle='#fff4df'; ctx.font='bold 13px Trebuchet MS'; ctx.fillText(label, W-196, y+20); };
+    button('Back to game', 18); button('Export JSON', 56); button(mb.tool==='erase'?'Tool: ERASER':'Tool: PLACE', 94);
+    let py=144; const palette=mapBuilderPalette();
+    for (const key of palette) { ctx.fillStyle = key===mb.selected ? 'rgba(255,105,0,.35)' : 'rgba(35,42,48,.75)'; roundRect(W-204,py,188,34,6,true,false); if (images[key]) drawContain(images[key], W-200, py+3, 34, 28, 1, false); ctx.fillStyle='#fff4df'; ctx.font='bold 12px Trebuchet MS'; ctx.fillText(key, W-158, py+22); py+=42; if (py>H-38) break; }
+    ctx.restore();
+  }
+
   function handleAdminAction(action) {
     if (!game.adminMode) return;
     const now = performance.now();
@@ -3552,6 +3633,7 @@
     if (action === 'gameover') { adminReturnToWarehouse(); game.health = 0; triggerDeath(); return; }
     if (action === 'boss') { adminReturnToWarehouse(); game.level = 3; startBossIntro(); return; }
     if (action === 'editGame') { adminEditGameSave(); return; }
+    if (action === 'buildMap') { startMapBuilder(); return; }
     if (action === 'next') { adminReturnToWarehouse(); game.level++; buildLevel(game.level); addMessage(`ADMIN: WAREHOUSE ${game.level}`, '#ffd054', 2300); return; }
   }
 
@@ -3658,6 +3740,21 @@
     ctx.restore();
   }
 
+  function drawTintedSpriteFrameContain(img, cols, rows, col, row, cx, cy, maxW, maxH, flip = false, alpha = 1, shadow = true, redTint = false) {
+    const sw = img.width / cols, sh = img.height / rows;
+    const scale = Math.min(maxW / sw, maxH / sh);
+    const dw = sw * scale, dh = sh * scale;
+    const dx = cx - dw / 2, dy = cy - dh / 2;
+    if (shadow) drawShadow(dx, dy, dw, dh, .28 * alpha);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.filter = 'brightness(92%) sepia(12%) saturate(112%) hue-rotate(-8deg)';
+    if (flip) { ctx.translate(dx + dw, dy); ctx.scale(-1, 1); ctx.drawImage(img, col * sw, row * sh, sw, sh, 0, 0, dw, dh); }
+    else ctx.drawImage(img, col * sw, row * sh, sw, sh, dx, dy, dw, dh);
+    if (redTint) { ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = 'rgba(170,18,28,.12)'; ctx.fillRect(flip ? 0 : dx, flip ? 0 : dy, dw, dh); }
+    ctx.restore();
+  }
+
   function drawPatternRect(pattern, x, y, w, h, alpha = 1) {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -3726,25 +3823,40 @@
     game.conveyors.forEach(conveyor => {
       const visualX = (conveyor.visualLeft ?? conveyor.left) * TILE;
       const visualW = ((conveyor.visualRight ?? (conveyor.left + conveyor.width)) - (conveyor.visualLeft ?? conveyor.left)) * TILE;
-      if (!images.conveyor || !onScreenRect(visualX, (conveyor.top - 1.1) * TILE, visualW, 2.4 * TILE, 100)) return;
+      if (!images.conveyor || !onScreenRect(visualX, (conveyor.top - .2) * TILE, visualW, 2.0 * TILE, 100)) return;
+
+      // V2.51: conveyor.png and conveyor2.png are authored at matching scale.
+      // Draw both by width-derived natural aspect at the same top baseline; do not centre the
+      // flat conveyor inside a taller fake hitbox, because that visually breaks the seam.
+      const pieceW = 3.05 * TILE;
+      const pieceH = pieceW * (images.conveyor.height / images.conveyor.width);
+      const y = (conveyor.top + CONVEYOR_DRAW_Y_OFFSET) * TILE;
       for (let i = 0; i < conveyor.pieces; i++) {
-        drawContain(images.conveyor, (conveyor.left + i * 3.13) * TILE, (conveyor.top + CONVEYOR_DRAW_Y_OFFSET) * TILE, 3.05 * TILE, conveyor.height * TILE, 1, true);
+        const x = (conveyor.left + i * 3.13) * TILE;
+        ctx.save();
+        ctx.drawImage(images.conveyor, x, y, pieceW, pieceH);
+        ctx.restore();
       }
       if (images.conveyorEnd) {
-        const endW = (conveyor.endW || 3.05) * TILE;
-        const endH = (conveyor.endH || 1.42) * TILE;
-        const endY = (conveyor.top + CONVEYOR_DRAW_Y_OFFSET) * TILE;
+        const endW = pieceW;
+        const endH = endW * (images.conveyorEnd.height / images.conveyorEnd.width);
         const machineLeft = conveyor.feederSide === 'left'
-          ? (conveyor.left - (conveyor.endW || 3.05)) * TILE
+          ? (conveyor.left - 3.05) * TILE
           : (conveyor.left + conveyor.width) * TILE;
-        drawContain(images.conveyorEnd, machineLeft, endY, endW, endH, 1, true, conveyor.feederSide === 'left');
+        if (conveyor.feederSide === 'left') {
+          ctx.save();
+          ctx.translate(machineLeft + endW, y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(images.conveyorEnd, 0, 0, endW, endH);
+          ctx.restore();
+        } else ctx.drawImage(images.conveyorEnd, machineLeft, y, endW, endH);
       }
     });
     game.movingConveyorItems.forEach(item => {
       if (!images[item.image] || !onScreenRect(item.x - 90, item.y - 70, 180, 120, 80)) return;
       const w = (item.collectible ? 126 : 170) * item.size;
       const h = (item.collectible ? 80 : 100) * item.size;
-      drawContain(images[item.image], item.x - w / 2, item.y - h * .72, w, h, 1, true);
+      drawContain(images[item.image], item.x - w / 2, item.y - h * .72, w, h, 1, true, item.dir < 0 && item.collectible);
     });
   }
   function drawObstacles() {
@@ -4158,7 +4270,7 @@
       drawShadow(forklift.x - fw / 2, forklift.y - fh * .42, fw, fh, .3 * forkliftAlpha);
       ctx.save();
       ctx.globalAlpha = forkliftAlpha;
-      drawContain(images.evilguy, forklift.x - fw / 2, forklift.y - fh * .42, fw, fh, 1, false, forklift.facing === 'left');
+      drawContain(images.evilguy, forklift.x - fw / 2, forklift.y - fh * .42, fw, fh, 1, false, forklift.facing === 'right');
       ctx.restore();
       if (disabled) drawEnemyPowerDown(forklift, now, 156);
     });
@@ -4753,7 +4865,7 @@
     const bz = game.boss; if (!bz) return;
     const x = bz.player.x * view.scale - view.cameraX, y = bz.player.y;
     if (bz.phase === 'victory') {
-      if (images.bossCarWin) drawContain(images.bossCarWin, x - 150, H - 205, 300, 170, 1, true);
+      if (images.bossCarWin) drawContain(images.bossCarWin, x - 220, H - 255, 440, 250, 1, true);
       if (images.actionssprite) {
         const frame = Math.floor(((now - bz.victoryStart) / 140) % 10);
         const f = frame < 5 ? frame : 9 - frame;
@@ -4764,8 +4876,8 @@
     const alpha = now < (bz.player.invulnerableUntil || 0) && Math.floor(now/100)%2 === 0 ? .55 : 1;
     if (images.bossCarSheet) {
       const frame = Math.floor(now / 115) % 7;
-      drawTintedSpriteFrame(images.bossCarSheet, 7, 1, frame, 0, x - 105, y - 190, 210, 330, false, alpha, true, true);
-    } else if (images.bossCar) tintDraw(images.bossCar, x - 105, y - 190, 210, 330, alpha, false, true);
+      drawTintedSpriteFrameContain(images.bossCarSheet, 7, 1, frame, 0, x, y - 55, 300, 470, false, alpha, true, true);
+    } else if (images.bossCar) tintDraw(images.bossCar, x - 150, y - 255, 300, 470, alpha, false, true);
     else { ctx.font = '110px Arial'; ctx.textAlign='center'; ctx.fillText('🚜', x, y); }
   }
   function drawBossProjectiles(now, view) {
@@ -4773,10 +4885,10 @@
     bz.fireballs.forEach(f => {
       const x = f.x * view.scale - view.cameraX;
       ctx.save();
-      ctx.globalAlpha = .72; ctx.shadowColor = '#ff3b00'; ctx.shadowBlur = 22; ctx.fillStyle = 'rgba(255,78,0,.42)';
+      ctx.globalAlpha = .85; ctx.shadowColor = '#ff3b00'; ctx.shadowBlur = 34; ctx.fillStyle = 'rgba(255,78,0,.48)';
       ctx.beginPath(); ctx.arc(x, f.y, Math.max(f.w, f.h) * .42, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
-      if (images.fireball) drawContain(images.fireball, x - f.w/2, f.y - f.h/2, f.w, f.h, 1, false); else { ctx.font='44px Arial'; ctx.fillText('🔥', x, f.y); }
+      if (images.fireball) { ctx.save(); ctx.shadowColor='#ff5b00'; ctx.shadowBlur=28; drawContain(images.fireball, x - f.w/2, f.y - f.h/2, f.w, f.h, 1, false); ctx.restore(); } else { ctx.font='44px Arial'; ctx.fillText('🔥', x, f.y); }
     });
     bz.shoes.forEach(s => { const x = s.x * view.scale - view.cameraX; ctx.save(); ctx.translate(x, s.y); ctx.rotate(s.spin); if (images[s.image]) tintDraw(images[s.image], -s.w/2, -s.h/2, s.w, s.h, 1, false, true); else { ctx.font='42px Arial'; ctx.fillText('👟',0,0); } ctx.restore(); });
   }
@@ -4789,7 +4901,7 @@
     for (let i=0;i<bz.boss.maxHearts;i++) { ctx.globalAlpha = i < bz.boss.hearts ? 1 : .20; ctx.fillStyle='#ed4959'; ctx.font='bold 28px Trebuchet MS'; ctx.fillText('♥', W-126, 156 + i*28); }
     ctx.globalAlpha=1;
     if (game.mode === 'bossCountdown') { ctx.textAlign='center'; ctx.fillStyle='#ffd054'; ctx.font='bold 78px Trebuchet MS'; ctx.fillText(String(bz.countdown), W/2, H/2); }
-    if (game.mode === 'bossFight') { ctx.textAlign='center'; ctx.fillStyle='#fff4df'; ctx.font='bold 18px Trebuchet MS'; roundRect(W/2 - 455, H - 86, 910, 48, 12, true, false); ctx.fillStyle='#fff4df'; ctx.fillText('Ram Ivan with the forklift or throw offline stock at him to get him away from the exit!', W/2, H-55); }
+    if (game.mode === 'bossFight') { ctx.textAlign='center'; ctx.fillStyle='#fff4df'; ctx.font='bold 18px Trebuchet MS'; ctx.fillStyle='rgba(0,0,0,.50)'; roundRect(W/2 - 455, H - 74, 910, 38, 12, true, false); ctx.fillStyle='#fff4df'; ctx.fillText('Ram Ivan with the forklift or throw offline stock at him to get him away from the exit!', W/2, H-49); }
     ctx.restore();
   }
   function drawBossVictorySummary(now) {
@@ -4823,6 +4935,7 @@
     ctx.clearRect(0, 0, W, H);
     if (game.mode === 'title' || game.mode === 'intro') drawTitle();
     else if (game.mode === 'play' || game.mode === 'dying' || game.mode === 'cockpitHelp') drawWorld(now);
+    else if (game.mode === 'mapBuilder') drawMapBuilder(now);
     else if (game.mode === 'inventoryBriefing') drawInventoryBriefing();
     else if (game.mode === 'inventoryPuzzle') drawInventoryPuzzle(now);
     else if (game.mode === 'office') drawOffice(now);
@@ -4974,6 +5087,7 @@
     const { x, y } = canvasPoint(event);
     if (game.mode === 'inventoryPuzzle') handleInventoryClick(x, y);
     else if (game.mode === 'office') handleOfficeClick(x, y);
+    else if (game.mode === 'mapBuilder') handleMapBuilderClick(x, y);
     else if (game.mode === 'play') { const c = cockpitRect(); if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) openCockpitHelp(); }
   });
   canvas.addEventListener('pointerdown', event => {
@@ -5020,7 +5134,7 @@
 
   document.addEventListener('keydown', event => {
     const prevent = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code);
-    if (prevent && (game.mode === 'play' || game.mode === 'qsPuzzle' || game.mode === 'bossFight' || game.mode === 'bossCountdown' || game.mode === 'noEanPuzzle' || game.mode === 'noEanBriefing')) event.preventDefault();
+    if (prevent && (game.mode === 'play' || game.mode === 'qsPuzzle' || game.mode === 'bossFight' || game.mode === 'bossCountdown' || game.mode === 'noEanPuzzle' || game.mode === 'noEanBriefing' || game.mode === 'mapBuilder')) event.preventDefault();
     if (event.code === 'Escape' && game.mode === 'title') {
       const now = performance.now();
       game.adminEscapeCount = now <= game.adminEscapeUntil ? game.adminEscapeCount + 1 : 1;
@@ -5042,6 +5156,7 @@
       skipIntro();
       return;
     }
+    if (event.code === 'Escape' && game.mode === 'mapBuilder') { game.mode='play'; game.mapBuilder=null; setGameplayControlsVisible(true); return; }
     if (event.code === 'Escape' && game.mode === 'office') {
       game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return;
     }
@@ -5068,6 +5183,12 @@
       gameoverUI.classList.add('hidden');
       refreshSavedButton();
       startTitleMusic();
+      return;
+    }
+    if (game.mode === 'mapBuilder') {
+      if (game.mapBuilder && (event.code === 'Equal' || event.code === 'NumpadAdd')) game.mapBuilder.zoom = Math.min(.42, game.mapBuilder.zoom + .025);
+      if (game.mapBuilder && (event.code === 'Minus' || event.code === 'NumpadSubtract')) game.mapBuilder.zoom = Math.max(.08, game.mapBuilder.zoom - .025);
+      if (event.code === 'KeyE') mapBuilderExport();
       return;
     }
     if (game.mode === 'noEanPuzzle') {

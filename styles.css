@@ -840,3 +840,5 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
 .admin-slider-row output { text-align: right; color: #ffd054; font-weight: bold; }
 .admin-slider-row input { width: 100%; accent-color: var(--orange); }
 .admin-editor-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+
+/* V2.51 boss alpha/conveyor/map-builder fixes */
