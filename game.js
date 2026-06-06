@@ -62,11 +62,11 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.62';
+  const VERSION = 'V2.63';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
-  const ASSET_VERSION = '2.62';
+  const ASSET_VERSION = '2.63';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
   const PROFILES_KEY = 'zalandoScoutProfilesV1';
@@ -3204,12 +3204,29 @@
     setGameplayControlsVisible(false);
     keys.clear();
     game.health = game.maxHearts;
+    const bg = images.bossBg || images.bossBgWin;
+    const bgW = bg ? bg.width : 2000;
+    const bgH = bg ? bg.height : 576;
+    const worldScale = H / bgH;
+    const bossWorldW = Math.max(2000, bgW);
     game.boss = {
-      phase: 'intro', introStart: performance.now(), cameraX: 0, countdown: 3,
-      player: { x: W / 2, y: H + 220, speed: 430, invulnerableUntil: performance.now() + 2300 },
-      boss: { x: 1000, y: -350, w: 560, h: 560, vx: 135, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
-      fireballs: [], shoes: [], nextFireAt: performance.now() + 3600, nextVoiceAt: performance.now() + randInt(10000, 15000),
-      startedAt: performance.now(), victoryStart: 0, rewardShown: false, summaryUntil: 0, fade: 1
+      phase: 'intro',
+      introStart: performance.now(),
+      cameraX: 0,
+      worldW: bossWorldW,
+      worldScale,
+      countdown: 3,
+      player: { x: bossWorldW / 2, y: H + 220, speed: 430, invulnerableUntil: performance.now() + 2300 },
+      boss: { x: bossWorldW / 2, y: -350, w: 560, h: 560, vx: 135, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
+      fireballs: [],
+      shoes: [],
+      nextFireAt: performance.now() + 3600,
+      nextVoiceAt: performance.now() + randInt(10000, 15000),
+      startedAt: performance.now(),
+      victoryStart: 0,
+      rewardShown: false,
+      summaryUntil: 0,
+      fade: 1
     };
     music.play('boss', true);
   }
@@ -3219,6 +3236,8 @@
     game.boss.phase = 'fight';
     game.boss.startedAt = performance.now();
     game.boss.nextFireAt = performance.now() + 1600;
+    game.boss.nextVoiceAt = performance.now() + randInt(10000, 15000);
+    setGameplayControlsVisible(true);
     music.play('boss', true);
   }
   function bossViewport() {
@@ -3226,7 +3245,8 @@
     const bgW = bg ? bg.width : 2000;
     const bgH = bg ? bg.height : 576;
     const scale = H / bgH;
-    const scaledW = bgW * scale;
+    const worldW = game.boss && game.boss.worldW ? game.boss.worldW : bgW;
+    const scaledW = worldW * scale;
     const maxCamera = Math.max(0, scaledW - W);
     const desired = game.boss ? game.boss.player.x * scale - W / 2 : maxCamera / 2;
     return { scale, scaledW, maxCamera, cameraX: clamp(desired, 0, maxCamera) };
@@ -3318,11 +3338,36 @@
       born: now,
       armedAt: now + 160,
       exploded: false,
+      hit: false,
       image: choice(keysPool.length ? keysPool : ['shoe'])
     });
     synth.jump();
     addMessage('OFFLINE STOCK THROWN!', '#ffd054', 550);
     return true;
+  }
+  function shootBossFireball(now) {
+    const bz = game.boss;
+    if (!bz || !bz.boss || bz.boss.dead) return;
+    const b = bz.boss;
+    const originX = b.x + b.w * 0.04;
+    const originY = b.y + b.h * 0.08;
+    const targetX = bz.player.x;
+    const targetY = bz.player.y - 40;
+    const dx = targetX - originX;
+    const dy = targetY - originY;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const speed = 430;
+    bz.fireballs.push({
+      x: originX,
+      y: originY,
+      w: 82,
+      h: 82,
+      vx: dx / len * speed,
+      vy: dy / len * speed,
+      born: now,
+      frameFloat: 0,
+      hit: false
+    });
   }
   function updateBossIntro(dt, now) {
     const bz = game.boss;
@@ -3359,27 +3404,34 @@
     if (elapsed >= 3300) startBossFight();
   }
   function updateBossFight(dt, now) {
-    const bz = game.boss; if (!bz) return;
+    const bz = game.boss;
+    if (!bz || bz.phase !== 'fight') return;
     const b = bz.boss;
-    const speed = 520;
+    const worldW = bz.worldW || 2000;
+    const speed = bz.player.speed || 520;
     const dx = (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0);
     const dy = (keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0) - (keys.has('ArrowUp') || keys.has('KeyW') ? 1 : 0);
-    bz.player.x = clamp(bz.player.x + dx * speed * dt, 250, 1770);
+
+    bz.player.x = clamp(bz.player.x + dx * speed * dt, 180, worldW - 180);
     bz.player.y = clamp(bz.player.y + dy * speed * dt, H - 260, H - 70);
-    bz.cameraX = clamp(bz.player.x - W / 2, 0, bz.worldW - W);
 
     b.x += b.vx * dt;
-    if (b.x < 360 || b.x > 1640) { b.vx *= -1; b.x = clamp(b.x, 360, 1640); }
+    const leftLimit = 320;
+    const rightLimit = worldW - 320;
+    if (b.x < leftLimit || b.x > rightLimit) {
+      b.vx *= -1;
+      b.x = clamp(b.x, leftLimit, rightLimit);
+    }
     b.y = H * .37 + Math.sin(now / 900) * 22;
 
-    if (!b.dead && bz.phase === 'fight' && b.hearts > 0 && now >= bz.nextFireAt) {
+    if (!b.dead && b.hearts > 0 && now >= bz.nextFireAt) {
       shootBossFireball(now);
-      bz.nextFireAt = now + randomRange(900, 1450);
+      bz.nextFireAt = now + rand(900, 1450);
     }
     if (!b.dead && now >= bz.nextVoiceAt) {
       const voice = choice(['robot1.mp3', 'robot2.mp3', 'robot3.mp3']);
       playOneShot(voice, .55);
-      bz.nextVoiceAt = now + randomRange(10000, 15000);
+      bz.nextVoiceAt = now + rand(10000, 15000);
     }
 
     bz.fireballs.forEach(f => {
@@ -3387,7 +3439,7 @@
       f.y += f.vy * dt;
       f.frameFloat = ((f.frameFloat || 0) + dt * 18) % 17;
     });
-    bz.fireballs = bz.fireballs.filter(f => f.y < H + 80 && f.x > -120 && f.x < 2120);
+    bz.fireballs = bz.fireballs.filter(f => f.y < H + 120 && f.x > -160 && f.x < worldW + 160);
 
     bz.shoes.forEach(s => {
       s.prevY = s.y;
@@ -3395,13 +3447,12 @@
       s.spin += dt * Math.PI * 6.2;
     });
 
-    // Ivan's fireballs can shoot your thrown shoes out of the air.
     for (const f of bz.fireballs) {
       if (f.hit) continue;
       for (const s of bz.shoes) {
         if (s.hit || s.exploded) continue;
-        const xClose = Math.abs(f.x - s.x) < (f.w * .32 + s.w * .42);
-        const yClose = Math.abs(f.y - s.y) < (f.h * .32 + s.h * .42);
+        const xClose = Math.abs(f.x - s.x) < (f.w * .30 + s.w * .40);
+        const yClose = Math.abs(f.y - s.y) < (f.h * .30 + s.h * .40);
         if (xClose && yClose) {
           f.hit = true;
           s.exploded = true;
@@ -3440,18 +3491,23 @@
     bz.shoes = bz.shoes.filter(s => !s.hit);
 
     const activelyRamming = dy < -0.25 || keys.has('ArrowUp') || keys.has('KeyW');
-    const verticalRam = activelyRamming && Math.abs(bz.player.x - b.x) < b.w * .30 && bz.player.y < b.y + b.h * .62 && bz.player.y > b.y + b.h * .20;
-    if (verticalRam && now > (bz.nextRamAt || 0)) { if (damageBoss(2, 'ram')) bz.nextRamAt = now + 950; }
+    const verticalRam = activelyRamming &&
+      Math.abs(bz.player.x - b.x) < b.w * .30 &&
+      bz.player.y < b.y + b.h * .62 &&
+      bz.player.y > b.y + b.h * .20;
+    if (verticalRam && now > (bz.nextRamAt || 0)) {
+      if (damageBoss(2, 'ram')) bz.nextRamAt = now + 950;
+    }
 
     for (const f of bz.fireballs) {
       if (Math.abs(f.x - bz.player.x) < 105 && Math.abs(f.y - bz.player.y) < 145 && now > (bz.nextPlayerHitAt || 0)) {
         bz.nextPlayerHitAt = now + 900;
-        game.hearts = Math.max(0, game.hearts - 1);
+        game.health = Math.max(0, game.health - 1);
         burst(bz.player.x, bz.player.y, '#ee394d', 28);
         synth.hurt();
         addMessage('IVAN HIT YOU! -1 HEART', '#ee394d', 850);
         f.hit = true;
-        if (game.hearts <= 0) triggerDeath();
+        if (game.health <= 0) triggerDeath();
       }
     }
     bz.fireballs = bz.fireballs.filter(f => !f.hit);
@@ -5882,7 +5938,7 @@
     const code = button.dataset.key;
     const press = event => {
       event.preventDefault();
-      if (game.mode !== 'play') return;
+      if (game.mode !== 'play' && game.mode !== 'bossFight') return;
       synth.init();
       keys.add(code);
       button.classList.add('active');
@@ -5901,9 +5957,10 @@
     event.preventDefault();
     if (game.mode !== 'play' && game.mode !== 'bossFight') return;
     synth.init();
-    if (!keys.has('Space')) {
-      if (game.mode === 'bossFight') throwBossShoe(performance.now());
-      else handleActionPress(performance.now());
+    if (game.mode === 'bossFight') {
+      throwBossShoe(performance.now());
+    } else if (!keys.has('Space')) {
+      handleActionPress(performance.now());
     }
     keys.add('Space');
     actionControl.classList.add('active');
@@ -6102,6 +6159,22 @@
     directionControls.forEach(button => button.classList.remove('active'));
     actionControl.classList.remove('active');
   });
+
+  
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__sopTest = {
+      game,
+      keys,
+      startBossIntro,
+      updateBossIntro,
+      updateBossEnter,
+      updateBossCountdown,
+      updateBossFight,
+      throwBossShoe,
+      damageBoss,
+      triggerDeath
+    };
+  }
 
   loadAssets().catch(error => {
     loading.textContent = `Asset loading failed: ${error.message}`;
