@@ -62,11 +62,11 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.61';
+  const VERSION = 'V2.62';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
-  const ASSET_VERSION = '2.61';
+  const ASSET_VERSION = '2.62';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
   const PROFILES_KEY = 'zalandoScoutProfilesV1';
@@ -3303,19 +3303,21 @@
     const bz = game.boss;
     if (!bz || bz.phase !== 'fight' || bz.boss.dead) return false;
     if (now < (bz.nextShoeAt || 0)) return false;
-    bz.nextShoeAt = now + 260;
+    bz.nextShoeAt = now + 330;
     const keysPool = shoeImageKeys();
-    const size = 90;
-    const startY = bz.player.y - 96;
+    const size = 78;
+    const startY = bz.player.y - 120;
     bz.shoes.push({
       x: bz.player.x,
       y: startY,
       prevY: startY,
       w: size,
       h: size,
-      vy: -920,
+      vy: -560,
       spin: 0,
       born: now,
+      armedAt: now + 160,
+      exploded: false,
       image: choice(keysPool.length ? keysPool : ['shoe'])
     });
     synth.jump();
@@ -3357,26 +3359,29 @@
     if (elapsed >= 3300) startBossFight();
   }
   function updateBossFight(dt, now) {
-    const bz = game.boss;
-    if (!bz || bz.phase !== 'fight' || bz.boss.dead) return;
-    let dx = 0, dy = 0;
-    if (keys.has('ArrowLeft') || keys.has('KeyA')) dx--;
-    if (keys.has('ArrowRight') || keys.has('KeyD')) dx++;
-    if (keys.has('ArrowUp') || keys.has('KeyW')) dy--;
-    if (keys.has('ArrowDown') || keys.has('KeyS')) dy++;
-    if (dx || dy) { const l = Math.hypot(dx, dy); dx /= l; dy /= l; }
-    bz.player.x = clamp(bz.player.x + dx * bz.player.speed * dt, 80, 1920);
-    bz.player.y = clamp(bz.player.y + dy * bz.player.speed * dt, H * .58, H - 45);
+    const bz = game.boss; if (!bz) return;
     const b = bz.boss;
+    const speed = 520;
+    const dx = (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0);
+    const dy = (keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0) - (keys.has('ArrowUp') || keys.has('KeyW') ? 1 : 0);
+    bz.player.x = clamp(bz.player.x + dx * speed * dt, 250, 1770);
+    bz.player.y = clamp(bz.player.y + dy * speed * dt, H - 260, H - 70);
+    bz.cameraX = clamp(bz.player.x - W / 2, 0, bz.worldW - W);
+
     b.x += b.vx * dt;
     if (b.x < 360 || b.x > 1640) { b.vx *= -1; b.x = clamp(b.x, 360, 1640); }
     b.y = H * .37 + Math.sin(now / 900) * 22;
-    if (now >= bz.nextVoiceAt) { playOneShot(choice(['robot1.mp3','robot2.mp3','robot3.mp3']), .62); bz.nextVoiceAt = now + randInt(10000, 15000); }
+
     if (!b.dead && bz.phase === 'fight' && b.hearts > 0 && now >= bz.nextFireAt) {
-      // Fireball starts from Ivan's chest cannon area.
-      bz.fireballs.push({ x: b.x, y: b.y - b.h * .06, w: 104, h: 104, vx: (bz.player.x - b.x) * .58, vy: 255, born: now });
-      bz.nextFireAt = now + randInt(1400, 2300);
+      shootBossFireball(now);
+      bz.nextFireAt = now + randomRange(900, 1450);
     }
+    if (!b.dead && now >= bz.nextVoiceAt) {
+      const voice = choice(['robot1.mp3', 'robot2.mp3', 'robot3.mp3']);
+      playOneShot(voice, .55);
+      bz.nextVoiceAt = now + randomRange(10000, 15000);
+    }
+
     bz.fireballs.forEach(f => {
       f.x += f.vx * dt;
       f.y += f.vy * dt;
@@ -3387,18 +3392,47 @@
     bz.shoes.forEach(s => {
       s.prevY = s.y;
       s.y += s.vy * dt;
-      s.spin += dt * Math.PI * 7.2;
+      s.spin += dt * Math.PI * 6.2;
     });
-    bz.shoes = bz.shoes.filter(s => s.y > -150);
-    const bossTop = b.y - b.h * .46;
-    const bossBottom = b.y + b.h * .40;
+
+    // Ivan's fireballs can shoot your thrown shoes out of the air.
+    for (const f of bz.fireballs) {
+      if (f.hit) continue;
+      for (const s of bz.shoes) {
+        if (s.hit || s.exploded) continue;
+        const xClose = Math.abs(f.x - s.x) < (f.w * .32 + s.w * .42);
+        const yClose = Math.abs(f.y - s.y) < (f.h * .32 + s.h * .42);
+        if (xClose && yClose) {
+          f.hit = true;
+          s.exploded = true;
+          burst(s.x, s.y, '#ffd054', 24);
+          addMessage('IVAN SHOT THE STOCK!', '#ff9a3b', 600);
+          break;
+        }
+      }
+    }
+    bz.fireballs = bz.fireballs.filter(f => !f.hit);
+    bz.shoes = bz.shoes.filter(s => !s.exploded && s.y > -160);
+
+    const bossBox = {
+      x: b.x - b.w * .30,
+      y: b.y - b.h * .43,
+      w: b.w * .60,
+      h: b.h * .76
+    };
     for (const s of bz.shoes) {
-      if (s.hit) continue;
-      const shoeTop = Math.min(s.prevY, s.y) - s.h * .28;
-      const shoeBottom = Math.max(s.prevY, s.y) + s.h * .28;
-      const xAligned = Math.abs(s.x - b.x) < (b.w * .30 + s.w * .12);
-      const yCrossed = shoeTop <= bossBottom && shoeBottom >= bossTop;
-      if (xAligned && yCrossed) {
+      if (s.hit || now < (s.armedAt || 0)) continue;
+      const shoeBox = {
+        x: s.x - s.w * .28,
+        y: s.y - s.h * .28,
+        w: s.w * .56,
+        h: s.h * .56
+      };
+      const overlaps = shoeBox.x < bossBox.x + bossBox.w &&
+        shoeBox.x + shoeBox.w > bossBox.x &&
+        shoeBox.y < bossBox.y + bossBox.h &&
+        shoeBox.y + shoeBox.h > bossBox.y;
+      if (overlaps) {
         s.hit = true;
         damageBoss(1, 'shoe');
       }
@@ -3408,9 +3442,16 @@
     const activelyRamming = dy < -0.25 || keys.has('ArrowUp') || keys.has('KeyW');
     const verticalRam = activelyRamming && Math.abs(bz.player.x - b.x) < b.w * .30 && bz.player.y < b.y + b.h * .62 && bz.player.y > b.y + b.h * .20;
     if (verticalRam && now > (bz.nextRamAt || 0)) { if (damageBoss(2, 'ram')) bz.nextRamAt = now + 950; }
+
     for (const f of bz.fireballs) {
-      if (!f.hit && now > (bz.player.invulnerableUntil || 0) && bossAlphaHit({ x: f.x, y: f.y, w: f.w, h: f.h }, { x: bz.player.x, y: bz.player.y, w: 132, h: 150 }, 10)) {
-        f.hit = true; game.health = Math.max(0, game.health - 1); bz.player.invulnerableUntil = now + 1500; synth.hurt(); shake(10); addMessage('IVAN FIREBALL HIT!', '#ff3949', 1500); if (game.health <= 0) triggerDeath();
+      if (Math.abs(f.x - bz.player.x) < 105 && Math.abs(f.y - bz.player.y) < 145 && now > (bz.nextPlayerHitAt || 0)) {
+        bz.nextPlayerHitAt = now + 900;
+        game.hearts = Math.max(0, game.hearts - 1);
+        burst(bz.player.x, bz.player.y, '#ee394d', 28);
+        synth.hurt();
+        addMessage('IVAN HIT YOU! -1 HEART', '#ee394d', 850);
+        f.hit = true;
+        if (game.hearts <= 0) triggerDeath();
       }
     }
     bz.fireballs = bz.fireballs.filter(f => !f.hit);
@@ -5671,15 +5712,17 @@
         ctx.fillText('🔥', x, f.y);
       }
     });
+
     bz.shoes.forEach(s => {
       const x = s.x * view.scale - view.cameraX;
       ctx.save();
       ctx.translate(x, s.y);
       ctx.rotate(s.spin);
       ctx.shadowColor = '#ffd054';
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 16;
+      ctx.globalAlpha = Math.min(1, Math.max(.35, (now - s.born) / 120));
       if (images[s.image]) tintDraw(images[s.image], -s.w/2, -s.h/2, s.w, s.h, 1, false, true);
-      else { ctx.font='64px Arial'; ctx.textAlign='center'; ctx.fillText('👟',0,0); }
+      else { ctx.font='58px Arial'; ctx.textAlign='center'; ctx.fillText('👟',0,0); }
       ctx.restore();
     });
   }
@@ -5701,7 +5744,7 @@
     ctx.fillStyle='rgba(0,0,0,.58)';
     ctx.fillRect(0,0,W,H);
 
-    const boardW=1040, boardH=590, x=(W-boardW)/2, y=36;
+    const boardW=1040, boardH=460, x=(W-boardW)/2, y=74;
     if (images.score) {
       ctx.drawImage(images.score, x, y, boardW, boardH);
     } else {
@@ -5711,31 +5754,36 @@
       roundRect(x,y,boardW,boardH,18,false,true);
     }
 
+    ctx.fillStyle='#1d1006';
     ctx.textAlign='center';
     ctx.shadowColor='rgba(255,245,190,.55)';
     ctx.shadowBlur=2;
-    ctx.fillStyle='#1d1006';
     ctx.font='bold 40px Trebuchet MS';
-    ctx.fillText('CRAZY IVAN DEFEATED!', W/2, y+140);
+    ctx.fillText('CRAZY IVAN DEFEATED!', W/2, y+112);
 
+    const heartX = x + 285;
+    const heartY = y + 270;
     const spin = (now - bz.victoryStart) / 300;
     ctx.save();
-    ctx.translate(W/2, y+220);
+    ctx.translate(heartX, heartY);
     ctx.rotate(spin);
     ctx.fillStyle='#ed1d3b';
-    ctx.font='bold 68px Trebuchet MS';
-    ctx.fillText('♥',0,0);
+    ctx.font='bold 112px Trebuchet MS';
+    ctx.textAlign='center';
+    ctx.fillText('♥', 0, 34);
     ctx.restore();
 
+    const textX = x + 660;
     ctx.fillStyle='#1d1006';
+    ctx.textAlign='center';
     ctx.font='bold 30px Trebuchet MS';
-    ctx.fillText('You won an extra heart!', W/2, y+300);
-    ctx.font='bold 25px Trebuchet MS';
-    ctx.fillText(`Max hearts now: ${game.maxHearts}`, W/2, y+360);
-    ctx.font='bold 23px Trebuchet MS';
-    ctx.fillText(`Ivan hearts removed: ${game.stats.bossHits} / 6`, W/2, y+415);
-    ctx.fillText(`Rams: ${game.stats.bossRams} × 2 hearts`, W/2, y+465);
-    ctx.fillText(`Offline stock hits: ${game.stats.bossShoeHits} × 1 heart`, W/2, y+515);
+    ctx.fillText('You won an extra heart!', textX, y+210);
+    ctx.font='bold 24px Trebuchet MS';
+    ctx.fillText(`Max hearts now: ${game.maxHearts}`, textX, y+260);
+    ctx.font='bold 22px Trebuchet MS';
+    ctx.fillText(`Ivan hearts removed: ${game.stats.bossHits} / 6`, textX, y+312);
+    ctx.fillText(`Rams: ${game.stats.bossRams} × 2 hearts`, textX, y+352);
+    ctx.fillText(`Offline stock hits: ${game.stats.bossShoeHits} × 1 heart`, textX, y+392);
     ctx.restore();
   }
   function drawBoss(now) {
