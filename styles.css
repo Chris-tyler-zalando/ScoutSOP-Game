@@ -938,3 +938,18 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
   max-height: 52px;
 }
 .map-builder-panel.collapsed .map-builder-body { display: none; }
+
+
+/* V2.53 advanced map builder */
+.map-builder-panel { width: 344px; }
+.map-builder-row.map-builder-tools { grid-template-columns: repeat(4, 1fr); }
+.map-builder-row { grid-template-columns: repeat(3, 1fr); }
+.map-builder-row:first-child { grid-template-columns: repeat(4, 1fr); }
+.map-builder-row button.selected,
+.map-builder-tools button.selected,
+.map-builder-row button[data-place-mode].selected { background: rgba(255,105,0,.45); border-color: rgba(255,177,94,.95); }
+.map-builder-palette { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.map-builder-palette button { grid-template-columns: 30px 1fr; min-height: 36px; gap: 6px; padding: 4px 5px; overflow: hidden; }
+.map-builder-palette button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-builder-palette img { width: 28px; height: 25px; }
+.map-builder-panel.collapsed { width: 218px; }
