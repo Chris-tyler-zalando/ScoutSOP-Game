@@ -54,7 +54,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.56';
+  const VERSION = 'V2.57';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -3389,9 +3389,9 @@
     else {
       if (!game.truckTimer) game.truckTimer = { due: now + randInt(60000, 180000) };
       if (now >= game.truckTimer.due) {
-        game.truck = { until: now + 30000, phase: 'arriving', arriveStarted: now };
+        game.truck = { until: now + 60000, phase: 'arriving', arriveStarted: now };
         synth.truck();
-        addMessage('CARRIER AT DOCK — 30 SECONDS!', '#ff7700', 3500);
+        addMessage('CARRIER AT DOCK — 60 SECONDS!', '#ff7700', 3500);
       }
     }
   }
@@ -4219,7 +4219,7 @@
     if (action === 'office') { adminReturnToWarehouse(); game.tasks.alm = Math.max(game.tasks.alm, 5); game.tasks.sl = Math.max(game.tasks.sl, 5); game.tasks.email = Math.max(game.tasks.email, 5); game.tasks.workday = Math.max(game.tasks.workday, 5); game.mode = 'office'; game.office = { page: 'menu', selectedType: null, puzzle: null, hotspots: [], result: null }; setGameplayControlsVisible(false); return; }
     if (action === 'alm' || action === 'sl' || action === 'email' || action === 'workday') { adminDirectPuzzle(action); return; }
     if (action === 'sop') { adminReturnToWarehouse(); game.tasks.email = Math.max(game.tasks.email, 5); game.tasks.tokens = Math.max(game.tasks.tokens, 1); game.mode = 'office'; game.office = { page: 'sop', selectedType: null, puzzle: null, hotspots: [], result: null }; setGameplayControlsVisible(false); return; }
-    if (action === 'truck') { adminReturnToWarehouse(); game.truck = { until: now + 30000, phase: 'waiting', arriveStarted: now }; addMessage('ADMIN: CARRIER AT DOCK — 30 SECONDS!', '#ff7700', 3000); return; }
+    if (action === 'truck') { adminReturnToWarehouse(); game.truck = { until: now + 60000, phase: 'waiting', arriveStarted: now }; addMessage('ADMIN: CARRIER AT DOCK — 60 SECONDS!', '#ff7700', 3000); return; }
     if (action === 'pallet') { adminReturnToWarehouse(); game.player.palletJackUntil = now + PALLET_JACK_DURATION; addMessage('ADMIN: PALLET JACK ACTIVE — 30s', '#ffd054', 2200); return; }
     if (action === 'exitLocked') { adminReturnToWarehouse(); game.tasks = freshTasks(); const pos = destinationPosition(game.zones.exit); game.player.x = pos.x; game.player.y = pos.y; centerCamera(); triggerLevelWin(); return; }
     if (action === 'exitOpen') { adminReturnToWarehouse(); TASK_TYPES.forEach(type => game.tasks.completed[type] = true); const pos = destinationPosition(game.zones.exit); game.player.x = pos.x; game.player.y = pos.y; centerCamera(); triggerLevelWin(); return; }
