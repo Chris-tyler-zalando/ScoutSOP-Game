@@ -1,6 +1,14 @@
 (() => {
   'use strict';
 
+  window.addEventListener('error', event => {
+    const loadingNode = document.getElementById('loading');
+    if (loadingNode && !loadingNode.classList.contains('hidden')) {
+      loadingNode.textContent = `Startup error: ${event.message}`;
+    }
+  });
+
+
   const canvas = document.getElementById('gameCanvas');
   const mainCtx = canvas.getContext('2d');
   let ctx = mainCtx;
@@ -54,7 +62,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.60b';
+  const VERSION = 'V2.60c';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -470,7 +478,16 @@
     return img;
   }
 
-  async function loadAssets() {
+  
+  function closeCockpitHelp() {
+    const panel = typeof cockpitHelpPanel !== 'undefined' ? cockpitHelpPanel : (document.getElementById('cockpit-help-panel') || document.getElementById('cockpitHelpPanel'));
+    const overlay = typeof cockpitHelpOverlay !== 'undefined' ? cockpitHelpOverlay : (document.getElementById('cockpit-help-overlay') || document.getElementById('cockpitHelpOverlay'));
+    if (panel) panel.classList.add('hidden');
+    if (overlay) overlay.classList.add('hidden');
+    if (game) game.cockpitHelpOpen = false;
+  }
+
+async function loadAssets() {
     const entries = Object.entries(assetSources);
     let loaded = 0;
     const updateProgress = () => {
