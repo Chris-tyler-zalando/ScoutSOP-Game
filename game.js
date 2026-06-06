@@ -54,7 +54,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.53a';
+  const VERSION = 'V2.54';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -3547,6 +3547,7 @@
   function mapBuilderPalette() {
     return ['box1','box2','box3','box4','box5','box6','box7','smallbox','smallbox2','smallbox3','conveyor','conveyorEnd','cone','printers','bathroom','kitchen','table','table2','coffee','shoe','shoe1','shoe2','shoe3'].filter(key => images[key]);
   }
+
   function defaultMapBuilderAreas() {
     return [
       { id: uid('area'), kind:'area', name:'Dock', left:4, top:4, width:14, height:8, image:'entrance', lockedType:'dock' },
@@ -3560,60 +3561,492 @@
       { id: uid('area'), kind:'area', name:'Area Pod', left:60, top:36, width:14, height:8 }
     ];
   }
-  function defaultMapBuilderPaths() { return templatePathRects().map(r => ({ id: uid('path'), kind:'path', name:'Clear Path', left:r.left, top:r.top, width:r.width, height:r.height })); }
+
+  function defaultMapBuilderPaths() {
+    return templatePathRects().map(r => ({ id: uid('path'), kind:'path', name:'Clear Path', left:r.left, top:r.top, width:r.width, height:r.height }));
+  }
+
   function startMapBuilder() {
     adminReturnToWarehouse();
     game.mode = 'mapBuilder';
     setGameplayControlsVisible(false);
     keys.clear();
-    game.mapBuilder = { zoom:.18, panX:24, panY:56, selected:'box5', tool:'place', placeMode:'prop', props:[], areas:defaultMapBuilderAreas(), paths:defaultMapBuilderPaths(), selectedIds:[], dragging:null, marquee:null, contextMenu:null };
+    game.mapBuilder = {
+      zoom:.18, panX:24, panY:56, selected:'box5', tool:'place', placeMode:'prop',
+      props:[], areas:defaultMapBuilderAreas(), paths:defaultMapBuilderPaths(),
+      selectedIds:[], dragging:null, marquee:null, drawing:null, panning:null, contextMenu:null
+    };
     showMapBuilderPanel();
-    addMessage('MAP BUILDER: place, move, resize, select, export JSON', '#ffd054', 3000);
+    addMessage('MAP BUILDER: place, draw, move, select, export JSON', '#ffd054', 3000);
   }
-  function mapBuilderAllObjects() { const mb=game.mapBuilder; return mb ? [...(mb.paths||[]), ...(mb.areas||[]), ...(mb.props||[])] : []; }
-  function mapBuilderScreenToTile(x,y) { const mb=game.mapBuilder; return { x:(x-mb.panX)/(TILE*mb.zoom), y:(y-mb.panY)/(TILE*mb.zoom) }; }
-  function mapBuilderObjectAt(t) { const objects=mapBuilderAllObjects(); for(let i=objects.length-1;i>=0;i--){ const p=objects[i]; if(t.x>=p.left && t.x<=p.left+p.width && t.y>=p.top && t.y<=p.top+p.height) return p; } return null; }
+
+  function mapBuilderAllObjects() {
+    const mb=game.mapBuilder;
+    return mb ? [...(mb.paths||[]), ...(mb.areas||[]), ...(mb.props||[])] : [];
+  }
+
+  function mapBuilderScreenToTile(x,y) {
+    const mb=game.mapBuilder;
+    return { x:(x-mb.panX)/(TILE*mb.zoom), y:(y-mb.panY)/(TILE*mb.zoom) };
+  }
+
+  function mapBuilderObjectAt(t) {
+    const objects=mapBuilderAllObjects();
+    for(let i=objects.length-1;i>=0;i--){
+      const p=objects[i];
+      if(t.x>=p.left && t.x<=p.left+p.width && t.y>=p.top && t.y<=p.top+p.height) return p;
+    }
+    return null;
+  }
+
   function mapBuilderHandleAt(obj,t) {
-    if(!obj) return null; const hs=Math.max(.35,9/(TILE*game.mapBuilder.zoom));
+    if(!obj) return null;
+    const hs=Math.max(.35,9/(TILE*game.mapBuilder.zoom));
     const corners=[['nw',obj.left,obj.top],['ne',obj.left+obj.width,obj.top],['sw',obj.left,obj.top+obj.height],['se',obj.left+obj.width,obj.top+obj.height]];
     for(const [name,x,y] of corners){ if(Math.abs(t.x-x)<=hs && Math.abs(t.y-y)<=hs) return name; }
-    const cx=obj.left+obj.width/2, cy=obj.top+obj.height/2; if(Math.abs(t.x-cx)<=hs && Math.abs(t.y-cy)<=hs) return 'move'; return null;
+    const cx=obj.left+obj.width/2, cy=obj.top+obj.height/2;
+    if(Math.abs(t.x-cx)<=hs && Math.abs(t.y-cy)<=hs) return 'move';
+    return null;
   }
-  function mapBuilderSelectedObjects(){ const mb=game.mapBuilder; if(!mb) return []; const ids=new Set(mb.selectedIds||[]); return mapBuilderAllObjects().filter(o=>ids.has(o.id)); }
-  function mapBuilderSelectObject(obj, additive){ const mb=game.mapBuilder; if(!mb||!obj) return; if(additive){ const set=new Set(mb.selectedIds||[]); set.has(obj.id)?set.delete(obj.id):set.add(obj.id); mb.selectedIds=[...set]; } else mb.selectedIds=[obj.id]; mb.contextMenu=null; }
-  function mapBuilderDeleteSelected(){ const mb=game.mapBuilder; if(!mb||!mb.selectedIds?.length) return; const ids=new Set(mb.selectedIds); mb.props=mb.props.filter(p=>!ids.has(p.id)); mb.areas=mb.areas.filter(p=>!ids.has(p.id)); mb.paths=mb.paths.filter(p=>!ids.has(p.id)); mb.selectedIds=[]; mb.contextMenu=null; }
-  function mapBuilderDuplicateSelected(){ const mb=game.mapBuilder; if(!mb||!mb.selectedIds?.length) return; const copies=[]; mapBuilderSelectedObjects().forEach(obj=>{ const copy={...obj,id:uid(obj.kind||'prop'),left:obj.left+1,top:obj.top+1}; copies.push(copy); if(obj.kind==='prop') mb.props.push(copy); else if(obj.kind==='area') mb.areas.push(copy); else mb.paths.push(copy); }); mb.selectedIds=copies.map(c=>c.id); mb.contextMenu=null; }
-  function mapBuilderFlipSelected(){ mapBuilderSelectedObjects().forEach(obj=>{ if(obj.kind==='prop') obj.flipX=!obj.flipX; }); if(game.mapBuilder) game.mapBuilder.contextMenu=null; }
-  function mapBuilderCycleCollisionSelected(){ const order=['block','decor','pushable','interaction']; mapBuilderSelectedObjects().forEach(obj=>{ if(obj.kind!=='prop') return; const current=order.indexOf(obj.collision||'block'); obj.collision=order[(current+1)%order.length]; }); if(game.mapBuilder) game.mapBuilder.contextMenu=null; }
-  function mapBuilderExport() {
+
+  function mapBuilderSelectedObjects(){
     const mb=game.mapBuilder;
-    const payload={ version:'v2.53-map-builder', mapTiles:{width:MAP_W,height:MAP_H}, paths:(mb.paths||[]).map(p=>({id:p.id,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2)})), areas:(mb.areas||[]).map(p=>({id:p.id,name:p.name||'Area',image:p.image||null,lockedType:p.lockedType||null,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2)})), props:(mb.props||[]).map(p=>({image:p.image,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2),flipX:!!p.flipX,collision:p.collision||'block'})) };
-    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='custom_map_layout.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); addMessage('MAP JSON EXPORTED','#71dd8d',1800);
+    if(!mb) return [];
+    const ids=new Set(mb.selectedIds||[]);
+    return mapBuilderAllObjects().filter(o=>ids.has(o.id));
   }
-  function makeViewportDraggable(panel,handle){
-    if(!panel||!handle||panel.dataset.dragReady==='1') return; panel.dataset.dragReady='1'; let drag=null;
-    handle.addEventListener('pointerdown',event=>{ if(event.target.closest('button')) return; const rect=panel.getBoundingClientRect(); drag={startX:event.clientX,startY:event.clientY,left:rect.left,top:rect.top}; panel.style.left=`${rect.left}px`; panel.style.top=`${rect.top}px`; panel.style.right='auto'; panel.style.bottom='auto'; handle.setPointerCapture?.(event.pointerId); event.preventDefault(); event.stopPropagation(); });
-    handle.addEventListener('pointermove',event=>{ if(!drag) return; const maxLeft=Math.max(4,window.innerWidth-panel.offsetWidth-4), maxTop=Math.max(4,window.innerHeight-panel.offsetHeight-4); panel.style.left=`${clamp(drag.left+event.clientX-drag.startX,4,maxLeft)}px`; panel.style.top=`${clamp(drag.top+event.clientY-drag.startY,4,maxTop)}px`; panel.style.right='auto'; panel.style.bottom='auto'; event.preventDefault(); event.stopPropagation(); });
-    const endDrag=event=>{ drag=null; handle.releasePointerCapture?.(event.pointerId); }; handle.addEventListener('pointerup',endDrag); handle.addEventListener('pointercancel',endDrag);
+
+  function mapBuilderSelectObject(obj, additive){
+    const mb=game.mapBuilder;
+    if(!mb||!obj) return;
+    if(additive){
+      const set=new Set(mb.selectedIds||[]);
+      set.has(obj.id)?set.delete(obj.id):set.add(obj.id);
+      mb.selectedIds=[...set];
+    } else mb.selectedIds=[obj.id];
+    mb.contextMenu=null;
   }
-  function mapBuilderControlPanel(){
-    if(mapBuilderPanel) return mapBuilderPanel;
-    mapBuilderPanel=document.createElement('aside'); mapBuilderPanel.id='map-builder-panel'; mapBuilderPanel.className='map-builder-panel hidden';
-    mapBuilderPanel.innerHTML=`<header class="map-builder-header"><strong>BUILD A MAP</strong><div class="admin-window-controls"><button type="button" data-map-builder="collapse" class="admin-exit" aria-label="Collapse map builder">—</button><button type="button" data-map-builder="back" class="admin-exit" aria-label="Back to game">✕</button></div></header><div class="map-builder-body"><div class="map-builder-row map-builder-tools"><button type="button" data-tool="place">Place</button><button type="button" data-tool="erase">Erase</button><button type="button" data-tool="move">Move</button><button type="button" data-tool="select">Select</button></div><div class="map-builder-row"><button type="button" data-place-mode="prop">Props</button><button type="button" data-place-mode="area">Green Area</button><button type="button" data-place-mode="path">Yellow Path</button></div><div class="map-builder-row"><button type="button" data-map-builder="back">Back</button><button type="button" data-map-builder="export">Export JSON</button></div><div class="map-builder-row"><button type="button" data-map-builder="zoomIn">Zoom +</button><button type="button" data-map-builder="zoomOut">Zoom -</button></div><div class="map-builder-hint">Move/select: centre dot drags, corner dots resize. Right-click selected items for duplicate/delete/flip/collision.</div><div class="map-builder-palette"></div></div>`;
-    document.body.appendChild(mapBuilderPanel); makeViewportDraggable(mapBuilderPanel,mapBuilderPanel.querySelector('.map-builder-header'));
-    mapBuilderPanel.addEventListener('click',event=>{ const button=event.target.closest('[data-map-builder], [data-prop], [data-tool], [data-place-mode]'); if(!button) return; event.preventDefault(); event.stopPropagation(); const mb=game.mapBuilder; const action=button.dataset.mapBuilder; if(action==='back'){ game.mode='play'; game.mapBuilder=null; hideMapBuilderPanel(); setGameplayControlsVisible(true); return; } if(action==='collapse'){ mapBuilderPanel.classList.toggle('collapsed'); refreshMapBuilderPanel(); return; } if(!mb) return; if(action==='export'){ mapBuilderExport(); return; } if(action==='zoomIn'){ mb.zoom=Math.min(.42,mb.zoom+.025); refreshMapBuilderPanel(); return; } if(action==='zoomOut'){ mb.zoom=Math.max(.08,mb.zoom-.025); refreshMapBuilderPanel(); return; } if(button.dataset.tool){ mb.tool=button.dataset.tool; mb.contextMenu=null; refreshMapBuilderPanel(); return; } if(button.dataset.placeMode){ mb.placeMode=button.dataset.placeMode; mb.tool='place'; mb.contextMenu=null; refreshMapBuilderPanel(); return; } if(button.dataset.prop){ mb.selected=button.dataset.prop; mb.placeMode='prop'; mb.tool='place'; mb.contextMenu=null; refreshMapBuilderPanel(); } });
+
+  function mapBuilderDeleteSelected(){
+    const mb=game.mapBuilder;
+    if(!mb||!mb.selectedIds?.length) return;
+    const ids=new Set(mb.selectedIds);
+    mb.props=mb.props.filter(p=>!ids.has(p.id));
+    mb.areas=mb.areas.filter(p=>!ids.has(p.id));
+    mb.paths=mb.paths.filter(p=>!ids.has(p.id));
+    mb.selectedIds=[];
+    mb.contextMenu=null;
+  }
+
+  function mapBuilderDuplicateSelected(){
+    const mb=game.mapBuilder;
+    if(!mb||!mb.selectedIds?.length) return;
+    const copies=[];
+    mapBuilderSelectedObjects().forEach(obj=>{
+      const copy={...obj,id:uid(obj.kind||'prop'),left:obj.left+1,top:obj.top+1};
+      if(obj.kind==='prop') mb.props.push(copy);
+      else if(obj.kind==='area') mb.areas.push(copy);
+      else if(obj.kind==='path') mb.paths.push(copy);
+      copies.push(copy.id);
+    });
+    mb.selectedIds=copies;
+    mb.contextMenu=null;
+  }
+
+  function mapBuilderFlipSelected(){
+    mapBuilderSelectedObjects().forEach(obj=>{ if(obj.kind==='prop') obj.flipX=!obj.flipX; });
+    if(game.mapBuilder) game.mapBuilder.contextMenu=null;
+  }
+
+  function mapBuilderCycleCollisionSelected(){
+    const order=['block','decor','pushable','interaction'];
+    mapBuilderSelectedObjects().forEach(obj=>{
+      if(obj.kind!=='prop') return;
+      const current=order.indexOf(obj.collision||'block');
+      obj.collision=order[(current+1)%order.length];
+    });
+    if(game.mapBuilder) game.mapBuilder.contextMenu=null;
+  }
+
+  function mapBuilderExport(){
+    const mb=game.mapBuilder;
+    const payload={
+      version:'v2.54-map-builder',
+      mapTiles:{width:MAP_W,height:MAP_H},
+      paths:(mb.paths||[]).map(p=>({id:p.id,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2)})),
+      areas:(mb.areas||[]).map(p=>({id:p.id,name:p.name||'Area',image:p.image||null,lockedType:p.lockedType||null,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2)})),
+      props:(mb.props||[]).map(p=>({image:p.image,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2),flipX:!!p.flipX,collision:p.collision||'block'}))
+    };
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='custom_map_layout.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    addMessage('MAP JSON EXPORTED','#71dd8d',1800);
+  }
+
+  function makeViewportDraggable(panel, handle) {
+    if (!panel || !handle || panel.dataset.dragReady === '1') return;
+    panel.dataset.dragReady = '1';
+    let drag = null;
+    handle.addEventListener('pointerdown', event => {
+      if (event.target.closest('button')) return;
+      const rect = panel.getBoundingClientRect();
+      drag = { startX: event.clientX, startY: event.clientY, left: rect.left, top: rect.top };
+      panel.style.left = `${rect.left}px`;
+      panel.style.top = `${rect.top}px`;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      handle.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    handle.addEventListener('pointermove', event => {
+      if (!drag) return;
+      const maxLeft = Math.max(4, window.innerWidth - panel.offsetWidth - 4);
+      const maxTop = Math.max(4, window.innerHeight - panel.offsetHeight - 4);
+      const nextLeft = clamp(drag.left + event.clientX - drag.startX, 4, maxLeft);
+      const nextTop = clamp(drag.top + event.clientY - drag.startY, 4, maxTop);
+      panel.style.left = `${nextLeft}px`;
+      panel.style.top = `${nextTop}px`;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    const endDrag = event => { drag = null; handle.releasePointerCapture?.(event.pointerId); };
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
+  }
+
+  function mapBuilderControlPanel() {
+    if (mapBuilderPanel) return mapBuilderPanel;
+    mapBuilderPanel = document.createElement('aside');
+    mapBuilderPanel.id = 'map-builder-panel';
+    mapBuilderPanel.className = 'map-builder-panel hidden';
+    mapBuilderPanel.innerHTML = `
+      <header class="map-builder-header">
+        <strong>BUILD A MAP</strong>
+        <div class="admin-window-controls">
+          <button type="button" data-map-builder="collapse" class="admin-exit" aria-label="Collapse map builder">—</button>
+          <button type="button" data-map-builder="back" class="admin-exit" aria-label="Back to game">✕</button>
+        </div>
+      </header>
+      <div class="map-builder-body">
+        <div class="map-builder-row map-builder-tools">
+          <button type="button" data-tool="place">Place</button>
+          <button type="button" data-tool="erase">Erase</button>
+          <button type="button" data-tool="move">Move</button>
+          <button type="button" data-tool="select">Select</button>
+        </div>
+        <div class="map-builder-row">
+          <button type="button" data-place-mode="prop">Props</button>
+          <button type="button" data-place-mode="area">Green Area</button>
+          <button type="button" data-place-mode="path">Yellow Path</button>
+        </div>
+        <div class="map-builder-row">
+          <button type="button" data-map-builder="back">Back</button>
+          <button type="button" data-map-builder="export">Export JSON</button>
+        </div>
+        <div class="map-builder-row">
+          <button type="button" data-map-builder="zoomIn">Zoom +</button>
+          <button type="button" data-map-builder="zoomOut">Zoom -</button>
+        </div>
+        <div class="map-builder-hint">Yellow/green: drag a box. Middle mouse drag pans. Right-click selected items for actions.</div>
+        <div class="map-builder-palette"></div>
+      </div>`;
+    document.body.appendChild(mapBuilderPanel);
+    makeViewportDraggable(mapBuilderPanel, mapBuilderPanel.querySelector('.map-builder-header'));
+    mapBuilderPanel.addEventListener('click', event => {
+      const button = event.target.closest('[data-map-builder], [data-prop], [data-tool], [data-place-mode]');
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const mb=game.mapBuilder;
+      const action=button.dataset.mapBuilder;
+      if(action==='back'){ game.mode='play'; game.mapBuilder=null; hideMapBuilderPanel(); setGameplayControlsVisible(true); return; }
+      if(action==='collapse'){ mapBuilderPanel.classList.toggle('collapsed'); refreshMapBuilderPanel(); return; }
+      if(!mb) return;
+      if(action==='export'){ mapBuilderExport(); return; }
+      if(action==='zoomIn'){ mb.zoom=Math.min(.42,mb.zoom+.025); refreshMapBuilderPanel(); return; }
+      if(action==='zoomOut'){ mb.zoom=Math.max(.08,mb.zoom-.025); refreshMapBuilderPanel(); return; }
+      if(button.dataset.tool){ mb.tool=button.dataset.tool; mb.contextMenu=null; refreshMapBuilderPanel(); return; }
+      if(button.dataset.placeMode){ mb.placeMode=button.dataset.placeMode; mb.tool='place'; mb.contextMenu=null; refreshMapBuilderPanel(); return; }
+      if(button.dataset.prop){ mb.selected=button.dataset.prop; mb.placeMode='prop'; mb.tool='place'; mb.contextMenu=null; refreshMapBuilderPanel(); return; }
+    });
     return mapBuilderPanel;
   }
-  function refreshMapBuilderPanel(){ const panel=mapBuilderControlPanel(), mb=game.mapBuilder, body=panel.querySelector('.map-builder-body'), paletteEl=panel.querySelector('.map-builder-palette'); if(!mb||!paletteEl) return; panel.querySelectorAll('[data-tool]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.tool===mb.tool)); panel.querySelectorAll('[data-place-mode]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.placeMode===mb.placeMode)); paletteEl.innerHTML=''; mapBuilderPalette().forEach(key=>{ const button=document.createElement('button'); button.type='button'; button.dataset.prop=key; button.className=key===mb.selected?'selected':''; const file=assetSources[key]?.[0]||''; button.innerHTML=`${file?`<img src="${ASSET_PATH}${file}" alt="">`:''}<span>${key}</span>`; paletteEl.appendChild(button); }); if(body) body.style.display=panel.classList.contains('collapsed')?'none':''; }
+
+  function refreshMapBuilderPanel(){
+    const panel=mapBuilderControlPanel();
+    const mb=game.mapBuilder;
+    const body=panel.querySelector('.map-builder-body');
+    const paletteEl=panel.querySelector('.map-builder-palette');
+    if(!mb||!paletteEl) return;
+    panel.querySelectorAll('[data-tool]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.tool===mb.tool));
+    panel.querySelectorAll('[data-place-mode]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.placeMode===mb.placeMode));
+    paletteEl.innerHTML='';
+    mapBuilderPalette().forEach(key=>{
+      const button=document.createElement('button');
+      button.type='button';
+      button.dataset.prop=key;
+      button.title=key;
+      button.className=key===mb.selected?'selected':'';
+      const file=assetSources[key]?.[0]||'';
+      button.innerHTML=`${file?`<img src="${ASSET_PATH}${file}" alt="${key}">`:''}<span>${key}</span>`;
+      paletteEl.appendChild(button);
+    });
+    if(body) body.style.display=panel.classList.contains('collapsed')?'none':'';
+  }
+
   function showMapBuilderPanel(){ const panel=mapBuilderControlPanel(); panel.classList.remove('hidden'); refreshMapBuilderPanel(); }
   function hideMapBuilderPanel(){ if(mapBuilderPanel) mapBuilderPanel.classList.add('hidden'); }
-  function mapBuilderPlaceAt(t){ const mb=game.mapBuilder; if(!mb) return; if(mb.placeMode==='path'){ mb.paths.push({id:uid('path'),kind:'path',left:Math.round(t.x),top:Math.round(t.y),width:8,height:3,name:'Clear Path'}); return; } if(mb.placeMode==='area'){ mb.areas.push({id:uid('area'),kind:'area',name:'Area Pod',left:Math.round(t.x),top:Math.round(t.y),width:14,height:8}); return; } const img=images[mb.selected]; const baseW=mb.selected==='conveyorEnd'?3.05:(mb.selected==='conveyor'?3.05:(mb.selected==='printers'||mb.selected==='bathroom'?9.8:2.4)); const baseH=img?baseW*(img.height/img.width):1.6; mb.props.push({id:uid('prop'),kind:'prop',image:mb.selected,left:Math.round(t.x*2)/2,top:Math.round(t.y*2)/2,width:baseW,height:baseH,collision:mb.selected==='cone'?'decor':(mb.selected==='smallbox3'?'pushable':'block')}); }
-  function handleMapBuilderClick(x,y){ const mb=game.mapBuilder; if(!mb) return; if(mb.contextMenu&&x>=mb.contextMenu.x&&x<=mb.contextMenu.x+150&&y>=mb.contextMenu.y&&y<=mb.contextMenu.y+136){ const row=Math.floor((y-mb.contextMenu.y)/34); if(row===0) mapBuilderDuplicateSelected(); else if(row===1) mapBuilderDeleteSelected(); else if(row===2) mapBuilderFlipSelected(); else if(row===3) mapBuilderCycleCollisionSelected(); refreshMapBuilderPanel(); return; } mb.contextMenu=null; const t=mapBuilderScreenToTile(x,y); if(t.x<0||t.y<0||t.x>MAP_W||t.y>MAP_H) return; if(mb.tool==='place'){ mapBuilderPlaceAt(t); return; } const obj=mapBuilderObjectAt(t); if(mb.tool==='erase'){ if(obj){ mb.props=mb.props.filter(p=>p.id!==obj.id); mb.areas=mb.areas.filter(p=>p.id!==obj.id); mb.paths=mb.paths.filter(p=>p.id!==obj.id); mb.selectedIds=(mb.selectedIds||[]).filter(id=>id!==obj.id); } return; } if((mb.tool==='move'||mb.tool==='select')&&obj) mapBuilderSelectObject(obj,false); }
-  function beginMapBuilderPointer(x,y,pointerId,sourceEvent){ const mb=game.mapBuilder; if(!mb) return false; if(sourceEvent&&sourceEvent.button===2){ const t=mapBuilderScreenToTile(x,y); const obj=mapBuilderObjectAt(t); if(obj&&!(mb.selectedIds||[]).includes(obj.id)) mapBuilderSelectObject(obj,false); if((mb.selectedIds||[]).length) mb.contextMenu={x:Math.min(x,W-156),y:Math.min(y,H-142)}; return true; } const t=mapBuilderScreenToTile(x,y); if(t.x<0||t.y<0||t.x>MAP_W||t.y>MAP_H) return false; mb.contextMenu=null; if(mb.tool==='place'){ mapBuilderPlaceAt(t); return true; } const obj=mapBuilderObjectAt(t); if(mb.tool==='erase'){ if(obj){ mb.props=mb.props.filter(p=>p.id!==obj.id); mb.areas=mb.areas.filter(p=>p.id!==obj.id); mb.paths=mb.paths.filter(p=>p.id!==obj.id); } return true; } if((mb.tool==='move'||mb.tool==='select')&&obj){ const handle=mapBuilderHandleAt(obj,t)||'move'; if(!(mb.selectedIds||[]).includes(obj.id)) mapBuilderSelectObject(obj,!!sourceEvent?.shiftKey); const selected=mapBuilderSelectedObjects().map(o=>({obj:o,left:o.left,top:o.top,width:o.width,height:o.height})); mb.dragging={pointerId,type:handle==='move'?'move':'resize',handle,startX:t.x,startY:t.y,selected}; return true; } if(mb.tool==='select'){ mb.selectedIds=[]; mb.marquee={startX:t.x,startY:t.y,x:t.x,y:t.y}; return true; } return false; }
-  function updateMapBuilderPointer(x,y,pointerId){ const mb=game.mapBuilder; if(!mb) return false; const t=mapBuilderScreenToTile(x,y); if(mb.marquee){ mb.marquee.x=t.x; mb.marquee.y=t.y; return true; } if(!mb.dragging||mb.dragging.pointerId!==pointerId) return false; const dx=t.x-mb.dragging.startX, dy=t.y-mb.dragging.startY; if(mb.dragging.type==='move'){ mb.dragging.selected.forEach(s=>{ s.obj.left=clamp(s.left+dx,0,MAP_W-Math.max(.5,s.obj.width)); s.obj.top=clamp(s.top+dy,0,MAP_H-Math.max(.5,s.obj.height)); }); } else { const s=mb.dragging.selected[0]; if(!s) return true; const obj=s.obj, minSize=.75; if(mb.dragging.handle.includes('e')) obj.width=Math.max(minSize,s.width+dx); if(mb.dragging.handle.includes('s')) obj.height=Math.max(minSize,s.height+dy); if(mb.dragging.handle.includes('w')){ const right=s.left+s.width; obj.left=Math.min(right-minSize,s.left+dx); obj.width=right-obj.left; } if(mb.dragging.handle.includes('n')){ const bottom=s.top+s.height; obj.top=Math.min(bottom-minSize,s.top+dy); obj.height=bottom-obj.top; } obj.left=clamp(obj.left,0,MAP_W-obj.width); obj.top=clamp(obj.top,0,MAP_H-obj.height); } return true; }
-  function endMapBuilderPointer(pointerId){ const mb=game.mapBuilder; if(!mb) return false; if(mb.marquee){ const x1=Math.min(mb.marquee.startX,mb.marquee.x),x2=Math.max(mb.marquee.startX,mb.marquee.x),y1=Math.min(mb.marquee.startY,mb.marquee.y),y2=Math.max(mb.marquee.startY,mb.marquee.y); mb.selectedIds=mapBuilderAllObjects().filter(o=>o.left<=x2&&o.left+o.width>=x1&&o.top<=y2&&o.top+o.height>=y1).map(o=>o.id); mb.marquee=null; return true; } if(mb.dragging&&mb.dragging.pointerId===pointerId){ mb.dragging=null; return true; } return false; }
-  function drawMapBuilderObject(o,now){ const mb=game.mapBuilder; const selected=(mb.selectedIds||[]).includes(o.id); if(o.kind==='path'){ ctx.fillStyle='rgba(255,210,84,.26)'; ctx.fillRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE); ctx.strokeStyle=selected?'#fff4df':'#ffd054'; ctx.lineWidth=(selected?4:2)/mb.zoom; ctx.strokeRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE); } else if(o.kind==='area'){ ctx.fillStyle='rgba(70,180,90,.22)'; ctx.fillRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE); if(o.image&&images[o.image]) drawContain(images[o.image],o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE,.72,true); ctx.strokeStyle=selected?'#fff4df':'#58d34c'; ctx.lineWidth=(selected?4:2)/mb.zoom; ctx.strokeRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE); ctx.fillStyle='#c9ffbf'; ctx.font=`${Math.max(44,15/mb.zoom)}px Trebuchet MS`; ctx.fillText(o.name||'Area',(o.left+.3)*TILE,(o.top+.8)*TILE); } else { if(images[o.image]) drawContain(images[o.image],o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE,1,true,!!o.flipX); ctx.strokeStyle=o.collision==='decor'?'#58d34c':(o.collision==='pushable'?'#ffd054':(o.collision==='interaction'?'#57c7ff':'#ff3949')); ctx.lineWidth=(selected?4:2)/mb.zoom; ctx.strokeRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE); } if(selected){ const hs=Math.max(10/mb.zoom,28); [[o.left,o.top],[o.left+o.width,o.top],[o.left,o.top+o.height],[o.left+o.width,o.top+o.height],[o.left+o.width/2,o.top+o.height/2]].forEach((h,i)=>{ ctx.fillStyle=i===4?'#57c7ff':'#fff4df'; ctx.beginPath(); ctx.arc(h[0]*TILE,h[1]*TILE,hs,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#101316'; ctx.lineWidth=2/mb.zoom; ctx.stroke(); }); } }
-  function drawMapBuilder(now){ const mb=game.mapBuilder; if(!mb) return; ctx.save(); ctx.fillStyle='#11161a'; ctx.fillRect(0,0,W,H); ctx.translate(mb.panX,mb.panY); ctx.scale(mb.zoom,mb.zoom); ctx.fillStyle='#31383d'; ctx.fillRect(0,0,WORLD_W,WORLD_H); ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1/mb.zoom; for(let x=0;x<=MAP_W;x++){ ctx.beginPath(); ctx.moveTo(x*TILE,0); ctx.lineTo(x*TILE,WORLD_H); ctx.stroke(); } for(let y=0;y<=MAP_H;y++){ ctx.beginPath(); ctx.moveTo(0,y*TILE); ctx.lineTo(WORLD_W,y*TILE); ctx.stroke(); } mb.paths = mb.paths || []; mb.areas = mb.areas || []; mb.props = mb.props || []; mb.paths.forEach(p=>drawMapBuilderObject(p,now)); mb.areas.forEach(p=>drawMapBuilderObject(p,now)); mb.props.forEach(p=>drawMapBuilderObject(p,now)); if(mb.marquee){ const x1=Math.min(mb.marquee.startX,mb.marquee.x),x2=Math.max(mb.marquee.startX,mb.marquee.x),y1=Math.min(mb.marquee.startY,mb.marquee.y),y2=Math.max(mb.marquee.startY,mb.marquee.y); ctx.strokeStyle='#57c7ff'; ctx.lineWidth=3/mb.zoom; ctx.setLineDash([20/mb.zoom,12/mb.zoom]); ctx.strokeRect(x1*TILE,y1*TILE,(x2-x1)*TILE,(y2-y1)*TILE); ctx.setLineDash([]); } ctx.restore(); ctx.save(); ctx.fillStyle='rgba(10,13,17,.72)'; roundRect(18,16,560,42,8,true,false); ctx.strokeStyle='rgba(255,105,0,.8)'; roundRect(18,16,560,42,8,false,true); ctx.fillStyle='#fff4df'; ctx.font='bold 14px Trebuchet MS'; ctx.fillText(`Build a Map — ${mb.tool.toUpperCase()} ${mb.placeMode==='prop'?mb.selected:mb.placeMode.toUpperCase()} — zoom ${Math.round(mb.zoom*100)}%`,34,43); if(mb.contextMenu){ const rows=['Duplicate','Delete','Flip','Collision']; ctx.fillStyle='rgba(12,15,18,.98)'; roundRect(mb.contextMenu.x,mb.contextMenu.y,150,rows.length*34,8,true,false); ctx.strokeStyle='#ff6900'; roundRect(mb.contextMenu.x,mb.contextMenu.y,150,rows.length*34,8,false,true); rows.forEach((label,i)=>{ ctx.fillStyle='#fff4df'; ctx.font='bold 13px Trebuchet MS'; ctx.fillText(label,mb.contextMenu.x+12,mb.contextMenu.y+22+i*34); }); } ctx.restore(); }
+
+  function mapBuilderPlaceAt(t){
+    const mb=game.mapBuilder; if(!mb) return;
+    if(mb.placeMode==='path'||mb.placeMode==='area') return;
+    const img=images[mb.selected];
+    const baseW=mb.selected==='conveyorEnd'?3.05:(mb.selected==='conveyor'?3.05:(mb.selected==='printers'||mb.selected==='bathroom'?9.8:2.4));
+    const baseH=img?baseW*(img.height/img.width):1.6;
+    mb.props.push({id:uid('prop'),kind:'prop',image:mb.selected,left:Math.round(t.x*2)/2,top:Math.round(t.y*2)/2,width:baseW,height:baseH,collision:mb.selected==='cone'?'decor':(mb.selected==='smallbox3'?'pushable':'block')});
+  }
+
+  function mapBuilderHandleContextCommand(x,y){
+    const mb=game.mapBuilder;
+    if(!mb||!mb.contextMenu) return false;
+    if(x<mb.contextMenu.x||x>mb.contextMenu.x+150||y<mb.contextMenu.y||y>mb.contextMenu.y+138) return false;
+    const row=Math.floor((y-mb.contextMenu.y)/34);
+    if(row===0) mapBuilderDuplicateSelected();
+    else if(row===1) mapBuilderDeleteSelected();
+    else if(row===2) mapBuilderFlipSelected();
+    else if(row===3) mapBuilderCycleCollisionSelected();
+    refreshMapBuilderPanel();
+    return true;
+  }
+
+  function handleMapBuilderClick(x,y){
+    const mb=game.mapBuilder; if(!mb) return;
+    if(mapBuilderHandleContextCommand(x,y)) return;
+  }
+
+  function beginMapBuilderPointer(x,y,pointerId,sourceEvent){
+    const mb=game.mapBuilder; if(!mb) return false;
+
+    if(sourceEvent&&sourceEvent.button===1){
+      mb.panning={pointerId,startX:x,startY:y,panX:mb.panX,panY:mb.panY};
+      mb.contextMenu=null;
+      return true;
+    }
+
+    if(sourceEvent&&sourceEvent.button===2){
+      const t=mapBuilderScreenToTile(x,y);
+      const obj=mapBuilderObjectAt(t);
+      if(obj&&!(mb.selectedIds||[]).includes(obj.id)) mapBuilderSelectObject(obj,false);
+      if((mb.selectedIds||[]).length) mb.contextMenu={x:Math.min(x,W-156),y:Math.min(y,H-142)};
+      return true;
+    }
+
+    if(mapBuilderHandleContextCommand(x,y)) return true;
+    mb.contextMenu=null;
+
+    const t=mapBuilderScreenToTile(x,y);
+    if(t.x<0||t.y<0||t.x>MAP_W||t.y>MAP_H) return false;
+
+    if(mb.tool==='place'&&(mb.placeMode==='path'||mb.placeMode==='area')){
+      mb.drawing={pointerId,kind:mb.placeMode,startX:t.x,startY:t.y,x:t.x,y:t.y};
+      return true;
+    }
+
+    if(mb.tool==='place'){ mapBuilderPlaceAt(t); return true; }
+
+    const obj=mapBuilderObjectAt(t);
+    if(mb.tool==='erase'){
+      if(obj){
+        mb.props=mb.props.filter(p=>p.id!==obj.id);
+        mb.areas=mb.areas.filter(p=>p.id!==obj.id);
+        mb.paths=mb.paths.filter(p=>p.id!==obj.id);
+        mb.selectedIds=(mb.selectedIds||[]).filter(id=>id!==obj.id);
+      }
+      return true;
+    }
+
+    if((mb.tool==='move'||mb.tool==='select')&&obj){
+      const handle=mapBuilderHandleAt(obj,t)||'move';
+      if(!(mb.selectedIds||[]).includes(obj.id)) mapBuilderSelectObject(obj,!!sourceEvent?.shiftKey);
+      const selected=mapBuilderSelectedObjects().map(o=>({obj:o,left:o.left,top:o.top,width:o.width,height:o.height}));
+      mb.dragging={pointerId,type:handle==='move'?'move':'resize',handle,startX:t.x,startY:t.y,selected};
+      return true;
+    }
+
+    if(mb.tool==='select'){
+      mb.selectedIds=[];
+      mb.marquee={startX:t.x,startY:t.y,x:t.x,y:t.y};
+      return true;
+    }
+    return false;
+  }
+
+  function updateMapBuilderPointer(x,y,pointerId){
+    const mb=game.mapBuilder; if(!mb) return false;
+
+    if(mb.panning&&mb.panning.pointerId===pointerId){
+      mb.panX=mb.panning.panX+x-mb.panning.startX;
+      mb.panY=mb.panning.panY+y-mb.panning.startY;
+      return true;
+    }
+
+    const t=mapBuilderScreenToTile(x,y);
+
+    if(mb.drawing&&mb.drawing.pointerId===pointerId){
+      mb.drawing.x=clamp(t.x,0,MAP_W);
+      mb.drawing.y=clamp(t.y,0,MAP_H);
+      return true;
+    }
+
+    if(mb.marquee){ mb.marquee.x=t.x; mb.marquee.y=t.y; return true; }
+
+    if(!mb.dragging||mb.dragging.pointerId!==pointerId) return false;
+    const dx=t.x-mb.dragging.startX, dy=t.y-mb.dragging.startY;
+    if(mb.dragging.type==='move'){
+      mb.dragging.selected.forEach(s=>{
+        s.obj.left=clamp(s.left+dx,0,MAP_W-Math.max(.5,s.obj.width));
+        s.obj.top=clamp(s.top+dy,0,MAP_H-Math.max(.5,s.obj.height));
+      });
+    } else {
+      const s=mb.dragging.selected[0]; if(!s) return true;
+      const obj=s.obj, minSize=.75;
+      if(mb.dragging.handle.includes('e')) obj.width=Math.max(minSize,s.width+dx);
+      if(mb.dragging.handle.includes('s')) obj.height=Math.max(minSize,s.height+dy);
+      if(mb.dragging.handle.includes('w')){ const right=s.left+s.width; obj.left=Math.min(right-minSize,s.left+dx); obj.width=right-obj.left; }
+      if(mb.dragging.handle.includes('n')){ const bottom=s.top+s.height; obj.top=Math.min(bottom-minSize,s.top+dy); obj.height=bottom-obj.top; }
+      obj.left=clamp(obj.left,0,MAP_W-obj.width);
+      obj.top=clamp(obj.top,0,MAP_H-obj.height);
+    }
+    return true;
+  }
+
+  function endMapBuilderPointer(pointerId){
+    const mb=game.mapBuilder; if(!mb) return false;
+
+    if(mb.panning&&mb.panning.pointerId===pointerId){ mb.panning=null; return true; }
+
+    if(mb.drawing&&mb.drawing.pointerId===pointerId){
+      const d=mb.drawing;
+      const x1=Math.max(0,Math.min(d.startX,d.x)), x2=Math.min(MAP_W,Math.max(d.startX,d.x));
+      const y1=Math.max(0,Math.min(d.startY,d.y)), y2=Math.min(MAP_H,Math.max(d.startY,d.y));
+      const w=Math.max(.75,x2-x1), h=Math.max(.75,y2-y1);
+      if(d.kind==='path') mb.paths.push({id:uid('path'),kind:'path',name:'Clear Path',left:Math.round(x1*2)/2,top:Math.round(y1*2)/2,width:Math.round(w*2)/2,height:Math.round(h*2)/2});
+      else mb.areas.push({id:uid('area'),kind:'area',name:'Area Pod',left:Math.round(x1*2)/2,top:Math.round(y1*2)/2,width:Math.round(w*2)/2,height:Math.round(h*2)/2});
+      mb.drawing=null;
+      return true;
+    }
+
+    if(mb.marquee){
+      const x1=Math.min(mb.marquee.startX,mb.marquee.x), x2=Math.max(mb.marquee.startX,mb.marquee.x);
+      const y1=Math.min(mb.marquee.startY,mb.marquee.y), y2=Math.max(mb.marquee.startY,mb.marquee.y);
+      mb.selectedIds=mapBuilderAllObjects().filter(o=>o.left<=x2&&o.left+o.width>=x1&&o.top<=y2&&o.top+o.height>=y1).map(o=>o.id);
+      mb.marquee=null;
+      return true;
+    }
+
+    if(mb.dragging&&mb.dragging.pointerId===pointerId){ mb.dragging=null; return true; }
+    return false;
+  }
+
+  function drawMapBuilderObject(o,now){
+    const selected=(game.mapBuilder.selectedIds||[]).includes(o.id);
+    if(o.kind==='path'){
+      ctx.fillStyle='rgba(255,210,84,.26)';
+      ctx.fillRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE);
+      ctx.strokeStyle=selected?'#fff4df':'#ffd054';
+      ctx.lineWidth=(selected?4:2)/game.mapBuilder.zoom;
+      ctx.strokeRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE);
+    } else if(o.kind==='area'){
+      ctx.fillStyle='rgba(70,180,90,.22)';
+      ctx.fillRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE);
+      if(o.image&&images[o.image]) drawContain(images[o.image],o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE,.72,true);
+      ctx.strokeStyle=selected?'#fff4df':'#58d34c';
+      ctx.lineWidth=(selected?4:2)/game.mapBuilder.zoom;
+      ctx.strokeRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE);
+      ctx.fillStyle='#c9ffbf';
+      ctx.font=`${Math.max(44,15/game.mapBuilder.zoom)}px Trebuchet MS`;
+      ctx.fillText(o.name||'Area',(o.left+.3)*TILE,(o.top+.8)*TILE);
+    } else {
+      if(images[o.image]) drawContain(images[o.image],o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE,1,true,!!o.flipX);
+      ctx.strokeStyle=o.collision==='decor'?'#58d34c':(o.collision==='pushable'?'#ffd054':(o.collision==='interaction'?'#57c7ff':'#ff3949'));
+      ctx.lineWidth=(selected?4:2)/game.mapBuilder.zoom;
+      ctx.strokeRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE);
+    }
+    if(selected){
+      const hs=Math.max(10/game.mapBuilder.zoom,28);
+      const handles=[
+        [o.left,o.top],[o.left+o.width,o.top],[o.left,o.top+o.height],[o.left+o.width,o.top+o.height],
+        [o.left+o.width/2,o.top+o.height/2]
+      ];
+      handles.forEach((h,i)=>{
+        ctx.fillStyle=i===4?'#57c7ff':'#fff4df';
+        ctx.beginPath();
+        ctx.arc(h[0]*TILE,h[1]*TILE,hs,0,Math.PI*2);
+        ctx.fill();
+        ctx.strokeStyle='#101316';
+        ctx.lineWidth=2/game.mapBuilder.zoom;
+        ctx.stroke();
+      });
+    }
+  }
+
+  function drawMapBuilder(now){
+    const mb=game.mapBuilder; if(!mb) return;
+    mb.paths=mb.paths||[]; mb.areas=mb.areas||[]; mb.props=mb.props||[];
+    ctx.save();
+    ctx.fillStyle='#11161a'; ctx.fillRect(0,0,W,H);
+    ctx.translate(mb.panX,mb.panY); ctx.scale(mb.zoom,mb.zoom);
+    ctx.fillStyle='#31383d'; ctx.fillRect(0,0,WORLD_W,WORLD_H);
+    ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1/mb.zoom;
+    for(let x=0;x<=MAP_W;x++){ ctx.beginPath(); ctx.moveTo(x*TILE,0); ctx.lineTo(x*TILE,WORLD_H); ctx.stroke(); }
+    for(let y=0;y<=MAP_H;y++){ ctx.beginPath(); ctx.moveTo(0,y*TILE); ctx.lineTo(WORLD_W,y*TILE); ctx.stroke(); }
+    mb.paths.forEach(p=>drawMapBuilderObject(p,now));
+    mb.areas.forEach(p=>drawMapBuilderObject(p,now));
+    mb.props.forEach(p=>drawMapBuilderObject(p,now));
+    if(mb.marquee){
+      const x1=Math.min(mb.marquee.startX,mb.marquee.x), x2=Math.max(mb.marquee.startX,mb.marquee.x);
+      const y1=Math.min(mb.marquee.startY,mb.marquee.y), y2=Math.max(mb.marquee.startY,mb.marquee.y);
+      ctx.strokeStyle='#57c7ff'; ctx.lineWidth=3/mb.zoom; ctx.setLineDash([20/mb.zoom,12/mb.zoom]);
+      ctx.strokeRect(x1*TILE,y1*TILE,(x2-x1)*TILE,(y2-y1)*TILE);
+      ctx.setLineDash([]);
+    }
+    if(mb.drawing){
+      const x1=Math.min(mb.drawing.startX,mb.drawing.x), x2=Math.max(mb.drawing.startX,mb.drawing.x);
+      const y1=Math.min(mb.drawing.startY,mb.drawing.y), y2=Math.max(mb.drawing.startY,mb.drawing.y);
+      ctx.fillStyle=mb.drawing.kind==='path'?'rgba(255,210,84,.28)':'rgba(70,180,90,.24)';
+      ctx.fillRect(x1*TILE,y1*TILE,(x2-x1)*TILE,(y2-y1)*TILE);
+      ctx.strokeStyle=mb.drawing.kind==='path'?'#ffd054':'#58d34c';
+      ctx.lineWidth=3/mb.zoom;
+      ctx.strokeRect(x1*TILE,y1*TILE,(x2-x1)*TILE,(y2-y1)*TILE);
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle='rgba(10,13,17,.72)';
+    roundRect(18,16,560,42,8,true,false);
+    ctx.strokeStyle='rgba(255,105,0,.8)';
+    roundRect(18,16,560,42,8,false,true);
+    ctx.fillStyle='#fff4df'; ctx.font='bold 14px Trebuchet MS';
+    ctx.fillText(`Build a Map — ${mb.tool.toUpperCase()} ${mb.placeMode==='prop'?mb.selected:mb.placeMode.toUpperCase()} — zoom ${Math.round(mb.zoom*100)}%`,34,43);
+    if(mb.contextMenu){
+      const rows=['Duplicate','Delete','Flip','Collision'];
+      ctx.fillStyle='rgba(12,15,18,.98)';
+      roundRect(mb.contextMenu.x,mb.contextMenu.y,150,rows.length*34,8,true,false);
+      ctx.strokeStyle='#ff6900';
+      roundRect(mb.contextMenu.x,mb.contextMenu.y,150,rows.length*34,8,false,true);
+      rows.forEach((label,i)=>{
+        ctx.fillStyle='#fff4df'; ctx.font='bold 13px Trebuchet MS';
+        ctx.fillText(label,mb.contextMenu.x+12,mb.contextMenu.y+22+i*34);
+      });
+    }
+    ctx.restore();
+  }
 
   function handleAdminAction(action) {
     if (!game.adminMode) return;
@@ -5067,7 +5500,17 @@
 
   titleUI.addEventListener('pointerdown', () => { synth.init(); startTitleMusic(); });
   nameInput.addEventListener('focus', () => { synth.init(); startTitleMusic(); });
-  canvas.addEventListener('contextmenu', event => { if (game.mode === 'mapBuilder') event.preventDefault(); });
+  canvas.addEventListener('contextmenu', event => {
+    if (game.mode === 'mapBuilder') {
+      event.preventDefault();
+      const { x, y } = canvasPoint(event);
+      const mb = game.mapBuilder;
+      const t = mapBuilderScreenToTile(x, y);
+      const obj = mapBuilderObjectAt(t);
+      if (obj && !(mb.selectedIds || []).includes(obj.id)) mapBuilderSelectObject(obj, false);
+      if ((mb.selectedIds || []).length) mb.contextMenu = { x: Math.min(x, W - 156), y: Math.min(y, H - 142) };
+    }
+  });
   canvas.addEventListener('click', event => {
     const { x, y } = canvasPoint(event);
     if (game.mode === 'inventoryPuzzle') handleInventoryClick(x, y);

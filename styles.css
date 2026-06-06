@@ -957,3 +957,46 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
 
 /* V2.53a: Build a Map startup/runtime guard */
 .map-builder-panel { z-index: 90; }
+
+
+/* V2.54 compact builder controls and 3-column icon palette */
+.map-builder-panel { width: 300px; }
+.map-builder-body { padding: 6px; }
+.map-builder-row { gap: 4px; margin-bottom: 4px; }
+.map-builder-row.map-builder-tools { grid-template-columns: repeat(4, 1fr); }
+.map-builder-row button {
+  min-height: 24px;
+  padding: 2px 4px;
+  font-size: 10px;
+}
+.map-builder-row button.selected,
+.map-builder-tools button.selected,
+.map-builder-row button[data-place-mode].selected {
+  background: rgba(255,105,0,.45);
+  border-color: rgba(255,177,94,.95);
+}
+.map-builder-hint {
+  margin: 4px 0 6px;
+  font-size: 10px;
+  line-height: 1.18;
+}
+.map-builder-palette {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  max-height: calc(100vh - 238px);
+}
+.map-builder-palette button {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  align-items: center;
+  min-height: 42px;
+  padding: 3px;
+}
+.map-builder-palette button span { display: none; }
+.map-builder-palette img {
+  width: 42px;
+  height: 34px;
+  object-fit: contain;
+}
+.map-builder-panel.collapsed { width: 190px; }
