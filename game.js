@@ -54,7 +54,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.54';
+  const VERSION = 'V2.55';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -3830,6 +3830,16 @@
     if(mapBuilderHandleContextCommand(x,y)) return;
   }
 
+  function mapBuilderClampLeft(obj, left) {
+    // Allow objects to hang outside the map, as long as at least 1 tile remains on-board.
+    return clamp(left, 1 - Math.max(.5, obj.width), MAP_W - 1);
+  }
+
+  function mapBuilderClampTop(obj, top) {
+    // Allow objects to hang outside the map, as long as at least 1 tile remains on-board.
+    return clamp(top, 1 - Math.max(.5, obj.height), MAP_H - 1);
+  }
+
   function beginMapBuilderPointer(x,y,pointerId,sourceEvent){
     const mb=game.mapBuilder; if(!mb) return false;
 
@@ -3910,8 +3920,8 @@
     const dx=t.x-mb.dragging.startX, dy=t.y-mb.dragging.startY;
     if(mb.dragging.type==='move'){
       mb.dragging.selected.forEach(s=>{
-        s.obj.left=clamp(s.left+dx,0,MAP_W-Math.max(.5,s.obj.width));
-        s.obj.top=clamp(s.top+dy,0,MAP_H-Math.max(.5,s.obj.height));
+        s.obj.left=mapBuilderClampLeft(s.obj,s.left+dx);
+        s.obj.top=mapBuilderClampTop(s.obj,s.top+dy);
       });
     } else {
       const s=mb.dragging.selected[0]; if(!s) return true;
@@ -3920,8 +3930,8 @@
       if(mb.dragging.handle.includes('s')) obj.height=Math.max(minSize,s.height+dy);
       if(mb.dragging.handle.includes('w')){ const right=s.left+s.width; obj.left=Math.min(right-minSize,s.left+dx); obj.width=right-obj.left; }
       if(mb.dragging.handle.includes('n')){ const bottom=s.top+s.height; obj.top=Math.min(bottom-minSize,s.top+dy); obj.height=bottom-obj.top; }
-      obj.left=clamp(obj.left,0,MAP_W-obj.width);
-      obj.top=clamp(obj.top,0,MAP_H-obj.height);
+      obj.left=mapBuilderClampLeft(obj,obj.left);
+      obj.top=mapBuilderClampTop(obj,obj.top);
     }
     return true;
   }
