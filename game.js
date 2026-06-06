@@ -41,6 +41,7 @@
   const adminExitButton = document.getElementById('admin-exit');
   const adminCollapseButton = document.getElementById('admin-collapse');
   const adminButtons = Array.from(document.querySelectorAll('[data-admin]'));
+  let mapBuilderPanel = null;
 
   const W = canvas.width;
   const H = canvas.height;
@@ -53,7 +54,7 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.51';
+  const VERSION = 'V2.52';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
@@ -3414,6 +3415,7 @@
     adminPanel.classList.toggle('hidden', !show);
   }
   function adminReturnToWarehouse() {
+    hideMapBuilderPanel();
     game.mode = 'play';
     game.office = null;
     game.inventoryPuzzle = null;
@@ -3449,6 +3451,7 @@
     addMessage('ADMIN TEST MODE — SCORES NOT SAVED', '#ffd054', 3200);
   }
   function exitAdminMode() {
+    hideMapBuilderPanel();
     game.adminMode = false;
     showAdminPanel(false);
     hideFireOverlay();
@@ -3540,12 +3543,141 @@
   function mapBuilderPalette() {
     return ['box1','box2','box3','box4','box5','box6','box7','smallbox','smallbox2','smallbox3','conveyor','conveyorEnd','cone','printers','bathroom','kitchen','table','table2','coffee','shoe','shoe1','shoe2','shoe3'].filter(key => images[key]);
   }
+
+  function makeViewportDraggable(panel, handle) {
+    if (!panel || !handle || panel.dataset.dragReady === '1') return;
+    panel.dataset.dragReady = '1';
+    let drag = null;
+    handle.addEventListener('pointerdown', event => {
+      if (event.target.closest('button')) return;
+      const rect = panel.getBoundingClientRect();
+      drag = { startX: event.clientX, startY: event.clientY, left: rect.left, top: rect.top };
+      panel.style.left = `${rect.left}px`;
+      panel.style.top = `${rect.top}px`;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      handle.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    handle.addEventListener('pointermove', event => {
+      if (!drag) return;
+      const maxLeft = Math.max(4, window.innerWidth - panel.offsetWidth - 4);
+      const maxTop = Math.max(4, window.innerHeight - panel.offsetHeight - 4);
+      const nextLeft = clamp(drag.left + event.clientX - drag.startX, 4, maxLeft);
+      const nextTop = clamp(drag.top + event.clientY - drag.startY, 4, maxTop);
+      panel.style.left = `${nextLeft}px`;
+      panel.style.top = `${nextTop}px`;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    const endDrag = event => {
+      drag = null;
+      handle.releasePointerCapture?.(event.pointerId);
+    };
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
+  }
+
+  function mapBuilderControlPanel() {
+    if (mapBuilderPanel) return mapBuilderPanel;
+    mapBuilderPanel = document.createElement('aside');
+    mapBuilderPanel.id = 'map-builder-panel';
+    mapBuilderPanel.className = 'map-builder-panel hidden';
+    mapBuilderPanel.innerHTML = `
+      <header class="map-builder-header">
+        <strong>BUILD A MAP</strong>
+        <div class="admin-window-controls">
+          <button type="button" data-map-builder="collapse" class="admin-exit" aria-label="Collapse map builder">—</button>
+          <button type="button" data-map-builder="back" class="admin-exit" aria-label="Back to game">✕</button>
+        </div>
+      </header>
+      <div class="map-builder-body">
+        <div class="map-builder-row">
+          <button type="button" data-map-builder="back">Back to game</button>
+          <button type="button" data-map-builder="export">Export JSON</button>
+        </div>
+        <div class="map-builder-row">
+          <button type="button" data-map-builder="tool">Tool: PLACE</button>
+          <button type="button" data-map-builder="zoomIn">Zoom +</button>
+          <button type="button" data-map-builder="zoomOut">Zoom -</button>
+        </div>
+        <div class="map-builder-hint">Drag this panel into the black side space. Click the map to place/erase props.</div>
+        <div class="map-builder-palette"></div>
+      </div>`;
+    document.body.appendChild(mapBuilderPanel);
+    makeViewportDraggable(mapBuilderPanel, mapBuilderPanel.querySelector('.map-builder-header'));
+    mapBuilderPanel.addEventListener('click', event => {
+      const button = event.target.closest('[data-map-builder], [data-prop]');
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const mb = game.mapBuilder;
+      const action = button.dataset.mapBuilder;
+      if (action === 'back') {
+        game.mode = 'play';
+        game.mapBuilder = null;
+        hideMapBuilderPanel();
+        setGameplayControlsVisible(true);
+        return;
+      }
+      if (action === 'collapse') {
+        mapBuilderPanel.classList.toggle('collapsed');
+        return;
+      }
+      if (!mb) return;
+      if (action === 'export') { mapBuilderExport(); return; }
+      if (action === 'tool') { mb.tool = mb.tool === 'erase' ? 'place' : 'erase'; refreshMapBuilderPanel(); return; }
+      if (action === 'zoomIn') { mb.zoom = Math.min(.42, mb.zoom + .025); refreshMapBuilderPanel(); return; }
+      if (action === 'zoomOut') { mb.zoom = Math.max(.08, mb.zoom - .025); refreshMapBuilderPanel(); return; }
+      if (button.dataset.prop) {
+        mb.selected = button.dataset.prop;
+        mb.tool = 'place';
+        refreshMapBuilderPanel();
+      }
+    });
+    return mapBuilderPanel;
+  }
+
+  function refreshMapBuilderPanel() {
+    const panel = mapBuilderControlPanel();
+    const mb = game.mapBuilder;
+    const body = panel.querySelector('.map-builder-body');
+    const paletteEl = panel.querySelector('.map-builder-palette');
+    if (!mb || !paletteEl) return;
+    const toolButton = panel.querySelector('[data-map-builder="tool"]');
+    if (toolButton) toolButton.textContent = mb.tool === 'erase' ? 'Tool: ERASER' : 'Tool: PLACE';
+    paletteEl.innerHTML = '';
+    mapBuilderPalette().forEach(key => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.prop = key;
+      button.className = key === mb.selected ? 'selected' : '';
+      const file = assetSources[key]?.[0] || '';
+      button.innerHTML = `${file ? `<img src="${ASSET_PATH}${file}" alt="">` : ''}<span>${key}</span>`;
+      paletteEl.appendChild(button);
+    });
+    if (body) body.style.display = panel.classList.contains('collapsed') ? 'none' : '';
+  }
+
+  function showMapBuilderPanel() {
+    const panel = mapBuilderControlPanel();
+    panel.classList.remove('hidden');
+    refreshMapBuilderPanel();
+  }
+
+  function hideMapBuilderPanel() {
+    if (mapBuilderPanel) mapBuilderPanel.classList.add('hidden');
+  }
   function startMapBuilder() {
     adminReturnToWarehouse();
     game.mode = 'mapBuilder';
     setGameplayControlsVisible(false);
     keys.clear();
     game.mapBuilder = { zoom: .18, panX: 24, panY: 56, selected: 'box5', tool: 'place', props: [], dragging: false };
+    showMapBuilderPanel();
     addMessage('MAP BUILDER: drag/click props, export JSON when ready', '#ffd054', 3000);
   }
   function mapBuilderScreenToTile(x, y) {
@@ -3565,20 +3697,6 @@
   }
   function handleMapBuilderClick(x, y) {
     const mb = game.mapBuilder; if (!mb) return;
-    const palette = mapBuilderPalette();
-    const sideX = W - 220;
-    if (x > sideX) {
-      if (y < 52) { game.mode = 'play'; game.mapBuilder = null; setGameplayControlsVisible(true); return; }
-      if (y >= 56 && y < 90) { mapBuilderExport(); return; }
-      if (y >= 94 && y < 128) { mb.tool = mb.tool === 'erase' ? 'place' : 'erase'; return; }
-      let py = 144;
-      for (const key of palette) {
-        const rowH = 42;
-        if (y >= py && y <= py + rowH) { mb.selected = key; mb.tool = 'place'; return; }
-        py += rowH;
-      }
-      return;
-    }
     const t = mapBuilderScreenToTile(x, y);
     if (t.x < 0 || t.y < 0 || t.x > MAP_W || t.y > MAP_H) return;
     if (mb.tool === 'erase') {
@@ -3604,12 +3722,15 @@
     [game.zones.dock, game.zones.elevator, game.zones.inventory, game.zones.quarantine, game.zones.exit, ...game.zones.kitchens].filter(Boolean).forEach(z => { ctx.fillStyle='rgba(70,180,90,.20)'; ctx.fillRect(z.left*TILE,z.top*TILE,z.width*TILE,z.height*TILE); ctx.strokeStyle='#58d34c'; ctx.strokeRect(z.left*TILE,z.top*TILE,z.width*TILE,z.height*TILE); });
     mb.props.forEach(p => { if (images[p.image]) drawContain(images[p.image], p.left*TILE, p.top*TILE, p.width*TILE, p.height*TILE, 1, true, !!p.flipX); ctx.strokeStyle=p.collision==='decor'?'#58d34c':(p.collision==='pushable'?'#ffd054':'#ff3949'); ctx.lineWidth=2/mb.zoom; ctx.strokeRect(p.left*TILE,p.top*TILE,p.width*TILE,p.height*TILE); });
     ctx.restore();
-    ctx.save(); ctx.fillStyle='rgba(10,13,17,.92)'; ctx.fillRect(W-220,0,220,H); ctx.strokeStyle='#ff6900'; ctx.strokeRect(W-220,0,220,H);
-    ctx.fillStyle='#ffd054'; ctx.font='bold 18px Trebuchet MS'; ctx.fillText('BUILD A MAP', W-204, 28);
-    const button = (label, y) => { ctx.fillStyle='rgba(35,42,48,.95)'; roundRect(W-204,y,188,30,6,true,false); ctx.strokeStyle='#ff6900'; roundRect(W-204,y,188,30,6,false,true); ctx.fillStyle='#fff4df'; ctx.font='bold 13px Trebuchet MS'; ctx.fillText(label, W-196, y+20); };
-    button('Back to game', 18); button('Export JSON', 56); button(mb.tool==='erase'?'Tool: ERASER':'Tool: PLACE', 94);
-    let py=144; const palette=mapBuilderPalette();
-    for (const key of palette) { ctx.fillStyle = key===mb.selected ? 'rgba(255,105,0,.35)' : 'rgba(35,42,48,.75)'; roundRect(W-204,py,188,34,6,true,false); if (images[key]) drawContain(images[key], W-200, py+3, 34, 28, 1, false); ctx.fillStyle='#fff4df'; ctx.font='bold 12px Trebuchet MS'; ctx.fillText(key, W-158, py+22); py+=42; if (py>H-38) break; }
+
+    ctx.save();
+    ctx.fillStyle='rgba(10,13,17,.72)';
+    roundRect(18, 16, 560, 42, 8, true, false);
+    ctx.strokeStyle='rgba(255,105,0,.8)';
+    roundRect(18, 16, 560, 42, 8, false, true);
+    ctx.fillStyle='#fff4df';
+    ctx.font='bold 14px Trebuchet MS';
+    ctx.fillText(`Build a Map — ${mb.tool === 'erase' ? 'ERASE' : 'PLACE'} ${mb.selected} — zoom ${Math.round(mb.zoom * 100)}%`, 34, 43);
     ctx.restore();
   }
 
@@ -5059,25 +5180,7 @@
   (function setupAdminPanelDrag() {
     const header = adminPanel.querySelector('.admin-header');
     if (!header) return;
-    let drag = null;
-    header.addEventListener('pointerdown', event => {
-      if (event.target.closest('button')) return;
-      drag = { x: event.clientX, y: event.clientY, left: adminPanel.offsetLeft, top: adminPanel.offsetTop };
-      adminPanel.setPointerCapture?.(event.pointerId);
-      event.preventDefault();
-    });
-    header.addEventListener('pointermove', event => {
-      if (!drag) return;
-      const shellRect = shell.getBoundingClientRect();
-      const nextLeft = clamp(drag.left + event.clientX - drag.x, 4, shellRect.width - adminPanel.offsetWidth - 4);
-      const nextTop = clamp(drag.top + event.clientY - drag.y, 4, shellRect.height - 44);
-      adminPanel.style.left = `${nextLeft}px`;
-      adminPanel.style.top = `${nextTop}px`;
-      adminPanel.style.right = 'auto';
-    });
-    const endDrag = event => { drag = null; adminPanel.releasePointerCapture?.(event.pointerId); };
-    header.addEventListener('pointerup', endDrag);
-    header.addEventListener('pointercancel', endDrag);
+    makeViewportDraggable(adminPanel, header);
   })();
 
 
@@ -5156,7 +5259,7 @@
       skipIntro();
       return;
     }
-    if (event.code === 'Escape' && game.mode === 'mapBuilder') { game.mode='play'; game.mapBuilder=null; setGameplayControlsVisible(true); return; }
+    if (event.code === 'Escape' && game.mode === 'mapBuilder') { game.mode='play'; game.mapBuilder=null; hideMapBuilderPanel(); setGameplayControlsVisible(true); return; }
     if (event.code === 'Escape' && game.mode === 'office') {
       game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return;
     }
@@ -5186,8 +5289,8 @@
       return;
     }
     if (game.mode === 'mapBuilder') {
-      if (game.mapBuilder && (event.code === 'Equal' || event.code === 'NumpadAdd')) game.mapBuilder.zoom = Math.min(.42, game.mapBuilder.zoom + .025);
-      if (game.mapBuilder && (event.code === 'Minus' || event.code === 'NumpadSubtract')) game.mapBuilder.zoom = Math.max(.08, game.mapBuilder.zoom - .025);
+      if (game.mapBuilder && (event.code === 'Equal' || event.code === 'NumpadAdd')) { game.mapBuilder.zoom = Math.min(.42, game.mapBuilder.zoom + .025); refreshMapBuilderPanel(); }
+      if (game.mapBuilder && (event.code === 'Minus' || event.code === 'NumpadSubtract')) { game.mapBuilder.zoom = Math.max(.08, game.mapBuilder.zoom - .025); refreshMapBuilderPanel(); }
       if (event.code === 'KeyE') mapBuilderExport();
       return;
     }
