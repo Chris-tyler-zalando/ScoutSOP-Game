@@ -66,7 +66,7 @@
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
-  const ASSET_VERSION = '2.63';
+  const ASSET_VERSION = '2.64';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
   const PROFILES_KEY = 'zalandoScoutProfilesV1';
@@ -3220,7 +3220,8 @@
       boss: { x: bossWorldW / 2, y: -350, w: 560, h: 560, vx: 135, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
       fireballs: [],
       shoes: [],
-      nextFireAt: performance.now() + 3600,
+      effects: [],
+      nextFireAt: performance.now() + 4200,
       nextVoiceAt: performance.now() + randInt(10000, 15000),
       startedAt: performance.now(),
       victoryStart: 0,
@@ -3235,7 +3236,7 @@
     game.mode = 'bossFight';
     game.boss.phase = 'fight';
     game.boss.startedAt = performance.now();
-    game.boss.nextFireAt = performance.now() + 1600;
+    game.boss.nextFireAt = performance.now() + 2200;
     game.boss.nextVoiceAt = performance.now() + randInt(10000, 15000);
     setGameplayControlsVisible(true);
     music.play('boss', true);
@@ -3268,7 +3269,7 @@
   function bossAlphaHit(a, b, pad = 0) {
     return a.x - a.w / 2 + pad < b.x + b.w / 2 && a.x + a.w / 2 - pad > b.x - b.w / 2 && a.y - a.h / 2 + pad < b.y + b.h / 2 && a.y + a.h / 2 - pad > b.y - b.h / 2;
   }
-  function damageBoss(amount, source) {
+  function damageBoss(amount, source, hitX = null, hitY = null) {
     const bz = game.boss;
     const b = bz && bz.boss;
     if (!b || b.dead || bz.phase !== 'fight') return false;
@@ -3292,7 +3293,19 @@
     b.hearts = Math.max(0, b.hearts - applied);
     b.hitFlashUntil = now + 420;
     game.stats.bossHits += applied;
-    burst(b.x, b.y, '#ff3c3c', source === 'ram' ? 36 : 24);
+
+    const fxX = hitX == null ? b.x : hitX;
+    const fxY = hitY == null ? b.y : hitY;
+    bz.effects = bz.effects || [];
+    bz.effects.push({
+      type: source === 'ram' ? 'ramImpact' : 'shoeImpact',
+      x: fxX,
+      y: fxY,
+      start: now,
+      dur: source === 'ram' ? 340 : 260
+    });
+
+    burst(fxX, fxY, '#ffef9a', source === 'ram' ? 36 : 24);
     synth.hurt();
     addMessage(source === 'ram' ? 'RAM HIT!  -2 IVAN HEARTS' : 'OFFLINE STOCK HIT!  -1 IVAN HEART', '#ffd054', 900);
     if (b.hearts <= 0) startBossVictory();
@@ -3309,6 +3322,7 @@
     bz.nextVoiceAt = Number.POSITIVE_INFINITY;
     bz.fireballs = [];
     bz.shoes = [];
+    bz.effects = [];
     keys.delete('Space');
     music.stop();
     stopOneShots();
@@ -3323,21 +3337,36 @@
     const bz = game.boss;
     if (!bz || bz.phase !== 'fight' || bz.boss.dead) return false;
     if (now < (bz.nextShoeAt || 0)) return false;
-    bz.nextShoeAt = now + 330;
+
+    bz.nextShoeAt = now + 430;
     const keysPool = shoeImageKeys();
-    const size = 78;
-    const startY = bz.player.y - 120;
+    const size = 56;
+    const startX = bz.player.x;
+    const startY = bz.player.y - 118;
+    const targetX = clamp((bz.boss ? bz.boss.x : bz.player.x) + rand(-30, 30), 160, bz.worldW - 160);
+    const travelTime = 1.15;
+    const groundY = H - 90;
+    const vx = (targetX - startX) / travelTime;
+    const vy = -540;
+    const gravity = 920;
+
     bz.shoes.push({
-      x: bz.player.x,
+      x: startX,
       y: startY,
       prevY: startY,
       w: size,
       h: size,
-      vy: -560,
+      vx,
+      vy,
+      gravity,
+      groundY,
       spin: 0,
       born: now,
-      armedAt: now + 160,
+      armedAt: now + 180,
       exploded: false,
+      explodeStart: 0,
+      landed: false,
+      landAt: 0,
       hit: false,
       image: choice(keysPool.length ? keysPool : ['shoe'])
     });
@@ -3349,19 +3378,27 @@
     const bz = game.boss;
     if (!bz || !bz.boss || bz.boss.dead) return;
     const b = bz.boss;
+
+    const activeShoes = (bz.shoes || []).filter(s => !s.hit && !s.exploded && !s.landed);
+    let target = null;
+    if (activeShoes.length) {
+      target = activeShoes.sort((a, z) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(z.x - b.x, z.y - b.y))[0];
+    } else {
+      target = { x: bz.player.x, y: bz.player.y - 35 };
+    }
+
     const originX = b.x + b.w * 0.04;
     const originY = b.y + b.h * 0.08;
-    const targetX = bz.player.x;
-    const targetY = bz.player.y - 40;
-    const dx = targetX - originX;
-    const dy = targetY - originY;
+    const dx = target.x - originX;
+    const dy = target.y - originY;
     const len = Math.max(1, Math.hypot(dx, dy));
-    const speed = 430;
+    const speed = 360;
+
     bz.fireballs.push({
       x: originX,
       y: originY,
-      w: 82,
-      h: 82,
+      w: 118,
+      h: 118,
       vx: dx / len * speed,
       vy: dy / len * speed,
       born: now,
@@ -3426,7 +3463,7 @@
 
     if (!b.dead && b.hearts > 0 && now >= bz.nextFireAt) {
       shootBossFireball(now);
-      bz.nextFireAt = now + rand(900, 1450);
+      bz.nextFireAt = now + rand(2200, 3200);
     }
     if (!b.dead && now >= bz.nextVoiceAt) {
       const voice = choice(['robot1.mp3', 'robot2.mp3', 'robot3.mp3']);
@@ -3437,33 +3474,51 @@
     bz.fireballs.forEach(f => {
       f.x += f.vx * dt;
       f.y += f.vy * dt;
-      f.frameFloat = ((f.frameFloat || 0) + dt * 18) % 17;
+      f.frameFloat = ((f.frameFloat || 0) + dt * 16) % 17;
     });
-    bz.fireballs = bz.fireballs.filter(f => f.y < H + 120 && f.x > -160 && f.x < worldW + 160);
+    bz.fireballs = bz.fireballs.filter(f => f.y < H + 160 && f.x > -180 && f.x < worldW + 180 && !f.hit);
 
     bz.shoes.forEach(s => {
       s.prevY = s.y;
-      s.y += s.vy * dt;
-      s.spin += dt * Math.PI * 6.2;
+      if (!s.landed && !s.exploded && !s.hit) {
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        s.vy += s.gravity * dt;
+        s.spin += dt * Math.PI * 5.4;
+        if (s.y >= s.groundY && s.vy > 0) {
+          s.y = s.groundY;
+          s.landed = true;
+          s.landAt = now;
+          s.vx = 0;
+          s.vy = 0;
+          s.spin = 0;
+        }
+      }
     });
 
     for (const f of bz.fireballs) {
       if (f.hit) continue;
       for (const s of bz.shoes) {
-        if (s.hit || s.exploded) continue;
-        const xClose = Math.abs(f.x - s.x) < (f.w * .30 + s.w * .40);
-        const yClose = Math.abs(f.y - s.y) < (f.h * .30 + s.h * .40);
+        if (s.hit || s.exploded || s.landed) continue;
+        const xClose = Math.abs(f.x - s.x) < (f.w * .32 + s.w * .42);
+        const yClose = Math.abs(f.y - s.y) < (f.h * .32 + s.h * .42);
         if (xClose && yClose) {
           f.hit = true;
           s.exploded = true;
-          burst(s.x, s.y, '#ffd054', 24);
+          s.explodeStart = now;
+          bz.effects.push({
+            type: 'shoeExplosion',
+            x: s.x,
+            y: s.y,
+            start: now,
+            dur: 260
+          });
           addMessage('IVAN SHOT THE STOCK!', '#ff9a3b', 600);
           break;
         }
       }
     }
     bz.fireballs = bz.fireballs.filter(f => !f.hit);
-    bz.shoes = bz.shoes.filter(s => !s.exploded && s.y > -160);
 
     const bossBox = {
       x: b.x - b.w * .30,
@@ -3472,7 +3527,7 @@
       h: b.h * .76
     };
     for (const s of bz.shoes) {
-      if (s.hit || now < (s.armedAt || 0)) continue;
+      if (s.hit || s.exploded || s.landed || now < (s.armedAt || 0)) continue;
       const shoeBox = {
         x: s.x - s.w * .28,
         y: s.y - s.h * .28,
@@ -3485,10 +3540,16 @@
         shoeBox.y + shoeBox.h > bossBox.y;
       if (overlaps) {
         s.hit = true;
-        damageBoss(1, 'shoe');
+        damageBoss(1, 'shoe', s.x, s.y);
       }
     }
-    bz.shoes = bz.shoes.filter(s => !s.hit);
+
+    bz.shoes = bz.shoes.filter(s => {
+      if (s.hit) return false;
+      if (s.exploded) return now - s.explodeStart < 260;
+      if (s.landed) return now - s.landAt < 450;
+      return s.y > -180;
+    });
 
     const activelyRamming = dy < -0.25 || keys.has('ArrowUp') || keys.has('KeyW');
     const verticalRam = activelyRamming &&
@@ -3496,13 +3557,20 @@
       bz.player.y < b.y + b.h * .62 &&
       bz.player.y > b.y + b.h * .20;
     if (verticalRam && now > (bz.nextRamAt || 0)) {
-      if (damageBoss(2, 'ram')) bz.nextRamAt = now + 950;
+      if (damageBoss(2, 'ram', bz.player.x, bz.player.y - 95)) bz.nextRamAt = now + 950;
     }
 
     for (const f of bz.fireballs) {
-      if (Math.abs(f.x - bz.player.x) < 105 && Math.abs(f.y - bz.player.y) < 145 && now > (bz.nextPlayerHitAt || 0)) {
+      if (Math.abs(f.x - bz.player.x) < 110 && Math.abs(f.y - bz.player.y) < 150 && now > (bz.nextPlayerHitAt || 0)) {
         bz.nextPlayerHitAt = now + 900;
         game.health = Math.max(0, game.health - 1);
+        bz.effects.push({
+          type: 'playerImpact',
+          x: bz.player.x,
+          y: bz.player.y - 40,
+          start: now,
+          dur: 260
+        });
         burst(bz.player.x, bz.player.y, '#ee394d', 28);
         synth.hurt();
         addMessage('IVAN HIT YOU! -1 HEART', '#ee394d', 850);
@@ -3511,6 +3579,8 @@
       }
     }
     bz.fireballs = bz.fireballs.filter(f => !f.hit);
+
+    bz.effects = (bz.effects || []).filter(fx => now - fx.start < fx.dur);
   }
   function updateBossVictory(dt, now) {
     const bz = game.boss;
@@ -5734,52 +5804,112 @@
   }
   function drawBossProjectiles(now, view) {
     const bz = game.boss; if (!bz) return;
+
     bz.fireballs.forEach(f => {
       const x = f.x * view.scale - view.cameraX;
       ctx.save();
-      const radius = Math.max(f.w, f.h) * .68;
+      const pulse = 1 + Math.sin((now - f.born) / 110) * 0.08;
+      const drawW = f.w * pulse;
+      const drawH = f.h * pulse;
+      const radius = Math.max(drawW, drawH) * .74;
       const glow = ctx.createRadialGradient(x, f.y, 0, x, f.y, radius);
-      glow.addColorStop(0, 'rgba(255, 236, 74, .88)');
-      glow.addColorStop(.28, 'rgba(255, 95, 0, .55)');
-      glow.addColorStop(.62, 'rgba(255, 0, 0, .20)');
+      glow.addColorStop(0, 'rgba(255, 241, 130, .95)');
+      glow.addColorStop(.22, 'rgba(255, 160, 0, .82)');
+      glow.addColorStop(.55, 'rgba(255, 72, 0, .42)');
       glow.addColorStop(1, 'rgba(255, 0, 0, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath();
       ctx.arc(x, f.y, radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
 
       if (images.fireballSheet) {
-        ctx.save();
-        ctx.shadowColor='#ff5b00';
-        ctx.shadowBlur=18;
+        ctx.shadowColor = '#ff6a00';
+        ctx.shadowBlur = 24;
         const frame = Math.floor(f.frameFloat || ((now - f.born) / 55)) % 17;
-        drawTintedSpriteFrameContain(images.fireballSheet, 17, 1, frame, 0, x, f.y, f.w, f.h, false, 1, false, false);
-        ctx.restore();
+        drawTintedSpriteFrameContain(images.fireballSheet, 17, 1, frame, 0, x, f.y, drawW, drawH, false, 1, false, false);
       } else if (images.fireball) {
-        ctx.save();
-        ctx.shadowColor='#ff5b00';
-        ctx.shadowBlur=18;
-        drawContain(images.fireball, x - f.w/2, f.y - f.h/2, f.w, f.h, 1, false);
-        ctx.restore();
+        ctx.shadowColor = '#ff6a00';
+        ctx.shadowBlur = 24;
+        drawContain(images.fireball, x - drawW/2, f.y - drawH/2, drawW, drawH, 1, false);
       } else {
-        ctx.font='44px Arial';
+        ctx.font='64px Arial';
         ctx.textAlign='center';
         ctx.fillText('🔥', x, f.y);
       }
+      ctx.restore();
     });
 
     bz.shoes.forEach(s => {
       const x = s.x * view.scale - view.cameraX;
+      if (s.exploded) return;
+
+      const drop = Math.max(0, s.groundY - s.y);
+      const shadowScale = s.landed ? 1 : Math.max(.35, 1 - drop / 220);
+      ctx.save();
+      ctx.globalAlpha = s.landed ? .28 : .16 + shadowScale * .18;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(x, s.groundY + 10, 20 * shadowScale, 8 * shadowScale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
       ctx.save();
       ctx.translate(x, s.y);
       ctx.rotate(s.spin);
       ctx.shadowColor = '#ffd054';
-      ctx.shadowBlur = 16;
-      ctx.globalAlpha = Math.min(1, Math.max(.35, (now - s.born) / 120));
+      ctx.shadowBlur = 14;
+      ctx.globalAlpha = Math.min(1, Math.max(.38, (now - s.born) / 120));
       if (images[s.image]) tintDraw(images[s.image], -s.w/2, -s.h/2, s.w, s.h, 1, false, true);
-      else { ctx.font='58px Arial'; ctx.textAlign='center'; ctx.fillText('👟',0,0); }
+      else { ctx.font='50px Arial'; ctx.textAlign='center'; ctx.fillText('👟',0,0); }
       ctx.restore();
+    });
+
+    (bz.effects || []).forEach(fx => {
+      const x = fx.x * view.scale - view.cameraX;
+      const p = Math.min(1, Math.max(0, (now - fx.start) / fx.dur));
+
+      if (fx.type === 'shoeExplosion') {
+        const grow = p < .5 ? (0.55 + p * 2.2) : (1.65 - (p - .5) * 1.8);
+        const alpha = p < .6 ? 1 : 1 - ((p - .6) / .4);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, alpha);
+        const radius = 32 + 72 * grow;
+        const flash = ctx.createRadialGradient(x, fx.y, 0, x, fx.y, radius);
+        flash.addColorStop(0, 'rgba(255,255,240,.96)');
+        flash.addColorStop(.22, 'rgba(255,214,84,.92)');
+        flash.addColorStop(.55, 'rgba(255,100,0,.55)');
+        flash.addColorStop(1, 'rgba(255,0,0,0)');
+        ctx.fillStyle = flash;
+        ctx.beginPath();
+        ctx.arc(x, fx.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        const drawSize = 86 + 90 * grow;
+        if (images.fireballSheet) {
+          const frame = Math.floor((p * 16)) % 17;
+          drawTintedSpriteFrameContain(images.fireballSheet, 17, 1, frame, 0, x, fx.y, drawSize, drawSize, false, 1, false, false);
+        } else if (images.fireball) {
+          drawContain(images.fireball, x - drawSize/2, fx.y - drawSize/2, drawSize, drawSize, 1, false);
+        }
+        ctx.restore();
+      }
+
+      if (fx.type === 'shoeImpact' || fx.type === 'ramImpact' || fx.type === 'playerImpact') {
+        const alpha = 1 - p;
+        const radius = fx.type === 'ramImpact' ? 90 * (0.65 + p) : 58 * (0.65 + p);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        const flash = ctx.createRadialGradient(x, fx.y, 0, x, fx.y, radius);
+        flash.addColorStop(0, 'rgba(255,255,220,1)');
+        flash.addColorStop(.22, fx.type === 'playerImpact' ? 'rgba(255,80,80,.95)' : 'rgba(255,220,120,.92)');
+        flash.addColorStop(.58, fx.type === 'playerImpact' ? 'rgba(255,0,0,.28)' : 'rgba(255,140,0,.22)');
+        flash.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = flash;
+        ctx.beginPath();
+        ctx.arc(x, fx.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     });
   }
   function drawBossUI(now) {

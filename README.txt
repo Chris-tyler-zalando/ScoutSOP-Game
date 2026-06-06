@@ -359,3 +359,11 @@ V2.63:
   * fireball hit removes exactly 1 player health
   * 0 health triggers Game Over
   * no passive Ivan heart loss
+
+V2.64:
+- Boss shoes now travel in a visible arc and drop onto the ground instead of just disappearing upward.
+- Ivan now fires less often.
+- Fireballs are larger and still remove exactly 1 player heart each.
+- Ivan targets active thrown shoes first, then the player.
+- If Ivan shoots a thrown shoe, the shoe now explodes visibly with a flash.
+- If a thrown shoe hits Ivan, the shoe reaches him and a visible impact flash appears at the hit point.
