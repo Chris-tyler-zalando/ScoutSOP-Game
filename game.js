@@ -54,10 +54,11 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.60a';
+  const VERSION = 'V2.60b';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
+  const ASSET_VERSION = '2.60b';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
   const PROFILES_KEY = 'zalandoScoutProfilesV1';
@@ -447,14 +448,44 @@
     return out;
   }
 
+  function makeFallbackImage(key) {
+    const fallbackCanvas = document.createElement('canvas');
+    fallbackCanvas.width = 96;
+    fallbackCanvas.height = 96;
+    const fctx = fallbackCanvas.getContext('2d');
+    const hash = Array.from(String(key)).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    fctx.fillStyle = `hsl(${hash % 360}, 38%, 32%)`;
+    fctx.fillRect(0, 0, 96, 96);
+    fctx.fillStyle = 'rgba(255,255,255,.14)';
+    for (let y = 0; y < 96; y += 16) for (let x = 0; x < 96; x += 16) if ((x + y) % 32 === 0) fctx.fillRect(x, y, 16, 16);
+    fctx.strokeStyle = 'rgba(255,255,255,.55)';
+    fctx.lineWidth = 3;
+    fctx.strokeRect(3, 3, 90, 90);
+    fctx.fillStyle = '#fff4df';
+    fctx.font = 'bold 11px sans-serif';
+    fctx.textAlign = 'center';
+    fctx.fillText(String(key).slice(0, 11), 48, 52);
+    const img = new Image();
+    img.src = fallbackCanvas.toDataURL('image/png');
+    return img;
+  }
+
   async function loadAssets() {
     const entries = Object.entries(assetSources);
-    await Promise.all(entries.map(([key, files]) => loadImageWithFallback(key, files)));
+    let loaded = 0;
+    const updateProgress = () => {
+      if (loading) loading.textContent = `Loading warehouse assets... ${loaded}/${entries.length}`;
+    };
+    updateProgress();
+    await Promise.all(entries.map(([key, files]) => loadImageWithFallback(key, files).finally(() => {
+      loaded++;
+      updateProgress();
+    })));
     patterns = {
-      cement: ctx.createPattern(images.cement, 'repeat'),
-      qs: ctx.createPattern(images.qs, 'repeat'),
-      tiles: ctx.createPattern(images.tiles, 'repeat'),
-      carpet: ctx.createPattern(images.carpet, 'repeat')
+      cement: images.cement ? ctx.createPattern(images.cement, 'repeat') : null,
+      qs: images.qs ? ctx.createPattern(images.qs, 'repeat') : null,
+      tiles: images.tiles ? ctx.createPattern(images.tiles, 'repeat') : null,
+      carpet: images.carpet ? ctx.createPattern(images.carpet, 'repeat') : null
     };
     loading.classList.add('hidden');
     refreshSavedButton();
@@ -465,17 +496,37 @@
 
   function loadImageWithFallback(key, files) {
     const candidates = Array.isArray(files) ? files : [files];
-    return new Promise((resolve, reject) => {
+    const maxMsPerCandidate = 3500;
+    return new Promise(resolve => {
       const tryFile = index => {
         if (index >= candidates.length) {
-          if (optionalAssets.has(key)) { images[key] = null; resolve(); return; }
-          reject(new Error(`Could not load ${candidates.join(' or ')}`));
+          console.warn(`[assets] fallback used for ${key}:`, candidates);
+          images[key] = makeFallbackImage(key);
+          resolve();
           return;
         }
         const img = new Image();
-        img.onload = () => { images[key] = img; resolve(); };
-        img.onerror = () => tryFile(index + 1);
-        img.src = ASSET_PATH + candidates[index];
+        let finished = false;
+        const finish = ok => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          img.onload = null;
+          img.onerror = null;
+          if (ok) {
+            images[key] = img;
+            resolve();
+          } else {
+            tryFile(index + 1);
+          }
+        };
+        const timer = setTimeout(() => {
+          console.warn(`[assets] timeout loading ${ASSET_PATH + candidates[index]}`);
+          finish(false);
+        }, maxMsPerCandidate);
+        img.onload = () => finish(true);
+        img.onerror = () => finish(false);
+        img.src = ASSET_PATH + candidates[index] + `?v=${ASSET_VERSION}`;
       };
       tryFile(0);
     });
