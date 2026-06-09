@@ -62,11 +62,11 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.63';
+  const VERSION = 'V2.67';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
-  const ASSET_VERSION = '2.64';
+  const ASSET_VERSION = '2.67';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
   const PROFILES_KEY = 'zalandoScoutProfilesV1';
@@ -139,7 +139,7 @@
     inventory4: ['inventory4.png'], inventory5: ['inventory5.png'], kitchen: ['kitchen.png'], meeting: ['meeting.jpg'], printers: ['printers.png'], bathroom: ['bathroom.png'],
     pickup: ['pickup.png'], qs: ['qs.jpeg'], qsObj1: ['qs.png'], qsObj2: ['qs2.png'], cone: ['cone.png'], score: ['score.png'],
     screens: ['screens.jpg'], sign: ['sign.png'], tiles: ['tiles.jpeg'], carpet: ['carpet.jpg', 'cement.jpeg'],
-    inventorybg: ['inventory.png', 'inventory.jpg', 'inventorycheck.jpg', 'meeting.jpg'],
+    inventorybg: ['inventory.jpg', 'inventorycheck.jpg', 'meeting.jpg'],
     table: ['table.png'], table2: ['table2.png'], table3: ['table3.png'], zalandologo: ['zalandologo.png'],
     smallbox: ['smallbox.png'], smallbox2: ['smallbox2.png'], smallbox3: ['smallbox3.png'],
     shoe: ['shoe.png'], shoe1: ['shoe1.png'], shoe2: ['shoe2.png'], shoe3: ['shoe3.png'],
@@ -148,14 +148,14 @@
     palletjack: ['palletjack.png'], clothesDamaged: ['clothesdamaged.png'], slbox: ['slbox.png'],
     qsBg: ['qs2.jpg', 'qs2.png'], fireExtinguisher: ['fire.png'], fireAnim: ['fire.webp'],
     elevator: ['elevator.png'], conveyor: ['conveyor.png'], conveyorEnd: ['conveyor2.png'], conveyorBox: ['box.png'],
-    jiraScreen: ['jira.jpg'], errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png'],
-    noEanWelcome: ['welcome3.jpg'], noEanBg: ['conveyor.jpg', 'conveyor.png', 'noeanbg.jpg', 'noeanbg.png', 'scannerbg.jpg', 'scannerbg.png', 'conveyorbg.jpg', 'conveyorbg.png'],
+    errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png'],
+    noEanWelcome: ['welcome3.jpg'], noEanBg: ['conveyor.jpg', 'conveyor.png'],
     scanner: ['scanner.png'], scannerCorrect: ['scanner2.png'], scannerWrong: ['scanner3.png'],
     noEanShoes: ['shoes.webp'], noEanTops: ['tops.webp'], noEanPants: ['pants.webp'],
-    minimap: ['minimap.webp', 'minimap.png', 'minimap.jpg'],
-    bossIntro: ['it2.jpg'], bossBg: ['bossbg.jpg'], bossBgWin: ['bossbg1.jpg'], bossIvan: ['boss1.webp'], fireball: ['fireball.webp'], fireballSheet: ['fireball_sheet.png'], bossCarSheet: ['car_battle_sheet.png'], bossCar: ['car.webp'], bossCarWin: ['car.png']
+    minimap: ['minimap.webp'],
+    bossIntro: ['it2.jpg'], bossBg: ['bossbg.jpg'], bossBgWin: ['bossbg1.jpg'], bossIvan: ['boss1.webp'], fireball: ['fireball.webp'], bossCar: ['car.webp'], bossCarWin: ['car.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap', 'printers', 'bathroom', 'bossIntro', 'bossBg', 'bossBgWin', 'bossIvan', 'fireball', 'fireballSheet', 'bossCarSheet', 'bossCar', 'bossCarWin']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap', 'printers', 'bathroom', 'bossIntro', 'bossBg', 'bossBgWin', 'bossIvan', 'fireball', 'bossCar', 'bossCarWin']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -165,7 +165,7 @@
 
   // Opening story sequence and its soundtrack mapping.
   const introSlides = [
-    { images: ['welcome0.jpg', 'wecome0.jpg'], music: 'welcome', text: 'Welcome to Zalando Scout! I know you are in the Ops team, but we need your help.' },
+    { images: ['wecome0.jpg'], music: 'welcome', text: 'Welcome to Zalando Scout! I know you are in the Ops team, but we need your help.' },
     { images: ['robot.jpg'], music: 'welcome', text: 'Zalando has invested in automation systems in our warehouses to help make getting customers orders more efficient.' },
     { images: ['welcome2.jpg'], music: 'factory', text: 'Everything has been going well for the last few months, and productivity is up!' },
     { images: ['itguy.jpg'], music: 'evilrobot', text: 'But one day Crazy Ivan from IT decided to enhance the robots with his own special AI algorithm, and something has gone wrong!' },
@@ -3338,17 +3338,21 @@
     if (!bz || bz.phase !== 'fight' || bz.boss.dead) return false;
     if (now < (bz.nextShoeAt || 0)) return false;
 
-    bz.nextShoeAt = now + 430;
+    bz.nextShoeAt = now + 460;
     const keysPool = shoeImageKeys();
-    const size = 56;
+    const size = 54;
     const startX = bz.player.x;
-    const startY = bz.player.y - 118;
-    const targetX = clamp((bz.boss ? bz.boss.x : bz.player.x) + rand(-30, 30), 160, bz.worldW - 160);
-    const travelTime = 1.15;
-    const groundY = H - 90;
+    const startY = bz.player.y - 105;
+
+    // You must drive closer before offline stock can reach Ivan.
+    // From the very bottom/back of the arena it will visibly arc and land short.
+    const closeEnoughToHit = bz.player.y <= H - 260;
+    const targetX = clamp((bz.boss ? bz.boss.x : bz.player.x) + rand(-24, 24), 160, bz.worldW - 160);
+    const travelTime = closeEnoughToHit ? 1.25 : 0.82;
+    const groundY = H - 92;
     const vx = (targetX - startX) / travelTime;
-    const vy = -540;
-    const gravity = 920;
+    const vy = closeEnoughToHit ? -620 : -430;
+    const gravity = closeEnoughToHit ? 900 : 980;
 
     bz.shoes.push({
       x: startX,
@@ -3362,16 +3366,20 @@
       groundY,
       spin: 0,
       born: now,
-      armedAt: now + 180,
+      armedAt: now + 520,
+      hitEnabledAt: now + 620,
+      canHitBoss: closeEnoughToHit,
       exploded: false,
       explodeStart: 0,
       landed: false,
       landAt: 0,
       hit: false,
+      impact: false,
+      impactStart: 0,
       image: choice(keysPool.length ? keysPool : ['shoe'])
     });
     synth.jump();
-    addMessage('OFFLINE STOCK THROWN!', '#ffd054', 550);
+    addMessage(closeEnoughToHit ? 'OFFLINE STOCK THROWN!' : 'MOVE CLOSER TO HIT IVAN!', closeEnoughToHit ? '#ffd054' : '#ff9a3b', 650);
     return true;
   }
   function shootBossFireball(now) {
@@ -3425,7 +3433,7 @@
     if (!bz) return;
     const t = clamp((now - bz.enterStart) / 2600, 0, 1);
     const eased = 1 - Math.pow(1 - t, 3);
-    bz.boss.y = -350 + (H * .37 + 350) * eased;
+    bz.boss.y = -350 + (H * .34 + 350) * eased;
     bz.player.y = H + 260 + (H * .84 - H - 260) * eased;
     if (t >= 1) {
       bz.phase = 'countdown';
@@ -3450,7 +3458,11 @@
     const dy = (keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0) - (keys.has('ArrowUp') || keys.has('KeyW') ? 1 : 0);
 
     bz.player.x = clamp(bz.player.x + dx * speed * dt, 180, worldW - 180);
-    bz.player.y = clamp(bz.player.y + dy * speed * dt, H - 260, H - 70);
+
+    // The forklift artwork is tall and top-heavy, so the gameplay collision/depth point is the lower visible half.
+    // This lets the player drive further "forward" into the arena without the invisible top of the sprite stopping early.
+    const playerForwardLimit = H - 385;
+    bz.player.y = clamp(bz.player.y + dy * speed * dt, playerForwardLimit, H - 70);
 
     b.x += b.vx * dt;
     const leftLimit = 320;
@@ -3459,11 +3471,13 @@
       b.vx *= -1;
       b.x = clamp(b.x, leftLimit, rightLimit);
     }
-    b.y = H * .37 + Math.sin(now / 900) * 22;
+
+    // Ivan mostly moves left/right, but can drift a little further backward/forward in the room.
+    b.y = H * .34 + Math.sin(now / 820) * 42;
 
     if (!b.dead && b.hearts > 0 && now >= bz.nextFireAt) {
       shootBossFireball(now);
-      bz.nextFireAt = now + rand(2200, 3200);
+      bz.nextFireAt = now + rand(2400, 3500);
     }
     if (!b.dead && now >= bz.nextVoiceAt) {
       const voice = choice(['robot1.mp3', 'robot2.mp3', 'robot3.mp3']);
@@ -3478,9 +3492,10 @@
     });
     bz.fireballs = bz.fireballs.filter(f => f.y < H + 160 && f.x > -180 && f.x < worldW + 180 && !f.hit);
 
+    // Move shoes in an arc. They can only hit on the downward part of the arc.
     bz.shoes.forEach(s => {
       s.prevY = s.y;
-      if (!s.landed && !s.exploded && !s.hit) {
+      if (!s.landed && !s.exploded && !s.hit && !s.impact) {
         s.x += s.vx * dt;
         s.y += s.vy * dt;
         s.vy += s.gravity * dt;
@@ -3496,10 +3511,11 @@
       }
     });
 
+    // Ivan targets thrown shoes first and can shoot them out of the air.
     for (const f of bz.fireballs) {
       if (f.hit) continue;
       for (const s of bz.shoes) {
-        if (s.hit || s.exploded || s.landed) continue;
+        if (s.hit || s.exploded || s.landed || s.impact) continue;
         const xClose = Math.abs(f.x - s.x) < (f.w * .32 + s.w * .42);
         const yClose = Math.abs(f.y - s.y) < (f.h * .32 + s.h * .42);
         if (xClose && yClose) {
@@ -3511,7 +3527,7 @@
             x: s.x,
             y: s.y,
             start: now,
-            dur: 260
+            dur: 300
           });
           addMessage('IVAN SHOT THE STOCK!', '#ff9a3b', 600);
           break;
@@ -3527,12 +3543,14 @@
       h: b.h * .76
     };
     for (const s of bz.shoes) {
-      if (s.hit || s.exploded || s.landed || now < (s.armedAt || 0)) continue;
+      if (s.hit || s.exploded || s.landed || s.impact || now < (s.hitEnabledAt || s.armedAt || 0)) continue;
+      if (!s.canHitBoss) continue;
+      if (s.vy <= 55) continue; // only after the shoe has visibly gone up and started coming down
       const shoeBox = {
-        x: s.x - s.w * .28,
-        y: s.y - s.h * .28,
-        w: s.w * .56,
-        h: s.h * .56
+        x: s.x - s.w * .30,
+        y: s.y - s.h * .30,
+        w: s.w * .60,
+        h: s.h * .60
       };
       const overlaps = shoeBox.x < bossBox.x + bossBox.w &&
         shoeBox.x + shoeBox.w > bossBox.x &&
@@ -3540,38 +3558,48 @@
         shoeBox.y + shoeBox.h > bossBox.y;
       if (overlaps) {
         s.hit = true;
+        s.impact = true;
+        s.impactStart = now;
+        s.vx = 0;
+        s.vy = 0;
+        s.x = clamp(s.x, bossBox.x + 20, bossBox.x + bossBox.w - 20);
+        s.y = clamp(s.y, bossBox.y + 30, bossBox.y + bossBox.h - 30);
         damageBoss(1, 'shoe', s.x, s.y);
       }
     }
 
     bz.shoes = bz.shoes.filter(s => {
-      if (s.hit) return false;
-      if (s.exploded) return now - s.explodeStart < 260;
-      if (s.landed) return now - s.landAt < 450;
+      if (s.impact) return now - s.impactStart < 160;
+      if (s.exploded) return now - s.explodeStart < 300;
+      if (s.landed) return now - s.landAt < 520;
       return s.y > -180;
     });
 
+    const playerCollisionY = bz.player.y + 10; // lower half / visible driving footprint
     const activelyRamming = dy < -0.25 || keys.has('ArrowUp') || keys.has('KeyW');
     const verticalRam = activelyRamming &&
-      Math.abs(bz.player.x - b.x) < b.w * .30 &&
-      bz.player.y < b.y + b.h * .62 &&
-      bz.player.y > b.y + b.h * .20;
+      Math.abs(bz.player.x - b.x) < b.w * .26 &&
+      playerCollisionY < b.y + b.h * .64 &&
+      playerCollisionY > b.y + b.h * .26;
     if (verticalRam && now > (bz.nextRamAt || 0)) {
-      if (damageBoss(2, 'ram', bz.player.x, bz.player.y - 95)) bz.nextRamAt = now + 950;
+      if (damageBoss(2, 'ram', bz.player.x, playerCollisionY - 95)) bz.nextRamAt = now + 950;
     }
 
+    // Fireball hits only the visible lower-body/forklift footprint, not the full transparent/top-heavy image box.
+    const playerHitX = bz.player.x;
+    const playerHitY = bz.player.y + 4;
     for (const f of bz.fireballs) {
-      if (Math.abs(f.x - bz.player.x) < 110 && Math.abs(f.y - bz.player.y) < 150 && now > (bz.nextPlayerHitAt || 0)) {
+      if (Math.abs(f.x - playerHitX) < 82 && Math.abs(f.y - playerHitY) < 92 && now > (bz.nextPlayerHitAt || 0)) {
         bz.nextPlayerHitAt = now + 900;
         game.health = Math.max(0, game.health - 1);
         bz.effects.push({
           type: 'playerImpact',
-          x: bz.player.x,
-          y: bz.player.y - 40,
+          x: playerHitX,
+          y: playerHitY - 40,
           start: now,
           dur: 260
         });
-        burst(bz.player.x, bz.player.y, '#ee394d', 28);
+        burst(playerHitX, playerHitY, '#ee394d', 28);
         synth.hurt();
         addMessage('IVAN HIT YOU! -1 HEART', '#ee394d', 850);
         f.hit = true;
@@ -5785,7 +5813,6 @@
       if (images.actionssprite) {
         const frame = Math.floor(((now - bz.victoryStart) / 140) % 10);
         const f = frame < 5 ? frame : 9 - frame;
-        // Double-size victory scout, using the sprite frame's real aspect ratio instead of squeezing it.
         const sw = images.actionssprite.width / 5;
         const sh = images.actionssprite.height / 3;
         const dh = 430;
@@ -5795,12 +5822,9 @@
       return;
     }
     const alpha = now < (bz.player.invulnerableUntil || 0) && Math.floor(now/100)%2 === 0 ? .55 : 1;
-    if (images.bossCarSheet) {
-      const frame = Math.floor(now / 105) % 7;
-      // V2.58: car.webp frames are square. Draw into a square target so the scout/car never gets squashed.
-      drawTintedSpriteFrameContain(images.bossCarSheet, 7, 1, frame, 0, x, y - 70, 360, 360, false, alpha, true, true);
-    } else if (images.bossCar) tintDraw(images.bossCar, x - 180, y - 250, 360, 360, alpha, false, true);
-    else { ctx.font = '110px Arial'; ctx.textAlign='center'; ctx.fillText('🚜', x, y); }
+    const carSize = 306; // 15% smaller than previous 360
+    if (images.bossCar) tintDraw(images.bossCar, x - carSize/2, y - 213, carSize, carSize, alpha, false, true);
+    else { ctx.font = '94px Arial'; ctx.textAlign='center'; ctx.fillText('🚜', x, y); }
   }
   function drawBossProjectiles(now, view) {
     const bz = game.boss; if (!bz) return;
@@ -5822,12 +5846,7 @@
       ctx.arc(x, f.y, radius, 0, Math.PI * 2);
       ctx.fill();
 
-      if (images.fireballSheet) {
-        ctx.shadowColor = '#ff6a00';
-        ctx.shadowBlur = 24;
-        const frame = Math.floor(f.frameFloat || ((now - f.born) / 55)) % 17;
-        drawTintedSpriteFrameContain(images.fireballSheet, 17, 1, frame, 0, x, f.y, drawW, drawH, false, 1, false, false);
-      } else if (images.fireball) {
+      if (images.fireball) {
         ctx.shadowColor = '#ff6a00';
         ctx.shadowBlur = 24;
         drawContain(images.fireball, x - drawW/2, f.y - drawH/2, drawW, drawH, 1, false);
@@ -5841,6 +5860,7 @@
 
     bz.shoes.forEach(s => {
       const x = s.x * view.scale - view.cameraX;
+
       if (s.exploded) return;
 
       const drop = Math.max(0, s.groundY - s.y);
@@ -5856,10 +5876,11 @@
       ctx.save();
       ctx.translate(x, s.y);
       ctx.rotate(s.spin);
-      ctx.shadowColor = '#ffd054';
-      ctx.shadowBlur = 14;
+      ctx.shadowColor = s.canHitBoss ? '#ffd054' : '#ff9a3b';
+      ctx.shadowBlur = s.impact ? 22 : 14;
       ctx.globalAlpha = Math.min(1, Math.max(.38, (now - s.born) / 120));
-      if (images[s.image]) tintDraw(images[s.image], -s.w/2, -s.h/2, s.w, s.h, 1, false, true);
+      const scale = s.impact ? 1.16 : 1;
+      if (images[s.image]) tintDraw(images[s.image], -s.w*scale/2, -s.h*scale/2, s.w*scale, s.h*scale, 1, false, true);
       else { ctx.font='50px Arial'; ctx.textAlign='center'; ctx.fillText('👟',0,0); }
       ctx.restore();
     });
@@ -5885,10 +5906,7 @@
         ctx.fill();
 
         const drawSize = 86 + 90 * grow;
-        if (images.fireballSheet) {
-          const frame = Math.floor((p * 16)) % 17;
-          drawTintedSpriteFrameContain(images.fireballSheet, 17, 1, frame, 0, x, fx.y, drawSize, drawSize, false, 1, false, false);
-        } else if (images.fireball) {
+        if (images.fireball) {
           drawContain(images.fireball, x - drawSize/2, fx.y - drawSize/2, drawSize, drawSize, 1, false);
         }
         ctx.restore();
@@ -5921,7 +5939,7 @@
     for (let i=0;i<bz.boss.maxHearts;i++) { ctx.globalAlpha = i < bz.boss.hearts ? 1 : .20; ctx.fillStyle='#ed4959'; ctx.font='bold 28px Trebuchet MS'; ctx.fillText('♥', W-126, 156 + i*28); }
     ctx.globalAlpha=1;
     if (game.mode === 'bossCountdown') { ctx.textAlign='center'; ctx.fillStyle='#ffd054'; ctx.font='bold 78px Trebuchet MS'; ctx.fillText(String(bz.countdown), W/2, H/2); }
-    if (game.mode === 'bossFight') { ctx.textAlign='center'; ctx.fillStyle='#fff4df'; ctx.font='bold 18px Trebuchet MS'; ctx.fillStyle='rgba(0,0,0,.50)'; roundRect(W/2 - 455, H - 74, 910, 38, 12, true, false); ctx.fillStyle='#fff4df'; ctx.fillText('Ram Ivan with the forklift or throw offline stock at him to get him away from the exit!', W/2, H-49); }
+    if (game.mode === 'bossFight') { ctx.textAlign='center'; ctx.fillStyle='#fff4df'; ctx.font='bold 18px Trebuchet MS'; ctx.fillStyle='rgba(0,0,0,.50)'; roundRect(W/2 - 455, H - 74, 910, 38, 12, true, false); ctx.fillStyle='#fff4df'; ctx.fillText('Drive closer, ram Ivan, or throw offline stock at him to get him away from the exit!', W/2, H-49); }
     ctx.restore();
   }
   function drawBossVictorySummary(now) {
@@ -5930,7 +5948,7 @@
     ctx.fillStyle='rgba(0,0,0,.58)';
     ctx.fillRect(0,0,W,H);
 
-    const boardW=1040, boardH=460, x=(W-boardW)/2, y=74;
+    const boardW=1040, boardH=430, x=(W-boardW)/2, y=86;
     if (images.score) {
       ctx.drawImage(images.score, x, y, boardW, boardH);
     } else {
@@ -5945,31 +5963,41 @@
     ctx.shadowColor='rgba(255,245,190,.55)';
     ctx.shadowBlur=2;
     ctx.font='bold 40px Trebuchet MS';
-    ctx.fillText('CRAZY IVAN DEFEATED!', W/2, y+112);
+    ctx.fillText('CRAZY IVAN DEFEATED!', W/2, y+106);
 
-    const heartX = x + 285;
-    const heartY = y + 270;
+    const rewardY = y + 165;
     const spin = (now - bz.victoryStart) / 300;
+    ctx.fillStyle='#1d1006';
+    ctx.font='bold 30px Trebuchet MS';
+    ctx.fillText('You won an extra heart!', W/2, rewardY);
+
+    const heartOffset = 320;
     ctx.save();
-    ctx.translate(heartX, heartY);
+    ctx.translate(W/2 - heartOffset, rewardY - 8);
     ctx.rotate(spin);
     ctx.fillStyle='#ed1d3b';
-    ctx.font='bold 112px Trebuchet MS';
+    ctx.font='bold 64px Trebuchet MS';
     ctx.textAlign='center';
-    ctx.fillText('♥', 0, 34);
+    ctx.fillText('♥', 0, 20);
     ctx.restore();
 
-    const textX = x + 660;
+    ctx.save();
+    ctx.translate(W/2 + heartOffset, rewardY - 8);
+    ctx.rotate(-spin);
+    ctx.fillStyle='#ed1d3b';
+    ctx.font='bold 64px Trebuchet MS';
+    ctx.textAlign='center';
+    ctx.fillText('♥', 0, 20);
+    ctx.restore();
+
     ctx.fillStyle='#1d1006';
     ctx.textAlign='center';
-    ctx.font='bold 30px Trebuchet MS';
-    ctx.fillText('You won an extra heart!', textX, y+210);
     ctx.font='bold 24px Trebuchet MS';
-    ctx.fillText(`Max hearts now: ${game.maxHearts}`, textX, y+260);
+    ctx.fillText(`Max hearts now: ${game.maxHearts}`, W/2, y+220);
     ctx.font='bold 22px Trebuchet MS';
-    ctx.fillText(`Ivan hearts removed: ${game.stats.bossHits} / 6`, textX, y+312);
-    ctx.fillText(`Rams: ${game.stats.bossRams} × 2 hearts`, textX, y+352);
-    ctx.fillText(`Offline stock hits: ${game.stats.bossShoeHits} × 1 heart`, textX, y+392);
+    ctx.fillText(`Ivan hearts removed: ${game.stats.bossHits} / 6`, W/2, y+270);
+    ctx.fillText(`Rams: ${game.stats.bossRams} × 2 hearts`, W/2, y+310);
+    ctx.fillText(`Offline stock hits: ${game.stats.bossShoeHits} × 1 heart`, W/2, y+350);
     ctx.restore();
   }
   function drawBoss(now) {
