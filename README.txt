@@ -1,6 +1,6 @@
-ScoutSOP Game V2.68 — Live Asset Loader Fix
+ScoutSOP Game V2.69 — Live Asset Loader Fix
 
-This build is based on the V2.67 cleaned asset references.
+This build is based on the V2.69 cleaned asset references.
 
 Changes:
 - Loads assets with a concurrency limit of 8 instead of firing all image requests at once.
@@ -19,3 +19,14 @@ Upload these three files to the repo root beside /assets:
 - styles.css
 
 Then hard reload the live page and confirm it loads game.js?v=2.68.
+
+V2.69:
+- Added Admin → File Audit: shows each configured asset, filename, native dimensions, and current in-game draw usage/dimensions.
+- Added gameplay zoom buttons beside the controls; zoom is capped to two steps in or out.
+- Minimap is 25% smaller and uses the actual minimap image aspect ratio to remove grey letterbox bars.
+- Map generation now follows the uploaded custom map style more closely: fewer broad yellow corridors and pod placement based on the 80×50 reference layout.
+- Conveyor protection updated: boxes, crates, pallets, cones and decorative clutter are removed/blocked from conveyor belts and conveyor machines.
+- Conveyor placement rule is reinforced: belt and machine use the same Y draw line.
+- Cones now spawn as deliberate lines and avoid clumping into useless blocks.
+- Printer/bathroom zones reserve a buffer so crates do not overlap or sit too close to the room image.
+- Double-clicking the speaker now toggles mute and restores the previous volume.
