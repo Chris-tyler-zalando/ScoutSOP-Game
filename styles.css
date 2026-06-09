@@ -1122,3 +1122,5 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
 .admin-panel button[data-admin]:hover {
   filter: brightness(1.13);
 }
+
+/* V2.68 live asset loader + filler area scale fixes */

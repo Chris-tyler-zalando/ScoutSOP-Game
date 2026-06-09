@@ -62,11 +62,11 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.67';
+  const VERSION = 'V2.68';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
-  const ASSET_VERSION = '2.67';
+  const ASSET_VERSION = '2.68';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
   const PROFILES_KEY = 'zalandoScoutProfilesV1';
@@ -155,7 +155,7 @@
     minimap: ['minimap.webp'],
     bossIntro: ['it2.jpg'], bossBg: ['bossbg.jpg'], bossBgWin: ['bossbg1.jpg'], bossIvan: ['boss1.webp'], fireball: ['fireball.webp'], bossCar: ['car.webp'], bossCarWin: ['car.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'officeBase', 'officeFrame', 'officeMenu', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim', 'elevator', 'conveyor', 'conveyorEnd', 'conveyorBox', 'noEanWelcome', 'noEanBg', 'scanner', 'scannerCorrect', 'scannerWrong', 'noEanShoes', 'noEanTops', 'noEanPants', 'minimap', 'printers', 'bathroom', 'bossIntro', 'bossBg', 'bossBgWin', 'bossIvan', 'fireball', 'bossCar', 'bossCarWin']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'qsBg']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
@@ -181,6 +181,8 @@
   let introTypeTimers = [];
   let pendingShiftStart = null;
   const images = {};
+  const assetStatus = { loaded: [], fallback: [], missing: [], optionalMissing: [], timedOut: [] };
+  window.SOP_ASSET_STATUS = assetStatus;
   let patterns = {};
 
   const directions = [
@@ -477,7 +479,6 @@
     img.src = fallbackCanvas.toDataURL('image/png');
     return img;
   }
-
   async function loadAssets() {
     const entries = Object.entries(assetSources);
     let loaded = 0;
@@ -485,10 +486,22 @@
       if (loading) loading.textContent = `Loading warehouse assets... ${loaded}/${entries.length}`;
     };
     updateProgress();
-    await Promise.all(entries.map(([key, files]) => loadImageWithFallback(key, files).finally(() => {
-      loaded++;
-      updateProgress();
-    })));
+
+    // GitHub Pages can be much slower than the HDD, especially when the browser asks for 100+ images at once.
+    // Keep the request count low so real assets do not hit our own timeout and get replaced by placeholders.
+    const concurrency = Math.min(8, entries.length);
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < entries.length) {
+        const [key, files] = entries[cursor++];
+        await loadImageWithFallback(key, files).finally(() => {
+          loaded++;
+          updateProgress();
+        });
+      }
+    };
+    await Promise.all(Array.from({ length: concurrency }, worker));
+
     patterns = {
       cement: images.cement ? ctx.createPattern(images.cement, 'repeat') : null,
       qs: images.qs ? ctx.createPattern(images.qs, 'repeat') : null,
@@ -499,27 +512,31 @@
     refreshSavedButton();
     updateMuteButton();
     updateDisplayModeButton();
+    console.table(assetStatus);
     requestAnimationFrame(loop);
   }
-
   function loadImageWithFallback(key, files) {
     const candidates = Array.isArray(files) ? files : [files];
-    const maxMsPerCandidate = 3500;
+    const maxMsPerCandidate = 22000;
+    const maxAttempts = 2;
     return new Promise(resolve => {
-      const tryFile = index => {
+      const tryFile = (index, attempt = 1) => {
         if (index >= candidates.length) {
           if (optionalAssets.has(key)) {
+            assetStatus.optionalMissing.push(key);
             images[key] = null;
             resolve();
             return;
           }
           console.warn(`[assets] fallback used for ${key}:`, candidates);
+          assetStatus.fallback.push(key);
           images[key] = makeFallbackImage(key);
           resolve();
           return;
         }
         const img = new Image();
         let finished = false;
+        const file = candidates[index];
         const finish = ok => {
           if (finished) return;
           finished = true;
@@ -527,21 +544,28 @@
           img.onload = null;
           img.onerror = null;
           if (ok) {
+            assetStatus.loaded.push(key);
             images[key] = img;
             resolve();
+          } else if (attempt < maxAttempts) {
+            tryFile(index, attempt + 1);
           } else {
-            tryFile(index + 1);
+            assetStatus.missing.push(`${key}:${file}`);
+            tryFile(index + 1, 1);
           }
         };
         const timer = setTimeout(() => {
-          console.warn(`[assets] timeout loading ${ASSET_PATH + candidates[index]}`);
+          console.warn(`[assets] slow/timeout loading ${ASSET_PATH + file} — retrying before fallback`);
+          assetStatus.timedOut.push(`${key}:${file}:attempt${attempt}`);
           finish(false);
         }, maxMsPerCandidate);
         img.onload = () => finish(true);
         img.onerror = () => finish(false);
-        img.src = ASSET_PATH + candidates[index] + `?v=${ASSET_VERSION}`;
+        img.decoding = 'async';
+        const retrySuffix = attempt > 1 ? `&retry=${attempt}` : '';
+        img.src = ASSET_PATH + file + `?v=${ASSET_VERSION}${retrySuffix}`;
       };
-      tryFile(0);
+      tryFile(0, 1);
     });
   }
 
@@ -900,8 +924,6 @@
       }
     });
   }
-
-
   function installFillerAreaProps() {
     const fillerImages = ['printers', 'bathroom'].filter(key => images[key]);
     const shelfImages = ['box1', 'box2', 'box3', 'box4', 'box5', 'box6', 'box7'].filter(key => images[key]);
@@ -909,7 +931,22 @@
     slots.forEach((slot, i) => {
       const z = zone(slot.left + .8, slot.top + .8, Math.max(8, slot.width - 1.6), Math.max(5, slot.height - 1.6), i % 2 ? 'BATHROOM / FIRST AID' : 'PRINT ROOM', 5, 3);
       const img = fillerImages.length ? fillerImages[i % fillerImages.length] : null;
-      if (img) addZoneProp(img, { left: z.left + .8, top: z.top + .8, width: z.width - 1.6, height: z.height - 1.6 }, { collisionInset: .12 });
+
+      // Background room art first, then boxes/shelves after it. That keeps the room image behind the crates.
+      if (img) {
+        const scale = img === 'printers' ? 0.50 : 0.60; // printer 50% smaller, bathroom 40% smaller
+        const maxW = z.width - 1.6;
+        const maxH = z.height - 1.6;
+        const roomW = Math.max(3.2, maxW * scale);
+        const roomH = Math.max(2.1, maxH * scale);
+        addZoneProp(img, {
+          left: z.left + (z.width - roomW) / 2,
+          top: z.top + (z.height - roomH) / 2,
+          width: roomW,
+          height: roomH
+        }, { collisionInset: .18, floorBand: .24 });
+      }
+
       if (!shelfImages.length) return;
       // Build a clearer wall of boxes/shelves around each filler pod, with left/right walk gaps.
       for (let x = z.left - .2; x < z.left + z.width - 1.6; x += 2.25) {
@@ -4975,7 +5012,7 @@
     return targetX;
   }
   function drawLiveTruck(now) {
-    if (!game.truck || !isZoneVisible(game.zones.dock, 40)) return;
+    if (!game.truck || !images.truck || !isZoneVisible(game.zones.dock, 40)) return;
     const z = game.zones.dock;
     drawContain(images.truck, truckDrawX(now), z.top * TILE + TILE * 4.25, TILE * 9.0, TILE * 3.2, 1, true);
   }
