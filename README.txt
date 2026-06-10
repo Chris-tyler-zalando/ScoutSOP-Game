@@ -1,32 +1,51 @@
-ScoutSOP Game V2.69 — Live Asset Loader Fix
+ZALANDO SCOUT — SYSTEM UPDATE V2.27
+====================================
 
-This build is based on the V2.69 cleaned asset references.
-
-Changes:
-- Loads assets with a concurrency limit of 8 instead of firing all image requests at once.
-- Increased per-asset timeout from 3.5 seconds to 22 seconds and added one retry before fallback.
-- Adds window.SOP_ASSET_STATUS and console.table(assetStatus) so the live site clearly reports what loaded, timed out, or fell back.
-- Makes important visible gameplay assets required rather than silently optional: office, palletjack, elevator, conveyor, minimap, printers, bathroom, boss files, scanner/no-EAN assets, etc.
-- Keeps unused references removed: fireball_sheet.png, car_battle_sheet.png, jira.jpg, minimap fallbacks that do not exist, and no-EAN placeholder filenames that do not exist.
-- Printer filler area is now 50% smaller.
-- Bathroom/First Aid filler area is now 40% smaller.
-- Printer/bathroom room art is placed first so boxes/shelves/crates draw over it.
-- Truck drawing now guards against a missing image rather than risking a draw error.
-
-Upload these three files to the repo root beside /assets:
+This ZIP contains the system files only:
 - index.html
-- game.js
 - styles.css
+- game.js
 
-Then hard reload the live page and confirm it loads game.js?v=2.68.
+Keep your existing assets folder beside these files. The new version expects these additional assets in that folder when available:
+- palletjack.png
+- clothesdamaged.png
+- slbox.png
+- qs2.jpg (or qs2.png fallback)
+- fire.png (extinguisher)
+- fire.webp (animated fire)
 
-V2.69:
-- Added Admin → File Audit: shows each configured asset, filename, native dimensions, and current in-game draw usage/dimensions.
-- Added gameplay zoom buttons beside the controls; zoom is capped to two steps in or out.
-- Minimap is 25% smaller and uses the actual minimap image aspect ratio to remove grey letterbox bars.
-- Map generation now follows the uploaded custom map style more closely: fewer broad yellow corridors and pod placement based on the 80×50 reference layout.
-- Conveyor protection updated: boxes, crates, pallets, cones and decorative clutter are removed/blocked from conveyor belts and conveyor machines.
-- Conveyor placement rule is reinforced: belt and machine use the same Y draw line.
-- Cones now spawn as deliberate lines and avoid clumping into useless blocks.
-- Printer/bathroom zones reserve a buffer so crates do not overlap or sit too close to the room image.
-- Double-clicking the speaker now toggles mute and restores the previous volume.
+Changes in V2.27
+----------------
+- Restored the original pcmenu.jpg image for the Dock Office home screen. The game no longer redraws its own replacement app menu.
+- Once an app is clicked, only the menu image is removed and the Jira / Email / Workday / SOP Scout content is drawn on the blank monitor in baseoffice.jpg.
+- Reduced the office task-interface drawing area so the task screens fit within the monitor frame.
+- Added visible CORRECT / WRONG result screens before an office task moves to the next backlog item or returns to the menu.
+- Boxes now generate Email and Workday task progress only. ALM and SL task progress continues to come from shoes.
+- Corrected Quarantine Storage: it is now a 30-second falling-item catcher game rather than a drag-and-drop basket screen.
+- In Quarantine Storage, clothes.png items belong in DISPOSE and clothesdamaged.png items belong in DESTROY; correct catches score +5 points, and the fall frequency increases across the 30-second round.
+- Quarantine Storage triggers on entering the area or being sent there by a box, then uses a 30-second retrigger cooldown.
+- Added random Fire Events during normal warehouse play, with a red alarm vignette, guidance arrow to the nearest extinguisher point, carried extinguisher display, return guidance to the fire and time-based scoring.
+- Fire event score: +200 within 60 seconds, +150 within 90 seconds, +100 within 120 seconds, +50 within 150 seconds, otherwise +0.
+
+Retained from earlier builds
+----------------------------
+- Pallet jacks, including one near the Dock, with 30-second speed/protection effect.
+- Cockpit help modal, safe zones, task-gated exit, Inventory Check, mobile controls, coffee sprint, score download, carrier toast and increased enemies.
+
+
+V2.27 additions and corrections:
+- Office home screen keeps pcmenu.jpg, moved upward and resized to prevent clipping/white strip.
+- Jira interaction buttons are blue with rounded corners.
+- Office task puzzles now have an optional 100-point hint system with locked revealed answers or incorrect-selection explanations.
+- Task riddles avoid immediately repeating the previous riddle of the same type.
+- Fire uses a doubled-size animated DOM WebP overlay for reliable animation and enables automatic 2x emergency response movement while active.
+- Hidden Admin Test Mode: press Escape five times from the title screen to launch modules directly without saving test scores.
+
+V2.28 updates:
+- Quarantine Chaos falling items and sorting box are doubled in size.
+- Area sign rendering no longer draws the old sign panel/background; labels are clean text only with no black border panel.
+- Fire extinguisher pickup points are visibly shown during active fire events.
+- Fire visual uses a two-layer animated WebP treatment: low-opacity base layer plus screen-blended top layer, at the enlarged size.
+- Office task buttons at the bottom are moved away from the lower-left chair area; bottom actions are now right aligned.
+- Added a 3-profile save system on the title screen with create/load/delete behavior and a maximum of three saved games.
+- Note: the current V2.27 system files did not contain a boss fight / shoe projectile module, so the boss car-bashing removal and shoe-hit cooldown rules could not be applied in this codebase. Apply those rules when the boss module is added or provide the branch/files that contain it.

@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Zalando Scout — Warehouse Run</title>
-  <link rel="stylesheet" href="styles.css?v=2.69">
+  <link rel="stylesheet" href="styles.css?v=2.28">
 </head>
 <body>
   <main id="game-shell" aria-label="Zalando Scout game">
     <canvas id="gameCanvas" width="1280" height="720" aria-label="Zalando Scout game canvas"></canvas>
-    <img id="fire-animation-overlay" class="fire-animation-overlay hidden" src="assets/fire.webp" alt="" aria-hidden="true">
+    <img id="fire-animation-overlay-soft" class="fire-animation-overlay fire-animation-overlay-soft hidden" src="assets/fire.webp" alt="" aria-hidden="true">
+    <img id="fire-animation-overlay" class="fire-animation-overlay fire-animation-overlay-screen hidden" src="assets/fire.webp" alt="" aria-hidden="true">
     <div id="loading" aria-live="polite">Loading warehouse assets…</div>
 
     <button id="mute-toggle" class="audio-toggle" type="button" aria-label="Open volume control" title="Volume">
@@ -28,37 +29,29 @@
     <button id="unstuck-button" class="unstuck-button hidden" type="button" aria-label="Stuck? Move to a safe nearby space" title="Stuck? Emergency move">💀</button>
 
     <aside id="admin-panel" class="admin-panel hidden" aria-label="Admin test panel">
-      <header class="admin-header"><strong>ADMIN TEST MODE</strong><div class="admin-window-controls"><button id="admin-collapse" class="admin-exit" type="button" aria-label="Collapse admin panel">—</button><button id="admin-exit" class="admin-exit" type="button" aria-label="Exit admin mode">✕</button></div></header>
+      <header class="admin-header"><strong>ADMIN TEST MODE</strong><button id="admin-exit" class="admin-exit" type="button" aria-label="Exit admin mode">✕</button></header>
       <p>Launch modules directly. Test points are not saved.</p>
       <div class="admin-quick">
-        <button type="button" class="admin-system" data-admin="buildMap">Build a Map</button>
-        <button type="button" class="admin-system" data-admin="editGame">Edit Game Save</button>
-        <button type="button" class="admin-system" data-admin="auditAssets">File Audit</button>
-        <button type="button" class="admin-system" data-admin="points">+500 Points</button>
-        <button type="button" class="admin-system" data-admin="token">+SOP Token</button>
-        <button type="button" class="admin-system" data-admin="hearts">Restore Hearts</button>
-        <button type="button" class="admin-system" data-admin="next">Next Warehouse</button>
+        <button type="button" data-admin="points">+500 Points</button>
+        <button type="button" data-admin="token">+SOP Token</button>
+        <button type="button" data-admin="hearts">Restore Hearts</button>
       </div>
       <div class="admin-modules">
-        <button type="button" class="admin-gameplay" data-admin="inventory">Inventory Check</button>
-        <button type="button" class="admin-gameplay" data-admin="qs">Sperrlager</button>
-        <button type="button" class="admin-gameplay" data-admin="noean">No EAN Scanner</button>
-        <button type="button" class="admin-gameplay" data-admin="office">Office Menu</button>
-
-        <button type="button" class="admin-task" data-admin="alm">ALM Puzzle</button>
-        <button type="button" class="admin-task" data-admin="sl">SL Puzzle</button>
-        <button type="button" class="admin-task" data-admin="email">Email Puzzle</button>
-        <button type="button" class="admin-task" data-admin="workday">Workday Puzzle</button>
-        <button type="button" class="admin-task" data-admin="sop">SOP Scout</button>
-
-        <button type="button" class="admin-event" data-admin="fire">Fire Event</button>
-        <button type="button" class="admin-event" data-admin="truck">Delivery Truck</button>
-        <button type="button" class="admin-event" data-admin="pallet">Pallet Jack</button>
-        <button type="button" class="admin-event" data-admin="exitLocked">Exit Locked</button>
-        <button type="button" class="admin-event" data-admin="exitOpen">Exit Unlocked</button>
-        <button type="button" class="admin-danger" data-admin="gameover">Game Over</button>
-
-        <button type="button" class="admin-boss" data-admin="boss">Crazy Ivan Boss</button>
+        <button type="button" data-admin="inventory">Inventory Check</button>
+        <button type="button" data-admin="qs">Quarantine Chaos</button>
+        <button type="button" data-admin="fire">Fire Event</button>
+        <button type="button" data-admin="office">Office Menu</button>
+        <button type="button" data-admin="alm">ALM Puzzle</button>
+        <button type="button" data-admin="sl">SL Puzzle</button>
+        <button type="button" data-admin="email">Email Puzzle</button>
+        <button type="button" data-admin="workday">Workday Puzzle</button>
+        <button type="button" data-admin="sop">SOP Scout</button>
+        <button type="button" data-admin="truck">Delivery Truck</button>
+        <button type="button" data-admin="pallet">Pallet Jack</button>
+        <button type="button" data-admin="exitLocked">Exit Locked</button>
+        <button type="button" data-admin="exitOpen">Exit Unlocked</button>
+        <button type="button" data-admin="gameover">Game Over</button>
+        <button type="button" data-admin="next">Next Warehouse</button>
       </div>
     </aside>
 
@@ -68,10 +61,6 @@
         <button class="control-button direction left" type="button" data-key="ArrowLeft" data-tooltip="Arrow Left / A">◀</button>
         <button class="control-button direction down" type="button" data-key="ArrowDown" data-tooltip="Arrow Down / S">▼</button>
         <button class="control-button direction right" type="button" data-key="ArrowRight" data-tooltip="Arrow Right / D">▶</button>
-      </div>
-      <div class="game-zoom-controls" aria-label="Zoom controls">
-        <button id="game-zoom-out" class="control-button zoom-control" type="button" title="Zoom out twice max">−</button>
-        <button id="game-zoom-in" class="control-button zoom-control" type="button" title="Zoom in twice max">+</button>
       </div>
       <button id="action-control" class="control-button action-control" type="button" data-tooltip="SPACE — Open Box / Extinguisher / Accept Truck / Sprint / Jump">ACTION</button>
     </section>
@@ -103,22 +92,18 @@
     </section>
 
     <section id="title-ui" class="menu-overlay" aria-label="Start shift">
-      <div class="menu-card start-card combined-start-card">
-        <div class="title-grid">
-          <label class="input-label title-name-label" for="player-name">Name</label>
+      <div class="menu-card start-card">
+        <div class="start-row">
+          <label class="input-label" for="player-name">Scout name</label>
           <input id="player-name" class="name-input" type="text" maxlength="26" autocomplete="nickname" placeholder="Enter your name" aria-label="Player name">
-          <div class="menu-actions title-start-action">
-            <button id="new-shift" class="orange-button">Start</button>
-            <button id="continue-saved" class="dark-button hidden" type="button" aria-hidden="true">Continue Shift</button>
+          <div class="menu-actions">
+            <button id="new-shift" class="orange-button">New Shift</button>
+            <button id="continue-saved" class="dark-button hidden">Continue Shift</button>
           </div>
-          <section id="profiles-panel" class="profiles-panel" aria-label="Saved shift slots">
-            <div class="profiles-heading"><strong>SAVED SHIFTS</strong><span>MAX 3</span></div>
-            <div id="profile-slots" class="profile-slots"></div>
-            <p id="profile-warning" class="profile-warning hidden"></p>
-          </section>
         </div>
         <p id="name-warning" class="warning hidden">Enter your name to begin your shift.</p>
       </div>
+      <div id="profile-list" class="profile-list hidden" aria-label="Saved games"></div>
     </section>
 
     <section id="gameover-ui" class="menu-overlay hidden" aria-label="Game over options">
@@ -129,6 +114,6 @@
       </div>
     </section>
   </main>
-  <script src="game.js?v=2.69"></script>
+  <script src="game.js?v=2.28"></script>
 </body>
 </html>
