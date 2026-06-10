@@ -62,11 +62,11 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.69';
+  const VERSION = 'V2.70';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
-  const ASSET_VERSION = '2.69';
+  const ASSET_VERSION = '2.70';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
   const PROFILES_KEY = 'zalandoScoutProfilesV1';
@@ -3401,20 +3401,14 @@
     if (!b || b.dead || bz.phase !== 'fight') return false;
     const now = performance.now();
 
-    let applied = 0;
-    if (source === 'ram') {
-      if (now < (b.ramHitUntil || 0)) return false;
-      applied = 2;
-      b.ramHitUntil = now + 950;
-      game.stats.bossRams++;
-    } else if (source === 'shoe') {
-      if (now < (b.shoeHitUntil || 0)) return false;
-      applied = 1;
-      b.shoeHitUntil = now + 120;
-      game.stats.bossShoeHits++;
-    } else {
-      return false;
-    }
+    // V2.70: Ivan can only be damaged by thrown offline-stock shoes.
+    // Each accepted shoe hit removes exactly one heart, then Ivan gets a 3-second recovery window.
+    if (source !== 'shoe') return false;
+    if (now < (b.shoeHitUntil || 0)) return false;
+
+    const applied = 1;
+    b.shoeHitUntil = now + 3000;
+    game.stats.bossShoeHits++;
 
     b.hearts = Math.max(0, b.hearts - applied);
     b.hitFlashUntil = now + 420;
@@ -3424,16 +3418,16 @@
     const fxY = hitY == null ? b.y : hitY;
     bz.effects = bz.effects || [];
     bz.effects.push({
-      type: source === 'ram' ? 'ramImpact' : 'shoeImpact',
+      type: 'shoeImpact',
       x: fxX,
       y: fxY,
       start: now,
-      dur: source === 'ram' ? 340 : 260
+      dur: 260
     });
 
-    burst(fxX, fxY, '#ffef9a', source === 'ram' ? 36 : 24);
+    burst(fxX, fxY, '#ffef9a', 24);
     synth.hurt();
-    addMessage(source === 'ram' ? 'RAM HIT!  -2 IVAN HEARTS' : 'OFFLINE STOCK HIT!  -1 IVAN HEART', '#ffd054', 900);
+    addMessage('OFFLINE STOCK HIT!  -1 IVAN HEART', '#ffd054', 900);
     if (b.hearts <= 0) startBossVictory();
     return true;
   }
@@ -3471,14 +3465,16 @@
     const startY = bz.player.y - 105;
 
     // You must drive closer before offline stock can reach Ivan.
-    // From the very bottom/back of the arena it will visibly arc and land short.
-    const closeEnoughToHit = bz.player.y <= H - 260;
+    // V2.70: shoes travel a little further, with about 10% random range variation per throw.
+    // From the very bottom/back of the arena they still visibly arc and land short.
+    const closeEnoughToHit = bz.player.y <= H - 230;
+    const rangeJitter = rand(0.90, 1.10);
     const targetX = clamp((bz.boss ? bz.boss.x : bz.player.x) + rand(-24, 24), 160, bz.worldW - 160);
-    const travelTime = closeEnoughToHit ? 1.25 : 0.82;
+    const travelTime = (closeEnoughToHit ? 1.32 : 0.88) * rangeJitter;
     const groundY = H - 92;
     const vx = (targetX - startX) / travelTime;
-    const vy = closeEnoughToHit ? -620 : -430;
-    const gravity = closeEnoughToHit ? 900 : 980;
+    const vy = (closeEnoughToHit ? -650 : -455) * rangeJitter;
+    const gravity = closeEnoughToHit ? 880 : 955;
 
     bz.shoes.push({
       x: startX,
@@ -3690,7 +3686,9 @@
         s.vy = 0;
         s.x = clamp(s.x, bossBox.x + 20, bossBox.x + bossBox.w - 20);
         s.y = clamp(s.y, bossBox.y + 30, bossBox.y + bossBox.h - 30);
-        damageBoss(1, 'shoe', s.x, s.y);
+        if (!s.damageApplied) {
+          s.damageApplied = damageBoss(1, 'shoe', s.x, s.y);
+        }
       }
     }
 
@@ -3701,15 +3699,7 @@
       return s.y > -180;
     });
 
-    const playerCollisionY = bz.player.y + 10; // lower half / visible driving footprint
-    const activelyRamming = dy < -0.25 || keys.has('ArrowUp') || keys.has('KeyW');
-    const verticalRam = activelyRamming &&
-      Math.abs(bz.player.x - b.x) < b.w * .26 &&
-      playerCollisionY < b.y + b.h * .64 &&
-      playerCollisionY > b.y + b.h * .26;
-    if (verticalRam && now > (bz.nextRamAt || 0)) {
-      if (damageBoss(2, 'ram', bz.player.x, playerCollisionY - 95)) bz.nextRamAt = now + 950;
-    }
+    // V2.70: car/forklift ramming no longer damages Ivan. Boss damage now comes only from shoe throws.
 
     // Fireball hits only the visible lower-body/forklift footprint, not the full transparent/top-heavy image box.
     const playerHitX = bz.player.x;
@@ -6108,9 +6098,9 @@
         ctx.restore();
       }
 
-      if (fx.type === 'shoeImpact' || fx.type === 'ramImpact' || fx.type === 'playerImpact') {
+      if (fx.type === 'shoeImpact' || fx.type === 'playerImpact') {
         const alpha = 1 - p;
-        const radius = fx.type === 'ramImpact' ? 90 * (0.65 + p) : 58 * (0.65 + p);
+        const radius = 58 * (0.65 + p);
         ctx.save();
         ctx.globalAlpha = alpha;
         const flash = ctx.createRadialGradient(x, fx.y, 0, x, fx.y, radius);
@@ -6135,7 +6125,7 @@
     for (let i=0;i<bz.boss.maxHearts;i++) { ctx.globalAlpha = i < bz.boss.hearts ? 1 : .20; ctx.fillStyle='#ed4959'; ctx.font='bold 28px Trebuchet MS'; ctx.fillText('♥', W-126, 156 + i*28); }
     ctx.globalAlpha=1;
     if (game.mode === 'bossCountdown') { ctx.textAlign='center'; ctx.fillStyle='#ffd054'; ctx.font='bold 78px Trebuchet MS'; ctx.fillText(String(bz.countdown), W/2, H/2); }
-    if (game.mode === 'bossFight') { ctx.textAlign='center'; ctx.fillStyle='#fff4df'; ctx.font='bold 18px Trebuchet MS'; ctx.fillStyle='rgba(0,0,0,.50)'; roundRect(W/2 - 455, H - 74, 910, 38, 12, true, false); ctx.fillStyle='#fff4df'; ctx.fillText('Drive closer, ram Ivan, or throw offline stock at him to get him away from the exit!', W/2, H-49); }
+    if (game.mode === 'bossFight') { ctx.textAlign='center'; ctx.fillStyle='#fff4df'; ctx.font='bold 18px Trebuchet MS'; ctx.fillStyle='rgba(0,0,0,.50)'; roundRect(W/2 - 455, H - 74, 910, 38, 12, true, false); ctx.fillStyle='#fff4df'; ctx.fillText('Drive closer and throw offline stock at Ivan to get him away from the exit!', W/2, H-49); }
     ctx.restore();
   }
   function drawBossVictorySummary(now) {
@@ -6192,8 +6182,7 @@
     ctx.fillText(`Max hearts now: ${game.maxHearts}`, W/2, y+220);
     ctx.font='bold 22px Trebuchet MS';
     ctx.fillText(`Ivan hearts removed: ${game.stats.bossHits} / 6`, W/2, y+270);
-    ctx.fillText(`Rams: ${game.stats.bossRams} × 2 hearts`, W/2, y+310);
-    ctx.fillText(`Offline stock hits: ${game.stats.bossShoeHits} × 1 heart`, W/2, y+350);
+    ctx.fillText(`Offline stock hits: ${game.stats.bossShoeHits} × 1 heart`, W/2, y+320);
     ctx.restore();
   }
   function drawBoss(now) {
