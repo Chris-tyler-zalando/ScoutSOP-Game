@@ -1,6 +1,14 @@
 (() => {
   'use strict';
 
+  window.addEventListener('error', event => {
+    const loadingNode = document.getElementById('loading');
+    if (loadingNode && !loadingNode.classList.contains('hidden')) {
+      loadingNode.textContent = `Startup error: ${event.message}`;
+    }
+  });
+
+
   const canvas = document.getElementById('gameCanvas');
   const mainCtx = canvas.getContext('2d');
   let ctx = mainCtx;
@@ -10,9 +18,11 @@
   const gameoverUI = document.getElementById('gameover-ui');
   const nameInput = document.getElementById('player-name');
   const nameWarning = document.getElementById('name-warning');
+  const profilesPanel = document.getElementById('profiles-panel');
+  const profileSlots = document.getElementById('profile-slots');
+  const profileWarning = document.getElementById('profile-warning');
   const newShiftButton = document.getElementById('new-shift');
   const continueSavedButton = document.getElementById('continue-saved');
-  const profileList = document.getElementById('profile-list');
   const continueShiftButton = document.getElementById('continue-shift');
   const restartShiftButton = document.getElementById('restart-shift');
   const downloadScoreButton = document.getElementById('download-score');
@@ -35,40 +45,49 @@
   const introNextButton = document.getElementById('intro-next');
   const introSkipButton = document.getElementById('intro-skip');
   const fireAnimationOverlay = document.getElementById('fire-animation-overlay');
-  const fireAnimationOverlaySoft = document.getElementById('fire-animation-overlay-soft');
   const adminPanel = document.getElementById('admin-panel');
   const adminExitButton = document.getElementById('admin-exit');
+  const adminCollapseButton = document.getElementById('admin-collapse');
   const adminButtons = Array.from(document.querySelectorAll('[data-admin]'));
+  let mapBuilderPanel = null;
 
   const W = canvas.width;
   const H = canvas.height;
   const DRAW_MARGIN = 150;
-  const TILE = 118;
-  const BASE_MAP_W = 50;
-  const BASE_MAP_H = 36;
+  const TILE = 100;
+  const BASE_MAP_W = 80;
+  const BASE_MAP_H = 50;
   let MAP_W = BASE_MAP_W;
   let MAP_H = BASE_MAP_H;
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
-  const MAX_HEARTS = 3;
-  const VERSION = 'V2.28';
+  const STARTING_MAX_HEARTS = 3;
+  const VERSION = 'V2.69';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
+  const ASSET_VERSION = '2.69';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
-  const SAVE_LIST_KEY = 'zalandoScoutSavedProfilesV1';
-  const ACTIVE_PROFILE_KEY = 'zalandoScoutActiveProfileId';
-  const MAX_SAVE_PROFILES = 3;
   const NAME_KEY = 'zalandoScoutPlayerName';
+  const PROFILES_KEY = 'zalandoScoutProfilesV1';
+  const ACTIVE_PROFILE_KEY = 'zalandoScoutActiveProfileV1';
+  const MAX_PROFILES = 3;
   const BEST_KEY = 'zalandoScoutBest';
   const MUTE_KEY = 'zalandoScoutAudioMuted';
   const VOLUME_KEY = 'zalandoScoutAudioVolume';
   const DISPLAY_MODE_KEY = 'zalandoScoutDisplayMode';
-  const INVENTORY_DURATION = 30000;
-  const QS_DURATION = 30000;
+  const INVENTORY_DURATION = 60000;
+  const QS_DURATION = 60000;
+  const NOEAN_DURATION = 60000;
+  const NOEAN_ANGLES = [40, 60, 80, 90, 100, 120, 140];
+  const NOEAN_TARGETS = ['shoes', 'tops', 'pants'];
+  const NOEAN_FRAME_BOUNDS = {"pants": [[76, 46, 266, 400], [81, 47, 272, 400], [93, 45, 296, 400], [93, 43, 275, 400], [73, 33, 268, 399], [66, 33, 285, 398], [83, 35, 299, 400], [94, 33, 272, 397], [77, 19, 237, 375], [76, 18, 259, 376], [48, 89, 324, 325], [83, 19, 286, 372]], "shoes": [[17, 168, 342, 374], [32, 118, 350, 374], [17, 90, 317, 381], [23, 187, 349, 375], [18, 119, 340, 400], [22, 90, 350, 310], [5, 95, 317, 301], [25, 47, 340, 313], [11, 0, 310, 256], [22, 40, 346, 257], [3, 38, 334, 248], [25, 47, 344, 256]], "tops": [[22, 87, 342, 388], [14, 70, 335, 368], [12, 57, 338, 400], [26, 44, 357, 400], [8, 52, 348, 398], [4, 24, 336, 385], [19, 46, 329, 386], [25, 0, 358, 340], [58, 36, 297, 311], [58, 18, 271, 317], [4, 46, 333, 339], [28, 21, 353, 334]]};
   const PALLET_JACK_DURATION = 30000;
-  const PUZZLE_COLS = 5;
-  const PUZZLE_ROWS = 6;
+  const PALLET_JACK_ROBOT_DISABLE = 300000;
+  const TASK_COOLDOWN = 300000;
+  const FIRE_COOLDOWN = 600000;
+  const PUZZLE_COLS = 6;
+  const PUZZLE_ROWS = 5;
   const PUZZLE_SIZE = PUZZLE_COLS * PUZZLE_ROWS;
   const FLOOR_TINTS = ['rgba(255,118,36,.055)', 'rgba(41,117,154,.045)', 'rgba(120,94,48,.05)', 'rgba(74,124,89,.045)', 'rgba(128,70,110,.04)'];
   const TASK_TYPES = ['alm', 'sl', 'email', 'workday'];
@@ -77,6 +96,7 @@
   const OFFICE_MENU_MONITOR = { x: 99, y: 48, width: 581, height: 372 };
   const OFFICE_APP_MONITOR = { x: 130, y: 92, width: 498, height: 302 };
   const HINT_COST = 100;
+  const CONVEYOR_DRAW_Y_OFFSET = 0.00;
   const keys = new Set();
 
   const TASK_PUZZLES = {
@@ -116,29 +136,36 @@
     cement: ['cement.jpeg'], clothes: ['clothes.png'], coffee: ['coffee.png'], entrance: ['entrance.png'],
     evilguy: ['evilguy.png'], evilguysprite: ['evilguysprite.png'], exit: ['exit.png', 'exit.jpg'], gameover: ['gameover.png'],
     heart: ['heart.png'], inventory1: ['inventory1.png'], inventory2: ['inventory2.png'], inventory3: ['inventory3.png'],
-    inventory4: ['inventory4.png'], inventory5: ['inventory5.png'], kitchen: ['kitchen.png'], meeting: ['meeting.jpg'],
+    inventory4: ['inventory4.png'], inventory5: ['inventory5.png'], kitchen: ['kitchen.png'], meeting: ['meeting.jpg'], printers: ['printers.png'], bathroom: ['bathroom.png'],
     pickup: ['pickup.png'], qs: ['qs.jpeg'], qsObj1: ['qs.png'], qsObj2: ['qs2.png'], cone: ['cone.png'], score: ['score.png'],
     screens: ['screens.jpg'], sign: ['sign.png'], tiles: ['tiles.jpeg'], carpet: ['carpet.jpg', 'cement.jpeg'],
-    inventorybg: ['inventory.png', 'inventory.jpg', 'inventorycheck.jpg', 'meeting.jpg'],
+    inventorybg: ['inventory.jpg', 'inventorycheck.jpg', 'meeting.jpg'],
     table: ['table.png'], table2: ['table2.png'], table3: ['table3.png'], zalandologo: ['zalandologo.png'],
-    smallbox: ['smallbox.png'], smallbox2: ['smallbox2.png'], smallbox3: ['smallbox3.png'], shoe: ['shoe.png'],
+    smallbox: ['smallbox.png'], smallbox2: ['smallbox2.png'], smallbox3: ['smallbox3.png'],
+    shoe: ['shoe.png'], shoe1: ['shoe1.png'], shoe2: ['shoe2.png'], shoe3: ['shoe3.png'],
     title: ['title.png'], truck: ['truck.png'], walksprite: ['walksprite.png'],
     officeBase: ['baseoffice.jpg'], officeFrame: ['officeframe.webp'], officeMenu: ['pcmenu.jpg'],
     palletjack: ['palletjack.png'], clothesDamaged: ['clothesdamaged.png'], slbox: ['slbox.png'],
     qsBg: ['qs2.jpg', 'qs2.png'], fireExtinguisher: ['fire.png'], fireAnim: ['fire.webp'],
-    jiraScreen: ['jira.jpg'], errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png']
+    elevator: ['elevator.png'], conveyor: ['conveyor.png'], conveyorEnd: ['conveyor2.png'], conveyorBox: ['box.png'],
+    errorScreen: ['error.jpg'], scoutIcon: ['scoticon.png'],
+    noEanWelcome: ['welcome3.jpg'], noEanBg: ['conveyor.jpg', 'conveyor.png'],
+    scanner: ['scanner.png'], scannerCorrect: ['scanner2.png'], scannerWrong: ['scanner3.png'],
+    noEanShoes: ['shoes.webp'], noEanTops: ['tops.webp'], noEanPants: ['pants.webp'],
+    minimap: ['minimap.webp'],
+    bossIntro: ['it2.jpg'], bossBg: ['bossbg.jpg'], bossBgWin: ['bossbg1.jpg'], bossIvan: ['boss1.webp'], fireball: ['fireball.webp'], bossCar: ['car.webp'], bossCarWin: ['car.png']
   };
-  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'officeBase', 'officeFrame', 'officeMenu', 'jiraScreen', 'errorScreen', 'scoutIcon', 'palletjack', 'clothesDamaged', 'slbox', 'qsBg', 'fireExtinguisher', 'fireAnim']);
+  const optionalAssets = new Set(['cone', 'qsObj1', 'qsObj2', 'table', 'table2', 'table3', 'zalandologo', 'smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe1', 'shoe2', 'shoe3', 'qsBg']);
   const musicFiles = {
     startup: 'startup.mp3', gameplay: 'gameplay.mp3', gameplay1: 'gameplay1.mp3', gameplay2: 'gameplay2.mp3', gameplay3: 'gameplay3.mp3',
     inventory: 'inventory.mp3', gameover: 'gameover.mp3', winner: 'winner.mp3', kitchen: 'kitchen.mp3',
-    welcome: 'welcome.mp3', factory: 'factory.mp3', evilrobot: 'evilrobot.mp3'
+    welcome: 'welcome.mp3', factory: 'factory.mp3', evilrobot: 'evilrobot.mp3', boss: 'boss.mp3', success: 'success.mp3'
   };
   const gameplayPlaylist = ['gameplay', 'gameplay1', 'gameplay2', 'gameplay3'];
 
   // Opening story sequence and its soundtrack mapping.
   const introSlides = [
-    { images: ['welcome0.jpg', 'wecome0.jpg'], music: 'welcome', text: 'Welcome to Zalando Scout! I know you are in the Ops team, but we need your help.' },
+    { images: ['wecome0.jpg'], music: 'welcome', text: 'Welcome to Zalando Scout! I know you are in the Ops team, but we need your help.' },
     { images: ['robot.jpg'], music: 'welcome', text: 'Zalando has invested in automation systems in our warehouses to help make getting customers orders more efficient.' },
     { images: ['welcome2.jpg'], music: 'factory', text: 'Everything has been going well for the last few months, and productivity is up!' },
     { images: ['itguy.jpg'], music: 'evilrobot', text: 'But one day Crazy Ivan from IT decided to enhance the robots with his own special AI algorithm, and something has gone wrong!' },
@@ -146,7 +173,7 @@
     { images: ['danger.jpg'], music: 'evilrobot', text: 'Beware of the evil automated robots. They do not want you taking their jobs.' },
     { images: ['inventorycheck.jpg'], music: 'inventory', text: 'You will also need to help complete inventory checks.' },
     { images: ['qs2.jpg'], music: 'kitchen', text: 'And help out with Quarantine Storage.' },
-    { images: ['exit.jpg'], music: 'winner', text: 'Complete your tasks and make your way to the exit, so we can send you to the next warehouse!' },
+    { images: ['exit.jpg'], music: 'winner', text: 'Complete the required tasks and make your way to the exit, so we can send you to the next warehouse!' },
     { images: ['background1.jpg'], music: 'gameplay', text: 'Your shift begins now!' }
   ];
   const INTRO_TYPE_INTERVAL = 19;
@@ -154,6 +181,8 @@
   let introTypeTimers = [];
   let pendingShiftStart = null;
   const images = {};
+  const assetStatus = { loaded: [], fallback: [], missing: [], optionalMissing: [], timedOut: [] };
+  window.SOP_ASSET_STATUS = assetStatus;
   let patterns = {};
 
   const directions = [
@@ -173,22 +202,29 @@
     adminMode: false,
     adminEscapeCount: 0,
     adminEscapeUntil: 0,
+    mapBuilder: null,
     lastPuzzleIndex: { alm: -1, sl: -1, email: -1, workday: -1 },
     playerName: localStorage.getItem(NAME_KEY) || '',
-    activeProfileId: localStorage.getItem(ACTIVE_PROFILE_KEY) || '',
+    selectedProfileId: localStorage.getItem(ACTIVE_PROFILE_KEY) || '',
+    shoeCycleIndex: 0,
     level: 1,
     score: 0,
     bestScore: Number(localStorage.getItem(BEST_KEY) || 0),
     health: 3,
+    maxHearts: STARTING_MAX_HEARTS,
+    boss: null,
     coffees: 0,
     muted: localStorage.getItem(MUTE_KEY) === '1',
     volume: clamp(Number(localStorage.getItem(VOLUME_KEY) || 72) / 100, 0, 1),
+    previousVolume: clamp(Number(localStorage.getItem('zalando-scout-prev-volume') || localStorage.getItem(VOLUME_KEY) || 72) / 100, .05, 1),
     displayMode: localStorage.getItem(DISPLAY_MODE_KEY) === 'mobile' ? 'mobile' : 'desktop',
     map: [],
     obstacles: [],
     zoneProps: [],
     borderProps: [],
     decorativeProps: [],
+    conveyors: [],
+    movingConveyorItems: [],
     colliders: [],
     zones: {},
     boxes: [],
@@ -220,6 +256,12 @@
     office: null,
     qsPuzzle: null,
     qsCooldownUntil: 0,
+    noEanBriefUntil: 0,
+    noEanPuzzle: null,
+    noEanCooldownUntil: 0,
+    taskCooldowns: {},
+    noEanTargetHistory: [],
+    debugOverlay: false,
     fire: null,
     nextFireAt: 0,
     tokenFlashUntil: 0,
@@ -228,13 +270,17 @@
   };
 
   function freshStats() {
-    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, opsFinds: 0, inventoryChecks: 0, quarantineSorts: 0, coffeeSprints: 0, palletJackRides: 0, firesExtinguished: 0, firePoints: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, hintsBought: 0, taskFailures: 0 };
+    return { boxesOpened: 0, smallBoxesOpened: 0, shoesCollected: 0, coffeesCollected: 0, returnsProcessed: 0, trucksCompleted: 0, heartsFound: 0, warehousesCleared: 0, inventoryMatches: 0, offlineStock: 0, customerOrders: 0, sharesFound: 0, lunchBreaks: 0, mixedStock: 0, mouldyClothes: 0, noEanTasks: 0, noEanScans: 0, noEanWrong: 0, noEanMissed: 0, opsFinds: 0, inventoryChecks: 0, quarantineSorts: 0, coffeeSprints: 0, palletJackRides: 0, firesExtinguished: 0, firePoints: 0, jumps: 0, robotHits: 0, forkliftHits: 0, almTasksCompleted: 0, slTasksCompleted: 0, emailTasksCompleted: 0, workdayTasksCompleted: 0, sopTokensFound: 0, sopTokensUsed: 0, hintsBought: 0, taskFailures: 0, bossesDefeated: 0, bossHits: 0, bossShoeHits: 0, bossRams: 0 };
   }
-  function freshTasks() { return { alm: 0, sl: 0, email: 0, workday: 0, tokens: 0, completed: { alm: false, sl: false, email: false, workday: false } }; }
+  function freshTasks() { return { alm: 0, sl: 0, email: 0, workday: 0, tokens: 0, opsExit: false, completed: { alm: false, sl: false, email: false, workday: false } }; }
   function taskJobsReady(type) { return Math.floor((game.tasks[type] || 0) / 5); }
   function anyTaskReady() { return TASK_TYPES.some(type => taskJobsReady(type) > 0); }
-  function requiredTasksComplete() { return TASK_TYPES.every(type => game.tasks.completed[type]); }
-  function completionChecklist() { return TASK_TYPES.map(type => `${TASK_LABELS[type]} ${game.tasks.completed[type] ? '✓' : '✗'}`).join('   '); }
+  function completedTaskCount() { return TASK_TYPES.filter(type => game.tasks.completed[type]).length; }
+  function requiredTaskCountForLevel(level = game.level) { return level <= 1 ? 2 : (level === 2 ? 3 : TASK_TYPES.length); }
+  function requiredTasksComplete() { return !!(game.tasks && game.tasks.opsExit) || completedTaskCount() >= requiredTaskCountForLevel(); }
+  function completionChecklist() { return `TASKS ${completedTaskCount()}/${requiredTaskCountForLevel()} REQUIRED   ` + TASK_TYPES.map(type => `${TASK_LABELS[type]} ${game.tasks.completed[type] ? '✓' : '✗'}`).join('   '); }
+  function taskCooldownRemaining(type, now = performance.now()) { return Math.max(0, Math.ceil(((game.taskCooldowns && game.taskCooldowns[type]) || 0) - now)); }
+  function taskAvailable(type, now = performance.now()) { return taskJobsReady(type) > 0 && taskCooldownRemaining(type, now) <= 0; }
   function addTaskProgress(type, amount, source) {
     const before = taskJobsReady(type);
     game.tasks[type] += amount;
@@ -254,8 +300,9 @@
       game.stats[key] = (game.stats[key] || 0) + 1;
       if (viaToken) game.stats.sopTokensUsed++;
       synth.points();
-      if (requiredTasksComplete()) addMessage('YOU FINISHED YOUR WORK! FIND THE EXIT AND LEAVE THIS WAREHOUSE.', '#71dd8d', 3800);
+      if (requiredTasksComplete()) addMessage('REQUIRED TASKS COMPLETE! FIND THE EXIT AND LEAVE THIS WAREHOUSE.', '#71dd8d', 3800);
     } else game.stats.taskFailures++;
+    if (game.taskCooldowns && type) game.taskCooldowns[type] = performance.now() + TASK_COOLDOWN;
     updateBest();
     return true;
   }
@@ -290,6 +337,28 @@
     route() { [523, 659, 784, 1047].forEach((f, i) => this.note(f, .12, 'square', .045, i * .08)); }
     powerDown() { this.note(260, .07, 'sawtooth', .045); this.note(130, .17, 'sawtooth', .045, .07); }
     jump() { this.note(360, .06, 'square', .045); this.note(650, .11, 'triangle', .05, .05); this.note(920, .09, 'square', .035, .13); }
+    spray(duration = .85) {
+      if (game.muted || game.volume <= 0 || !game.soundReady || !this.audio) return;
+      const t = this.audio.currentTime;
+      const bufferSize = Math.max(1, Math.floor(this.audio.sampleRate * duration));
+      const buffer = this.audio.createBuffer(1, bufferSize, this.audio.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+      const source = this.audio.createBufferSource();
+      const filter = this.audio.createBiquadFilter();
+      const gain = this.audio.createGain();
+      filter.type = 'highpass';
+      filter.frequency.setValueAtTime(850, t);
+      gain.gain.setValueAtTime(.0001, t);
+      gain.gain.linearRampToValueAtTime(.11 * game.volume, t + .04);
+      gain.gain.exponentialRampToValueAtTime(.001, t + duration);
+      source.buffer = buffer;
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.audio.destination);
+      source.start(t);
+      source.stop(t + duration);
+    }
   }
 
   class MusicController {
@@ -335,7 +404,8 @@
       else if (game.mode === 'play') {
         if (game.specialMusic) this.play(game.specialMusic, true);
         else this.playGameplay();
-      } else if (game.mode === 'inventoryBriefing' || game.mode === 'inventoryPuzzle' || game.mode === 'qsPuzzle') this.play('inventory', true);
+      } else if (game.mode === 'inventoryBriefing' || game.mode === 'inventoryPuzzle' || game.mode === 'qsPuzzle' || game.mode === 'noEanBriefing' || game.mode === 'noEanPuzzle') this.play('inventory', true);
+      else if (game.mode === 'bossFight') this.play('boss', true);
       else if (game.mode === 'gameover') this.play('gameover', true);
       else if (game.mode === 'intro') this.play(introSlides[game.introIndex].music, true);
       else if (game.mode === 'title') this.play('startup', true);
@@ -349,6 +419,26 @@
 
   const synth = new Synth();
   const music = new MusicController();
+  const activeOneShots = [];
+  function stopOneShots() {
+    while (activeOneShots.length) {
+      const audio = activeOneShots.pop();
+      try { audio.pause(); audio.currentTime = 0; } catch (err) {}
+    }
+  }
+  function playOneShot(file, volume = .55) {
+    if (game.muted || game.volume <= 0 || !file) return;
+    try {
+      const audio = new Audio(ASSET_PATH + file);
+      audio.volume = volume * game.volume;
+      activeOneShots.push(audio);
+      audio.onended = () => {
+        const index = activeOneShots.indexOf(audio);
+        if (index >= 0) activeOneShots.splice(index, 1);
+      };
+      audio.play().catch(() => {});
+    } catch (err) {}
+  }
 
   function rand(min, max) { return Math.random() * (max - min) + min; }
   function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
@@ -369,50 +459,126 @@
     return out;
   }
 
+  function makeFallbackImage(key) {
+    const fallbackCanvas = document.createElement('canvas');
+    fallbackCanvas.width = 96;
+    fallbackCanvas.height = 96;
+    const fctx = fallbackCanvas.getContext('2d');
+    const hash = Array.from(String(key)).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    fctx.fillStyle = `hsl(${hash % 360}, 38%, 32%)`;
+    fctx.fillRect(0, 0, 96, 96);
+    fctx.fillStyle = 'rgba(255,255,255,.14)';
+    for (let y = 0; y < 96; y += 16) for (let x = 0; x < 96; x += 16) if ((x + y) % 32 === 0) fctx.fillRect(x, y, 16, 16);
+    fctx.strokeStyle = 'rgba(255,255,255,.55)';
+    fctx.lineWidth = 3;
+    fctx.strokeRect(3, 3, 90, 90);
+    fctx.fillStyle = '#fff4df';
+    fctx.font = 'bold 11px sans-serif';
+    fctx.textAlign = 'center';
+    fctx.fillText(String(key).slice(0, 11), 48, 52);
+    const img = new Image();
+    img.src = fallbackCanvas.toDataURL('image/png');
+    return img;
+  }
   async function loadAssets() {
     const entries = Object.entries(assetSources);
-    await Promise.all(entries.map(([key, files]) => loadImageWithFallback(key, files)));
+    let loaded = 0;
+    const updateProgress = () => {
+      if (loading) loading.textContent = `Loading warehouse assets... ${loaded}/${entries.length}`;
+    };
+    updateProgress();
+
+    // GitHub Pages can be much slower than the HDD, especially when the browser asks for 100+ images at once.
+    // Keep the request count low so real assets do not hit our own timeout and get replaced by placeholders.
+    const concurrency = Math.min(8, entries.length);
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < entries.length) {
+        const [key, files] = entries[cursor++];
+        await loadImageWithFallback(key, files).finally(() => {
+          loaded++;
+          updateProgress();
+        });
+      }
+    };
+    await Promise.all(Array.from({ length: concurrency }, worker));
+
     patterns = {
-      cement: ctx.createPattern(images.cement, 'repeat'),
-      qs: ctx.createPattern(images.qs, 'repeat'),
-      tiles: ctx.createPattern(images.tiles, 'repeat'),
-      carpet: ctx.createPattern(images.carpet, 'repeat')
+      cement: images.cement ? ctx.createPattern(images.cement, 'repeat') : null,
+      qs: images.qs ? ctx.createPattern(images.qs, 'repeat') : null,
+      tiles: images.tiles ? ctx.createPattern(images.tiles, 'repeat') : null,
+      carpet: images.carpet ? ctx.createPattern(images.carpet, 'repeat') : null
     };
     loading.classList.add('hidden');
     refreshSavedButton();
     updateMuteButton();
     updateDisplayModeButton();
+    console.table(assetStatus);
     requestAnimationFrame(loop);
   }
-
   function loadImageWithFallback(key, files) {
     const candidates = Array.isArray(files) ? files : [files];
-    return new Promise((resolve, reject) => {
-      const tryFile = index => {
+    const maxMsPerCandidate = 22000;
+    const maxAttempts = 2;
+    return new Promise(resolve => {
+      const tryFile = (index, attempt = 1) => {
         if (index >= candidates.length) {
-          if (optionalAssets.has(key)) { images[key] = null; resolve(); return; }
-          reject(new Error(`Could not load ${candidates.join(' or ')}`));
+          if (optionalAssets.has(key)) {
+            assetStatus.optionalMissing.push(key);
+            images[key] = null;
+            resolve();
+            return;
+          }
+          console.warn(`[assets] fallback used for ${key}:`, candidates);
+          assetStatus.fallback.push(key);
+          images[key] = makeFallbackImage(key);
+          resolve();
           return;
         }
         const img = new Image();
-        img.onload = () => { images[key] = img; resolve(); };
-        img.onerror = () => tryFile(index + 1);
-        img.src = ASSET_PATH + candidates[index];
+        let finished = false;
+        const file = candidates[index];
+        const finish = ok => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          img.onload = null;
+          img.onerror = null;
+          if (ok) {
+            assetStatus.loaded.push(key);
+            images[key] = img;
+            resolve();
+          } else if (attempt < maxAttempts) {
+            tryFile(index, attempt + 1);
+          } else {
+            assetStatus.missing.push(`${key}:${file}`);
+            tryFile(index + 1, 1);
+          }
+        };
+        const timer = setTimeout(() => {
+          console.warn(`[assets] slow/timeout loading ${ASSET_PATH + file} — retrying before fallback`);
+          assetStatus.timedOut.push(`${key}:${file}:attempt${attempt}`);
+          finish(false);
+        }, maxMsPerCandidate);
+        img.onload = () => finish(true);
+        img.onerror = () => finish(false);
+        img.decoding = 'async';
+        const retrySuffix = attempt > 1 ? `&retry=${attempt}` : '';
+        img.src = ASSET_PATH + file + `?v=${ASSET_VERSION}${retrySuffix}`;
       };
-      tryFile(0);
+      tryFile(0, 1);
     });
   }
 
   function configureMapSize(level) {
-    // Warehouses 1–4 are twice the original area; from warehouse 5 onward the playable floor doubles again.
-    const scale = level >= 5 ? 4 : 2;
-    MAP_W = BASE_MAP_W * scale;
-    MAP_H = BASE_MAP_H * scale;
+    // V2.37 locked map rule: 100px tiles, standard warehouse 80 x 50.
+    MAP_W = BASE_MAP_W;
+    MAP_H = BASE_MAP_H;
     WORLD_W = MAP_W * TILE;
     WORLD_H = MAP_H * TILE;
   }
-  function activeBoxCount() { return game.level >= 5 ? 432 : 228; }
-  function activeCoffeeCount() { return game.level >= 5 ? 156 : 90; }
+  function activeBoxCount() { return game.level >= 5 ? 170 : 120; }
+  function activeCoffeeCount() { return game.level >= 5 ? 70 : 48; }
   function makeFloorGrid() { return Array.from({ length: MAP_H }, () => Array(MAP_W).fill(0)); }
   function rectTiles(rect) {
     const tiles = [];
@@ -422,18 +588,113 @@
   function zone(left, top, width, height, name, arrivalX = Math.floor(width / 2), arrivalY = Math.floor(height / 2)) {
     return { left, top, width, height, x: left + arrivalX, y: top + arrivalY, name, tiles: rectTiles({ left, top, width, height }) };
   }
+  function templatePathRects() {
+    // V2.69: use Chris' saved map as the generation style reference:
+    // fewer broad deliberate corridors instead of a cluttered grid of yellow paths.
+    return [
+      { left: 1, top: 3, width: 78, height: 3 },
+      { left: 1, top: 45, width: 78, height: 3 },
+      { left: 74, top: 3, width: 3, height: 45 },
+      { left: 28, top: 2, width: 4, height: 46 }
+    ];
+  }
+  function templateAreaSlots() {
+    // V2.69: approximate the uploaded custom_map_layout 80×50 pod placement.
+    return [
+      { id: 'topMiddle', left: 33, top: 6, width: 14, height: 8 },
+      { id: 'topRight', left: 60, top: 7, width: 14, height: 8 },
+      { id: 'middleLeft', left: 3, top: 21, width: 14, height: 8 },
+      { id: 'middleRight', left: 60, top: 21, width: 14, height: 8 },
+      { id: 'bottomLeft', left: 3, top: 37, width: 14, height: 8 },
+      { id: 'bottomMiddle', left: 33, top: 37, width: 14, height: 8 },
+      { id: 'bottomRight', left: 60, top: 37, width: 14, height: 8 }
+    ];
+  }
+  function rectTouchesTemplatePath(rect, pad = 0) {
+    const test = paddedRect(rect, pad);
+    return templatePathRects().some(path => overlaps(test, path));
+  }
+  function tileInsideTemplatePath(t) {
+    return templatePathRects().some(path => t.x >= path.left && t.x < path.left + path.width && t.y >= path.top && t.y < path.top + path.height);
+  }
+  function randomTemplatePathTile(minDistance = 0) {
+    const candidates = [];
+    templatePathRects().forEach(path => {
+      for (let y = path.top; y < path.top + path.height; y++) {
+        for (let x = path.left; x < path.left + path.width; x++) {
+          if (isFloorTile(x, y) && !tileInAnyZone({ x, y }, 0) && !tileInsideVisibleScenery({ x, y })) candidates.push({ x, y });
+        }
+      }
+    });
+    for (const t of shuffle(candidates)) {
+      const p = tileCenter(t);
+      if ((!game.player || dist(p, game.player) >= minDistance) && !occupiedAt(p)) return t;
+    }
+    return null;
+  }
   function paddedRect(rect, pad = 0) {
     return { left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 };
   }
   function overlaps(a, b) {
     return a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top;
   }
+  function plannedConveyorRects() {
+    if (!game.zones) return [];
+    const rects = [];
+    const pushRun = (left, top, count, options = {}) => {
+      const width = 3.05, gap = 0.08;
+      const totalW = count * width + Math.max(0, count - 1) * gap;
+      const endW = images.conveyorEnd && options.noEndCap !== true ? width : 0;
+      const visualLeft = left - endW;
+      const visualRight = left + totalW + endW;
+      rects.push({ left: visualLeft - .25, top: top - .55, width: visualRight - visualLeft + .5, height: 2.35 });
+    };
+    const q = game.zones.quarantine;
+    const inv = game.zones.inventory;
+    const d = game.zones.dock;
+    if (d) {
+      pushRun(d.left + .35, d.top + .15, 4);
+      pushRun(d.left + .35, d.top + d.height - 1.15, 4);
+    }
+    if (q) {
+      pushRun(q.left + 1.05, q.top + .35, 3);
+      pushRun(q.left + 1.05, q.top + q.height - 1.25, 3);
+      pushRun(q.left + 4.0, q.top + 4.9, 2);
+    }
+    if (inv) {
+      pushRun(inv.left + .75, inv.top + .35, 4);
+      pushRun(inv.left + .75, inv.top + inv.height - 1.25, 4);
+    }
+    return rects;
+  }
+  function clutterImage(image) {
+    return /^box\d*$/.test(image) || /^smallbox/.test(image) || image === 'conveyorBox' || image === 'cone' || image === 'palletjack';
+  }
+
+  function protectedPropRects() {
+    const rects = [];
+    const add = item => {
+      if (!item) return;
+      const base = item.collisionRect || item;
+      if (base && Number.isFinite(base.left) && Number.isFinite(base.top) && Number.isFinite(base.width) && Number.isFinite(base.height)) {
+        const pad = (item.image === 'printers' || item.image === 'bathroom') ? .95 : .30;
+        rects.push(paddedRect(base, pad));
+      }
+    };
+    (game.zoneProps || []).forEach(add);
+    (game.conveyors || []).forEach(c => rects.push({ left: c.visualLeft ?? c.left, top: (c.top || 0) - .65, width: (c.visualRight ?? (c.left + c.width)) - (c.visualLeft ?? c.left), height: 2.45 }));
+    plannedConveyorRects().forEach(r => rects.push(r));
+    const d = game.zones && game.zones.dock;
+    if (d) rects.push(dockDrivewayRect());
+    return rects;
+  }
+  function rectHitsProtectedProp(rect) { return protectedPropRects().some(protectedRect => overlaps(rect, protectedRect)); }
   function withinMap(rect) {
     return rect.left >= 1 && rect.top >= 1 && rect.left + rect.width <= MAP_W - 1 && rect.top + rect.height <= MAP_H - 1;
   }
   function isZoneBlocked(rect, pad = 1) {
-    const zones = [game.zones.quarantine, game.zones.dock, game.zones.inventory, game.zones.exit, ...game.zones.kitchens];
-    return zones.some(z => overlaps(rect, paddedRect(z, pad)));
+    const zones = [game.zones.quarantine, game.zones.dock, game.zones.inventory, game.zones.exit, game.zones.elevator, ...game.zones.kitchens].filter(Boolean);
+    return rectTouchesTemplatePath(rect, .05) || zones.some(z => overlaps(rect, paddedRect(z, pad))) || rectHitsProtectedProp(rect);
   }
   function markBlocked(rect) {
     const left = Math.max(0, Math.floor(rect.left));
@@ -494,125 +755,264 @@
     if (!images[image]) return;
     game.borderProps.push({ ...rect, image, flipX, collisionRect: null, border: true });
   }
+  function shoeImageKeys() {
+    return ['shoe', 'shoe1', 'shoe2', 'shoe3'].filter(key => images[key]);
+  }
+  function nextShoeImage() {
+    const pool = shoeImageKeys();
+    if (!pool.length) return null;
+    game.shoeCycleIndex = (game.shoeCycleIndex || 0) % pool.length;
+    const key = pool[game.shoeCycleIndex];
+    game.shoeCycleIndex = (game.shoeCycleIndex + 1) % pool.length;
+    return key;
+  }
+  function isShoeImage(image) { return /^shoe\d*$/.test(image); }
   function addDecorativeProp(image, rect, flipX = false) {
-    if (!images[image]) return;
-    game.decorativeProps.push({ ...rect, image, flipX, collisionRect: null, decorative: true, collectible: image === 'shoe', interactive: /^smallbox/.test(image), bob: rand(0, Math.PI * 2) });
+    if (!images[image]) return false;
+    const candidate = { ...rect, image, flipX, collisionRect: null, decorative: true, collectible: isShoeImage(image), interactive: /^smallbox(?!3$)/.test(image), pushable: image === 'smallbox3', bob: rand(0, Math.PI * 2) };
+    const centre = decorativeCenter(candidate);
+    const tile = worldToTile(centre.x, centre.y);
+    if (!isFloorTile(tile.x, tile.y) || tileInAnyZone(tile, 0) || tileInsideVisibleScenery(tile) || tileInsideTemplatePath(tile) || rectHitsProtectedProp(rect)) return false;
+    if (game.decorativeProps.some(prop => dist(centre, decorativeCenter(prop)) < TILE * .82)) return false;
+    game.decorativeProps.push(candidate);
+    return true;
   }
   function spawnShelfFrontProp(image) {
     if (!images[image]) return;
     const shelfProps = game.obstacles.filter(prop => /^box[2-7]$/.test(prop.image));
     if (!shelfProps.length) return;
     const shelf = choice(shelfProps), scale = choice([1, .5, .3]);
-    const width = (image === 'shoe' ? .98 : 1.0) * scale, height = (image === 'shoe' ? .62 : .88) * scale;
+    const actualImage = image === 'shoe' ? (nextShoeImage() || 'shoe') : image;
+    if (!images[actualImage]) return;
+    const width = (isShoeImage(actualImage) ? .98 : 1.0) * scale, height = (isShoeImage(actualImage) ? .62 : .88) * scale;
     const floorTop = shelf.collisionRect ? shelf.collisionRect.top : shelf.top + shelf.height * .72;
     const left = clamp(shelf.left + rand(.08, Math.max(.14, shelf.width - width - .08)), 1.1, MAP_W - width - 1.1);
     const top = clamp(floorTop + rand(.05, .48), 1.1, MAP_H - height - 1.1);
-    addDecorativeProp(image, { left, top, width, height }, Math.random() < .5);
+    addDecorativeProp(actualImage, { left, top, width, height }, Math.random() < .5);
   }
   function decorativeCenter(prop) { return { x: (prop.left + prop.width / 2) * TILE, y: (prop.top + prop.height / 2) * TILE }; }
   function scatterDecorativeClutter() {
     game.decorativeProps = [];
-    const choices = ['smallbox', 'smallbox2', 'smallbox3', 'shoe', 'shoe', 'shoe'].filter(key => images[key]);
-    if (!choices.length) return;
+    const choices = ['smallbox', 'smallbox2', 'smallbox3'].filter(key => images[key]);
+    const shoePool = shoeImageKeys();
+    if (!choices.length && !shoePool.length) return;
     const shelfProps = game.obstacles.filter(prop => /^box[2-7]$/.test(prop.image));
     const scaleChoices = [1, .5, .3];
-    const maxDecor = Math.min(game.level >= 5 ? 3200 : 1500, Math.max(240, Math.round(shelfProps.length * 1.62)));
+    const maxDecor = Math.min(game.level >= 5 ? 480 : 360, Math.max(150, Math.round(shelfProps.length * .72)));
     let placed = 0;
 
     // Denser decorative clutter: keep it attached to shelf fronts and gaps, not stranded in open aisles.
     for (const shelf of shuffle(shelfProps)) {
       if (placed >= maxDecor) break;
-      if (Math.random() < .07) continue;
-      const itemsHere = Math.random() < .32 ? 3 : (Math.random() < .72 ? 2 : 1);
+      if (Math.random() < .02) continue;
+      const itemsHere = Math.random() < .48 ? 3 : (Math.random() < .82 ? 2 : 1);
       for (let i = 0; i < itemsHere && placed < maxDecor; i++) {
-        const image = choice(choices);
+        let image;
+        if (shoePool.length && (!choices.length || Math.random() < .86)) image = nextShoeImage();
+        else image = choice(choices);
+        if (!image || !images[image]) continue;
         const scale = choice(scaleChoices);
-        const baseW = image === 'shoe' ? .98 : 1.0;
-        const baseH = image === 'shoe' ? .62 : .88;
+        const baseW = isShoeImage(image) ? .98 : 1.0;
+        const baseH = isShoeImage(image) ? .62 : .88;
         const width = baseW * scale;
         const height = baseH * scale;
         const floorTop = shelf.collisionRect ? shelf.collisionRect.top : shelf.top + shelf.height * .72;
         const left = clamp(shelf.left + rand(.08, Math.max(.14, shelf.width - width - .08)), 1.1, MAP_W - width - 1.1);
         const top = clamp(floorTop + rand(.05, .48), 1.1, MAP_H - height - 1.1);
-        addDecorativeProp(image, { left, top, width, height }, Math.random() < .5);
-        placed++;
+        if (addDecorativeProp(image, { left, top, width, height }, Math.random() < .5)) placed++;
       }
     }
   }
+  function rectNearExistingCone(rect, radius = 1.65) {
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    return (game.zoneProps || []).some(prop => {
+      if (prop.image !== 'cone') return false;
+      const px = prop.left + prop.width / 2;
+      const py = prop.top + prop.height / 2;
+      return Math.hypot(cx - px, cy - py) < radius;
+    });
+  }
+
   function scatterConeHazards() {
     if (!images.cone) return;
-    const groupsTarget = game.level >= 5 ? 64 : 34;
+    const groupsTarget = game.level >= 5 ? 24 : 14;
     let groupsPlaced = 0;
     let attempts = 0;
-    while (groupsPlaced < groupsTarget && attempts < groupsTarget * 45) {
+    while (groupsPlaced < groupsTarget && attempts < groupsTarget * 70) {
       attempts++;
-      const count = Math.random() < .55 ? 3 : 4;
-      const horizontal = Math.random() < .5;
+      const count = randInt(4, 7);
+      const horizontal = Math.random() < .55;
       const start = { x: randInt(3, MAP_W - (horizontal ? count + 3 : 4)), y: randInt(4, MAP_H - (horizontal ? 4 : count + 3)) };
       const cells = [];
       let valid = true;
       for (let i = 0; i < count; i++) {
         const t = { x: start.x + (horizontal ? i : 0), y: start.y + (horizontal ? 0 : i) };
-        const rect = { left: t.x, top: t.y, width: 1, height: 1 };
-        if (!isFloorTile(t.x, t.y) || tileInAnyZone(t, 2) || tileInsideVisibleScenery(t) || game.zoneProps.some(prop => overlaps(rect, prop))) {
+        const rect = { left: t.x, top: t.y, width: .82, height: .82 };
+        if (!isFloorTile(t.x, t.y) || tileInAnyZone(t, 2) || tileInsideVisibleScenery(t) || rectHitsProtectedProp(rect) || game.zoneProps.some(prop => overlaps(rect, prop))) {
           valid = false;
           break;
         }
+        // Keep cone sets as clear lines, not stacked blocks.
+        if (rectNearExistingCone(rect, 1.55)) { valid = false; break; }
         cells.push(rect);
       }
       if (!valid) continue;
-      cells.forEach((rect, i) => addZoneProp('cone', rect, { flipX: i % 2 === 0 }));
+      cells.forEach((rect, i) => addZoneProp('cone', rect, { block: false, flipX: i % 2 === 0 }));
       groupsPlaced++;
     }
   }
 
   function setZones() {
+    const slots = shuffle(templateAreaSlots());
+    const take = () => slots.shift();
+
+    const invSlot = take();
+    const qsSlot = take();
+    const exitSlot = take();
+    const kitchenSlot = take();
+    const kitchen2Slot = take();
+
     game.zones = {
-      quarantine: zone(2, 2, 11, 9, 'QUARANTINE', 6, 7),
-      inventory: zone(MAP_W - 17, 13, 14, 12, 'INVENTORY CHECK', 6, 6),
-      dock: zone(2, MAP_H - 15, 20, 12, 'DOCK', 16, 9),
-      exit: zone(MAP_W - 14, 3, 10, 7, 'EXIT', 8, 5),
-      kitchens: [zone(MAP_W - 13, MAP_H - 10, 8, 5, 'KITCHEN', 7, 4), zone(18, 3, 8, 5, 'KITCHEN', 7, 4)]
+      dock: zone(1, 6, 14, 8, 'DOCK', 7, 6),
+      elevator: zone(33, 21, 14, 8, 'ELEVATOR', 7, 5),
+      inventory: zone(invSlot.left, invSlot.top, invSlot.width, invSlot.height, 'INVENTORY CHECK', 7, 6),
+      quarantine: zone(qsSlot.left, qsSlot.top, qsSlot.width, qsSlot.height, 'QUARANTINE', 7, 6),
+      exit: zone(exitSlot.left, exitSlot.top, Math.min(10, exitSlot.width), Math.min(7, exitSlot.height), 'EXIT', 7, 5),
+      kitchens: [
+        zone(kitchenSlot.left + 1, kitchenSlot.top + 1, 10, 6, 'KITCHEN', 7, 4),
+        zone(kitchen2Slot.left + 1, kitchen2Slot.top + 1, 10, 6, 'KITCHEN', 7, 4)
+      ],
+      areaSlots: slots
     };
   }
   function installSpecialAreaProps() {
     const q = game.zones.quarantine;
+
+    // Quarantine: mouldy/blocked stock mostly around the sides and bottom, with smaller props inside.
     if (images.qsObj1 || images.qsObj2) {
-      addZoneProp('qsObj1', { left: q.left + 1, top: q.top + 1, width: 4, height: 3 });
-      addZoneProp('qsObj2', { left: q.left + 5, top: q.top + 1, width: 4, height: 3 });
-      addZoneProp('qsObj2', { left: q.left + 1, top: q.top + 4, width: 4, height: 2 });
+      addZoneProp('qsObj1', { left: q.left + .25, top: q.top + 1.0, width: 3.8, height: 3.0 });
+      addZoneProp('qsObj2', { left: q.left + q.width - 4.05, top: q.top + 1.0, width: 3.8, height: 3.0 });
+      addZoneProp('qsObj2', { left: q.left + .55, top: q.top + q.height - 3.0, width: 4.6, height: 2.35 });
+      addZoneProp('qsObj1', { left: q.left + q.width - 5.15, top: q.top + q.height - 3.0, width: 4.6, height: 2.35 });
     } else {
-      addZoneProp('box1', { left: q.left + 0, top: q.top + 1, width: 3, height: 3 }, { flipX: false });
-      addZoneProp('box2', { left: q.left + 5, top: q.top + 1, width: 3, height: 3 });
-      addZoneProp('box3', { left: q.left + 0, top: q.top + 5, width: 2, height: 2 });
-      addZoneProp('box3', { left: q.left + 3, top: q.top + 5, width: 2, height: 2 });
+      addZoneProp('box1', { left: q.left + .2, top: q.top + 1, width: 3.8, height: 3 });
+      addZoneProp('box2', { left: q.left + q.width - 4, top: q.top + 1, width: 3.8, height: 3 });
+      addZoneProp('box3', { left: q.left + 1, top: q.top + q.height - 2.8, width: 3, height: 2 });
+      addZoneProp('box3', { left: q.left + q.width - 4, top: q.top + q.height - 2.8, width: 3, height: 2 });
     }
-    // Keep the arrival tile clear; cones create a jumpable hazard line beside it.
-    if (images.cone) for (let i = 0; i < 4; i++) addZoneProp('cone', { left: q.left + 1 + i, top: q.top + 6, width: 1, height: 1 }, { flipX: i % 2 === 1 });
+    ['smallbox', 'smallbox2', 'smallbox3'].forEach((img, i) => {
+      if (images[img]) addZoneProp(img, { left: q.left + 4.5 + i * 1.2, top: q.top + 4.0 + (i % 2) * .9, width: .9, height: .75 }, { block: false, flipX: i % 2 === 1 });
+    });
 
     const inv = game.zones.inventory;
-    // Alcove shape: stock around the edges, open playable centre.
-    addZoneProp('inventory1', { left: inv.left + 0, top: inv.top + 1, width: 3, height: 4 });
-    addZoneProp('inventory2', { left: inv.left + 3, top: inv.top + 1, width: 3, height: 2 });
-    addZoneProp('inventory3', { left: inv.left + 6, top: inv.top + 1, width: 3, height: 2 });
-    addZoneProp('inventory4', { left: inv.left + 9, top: inv.top + 1, width: 3, height: 4 });
-    if (images.table) addZoneProp('table', { left: inv.left + 1, top: inv.top + 6, width: 3, height: 2 });
-    else addZoneProp('inventory5', { left: inv.left + 1, top: inv.top + 6, width: 3, height: 2 });
-    if (images.table2) addZoneProp('table2', { left: inv.left + 5, top: inv.top + 7, width: 3, height: 2 });
-    if (images.table3) addZoneProp('table3', { left: inv.left + 9, top: inv.top + 6, width: 2, height: 2 });
+    // Inventory: scale the small assets up so they match the rest of the warehouse.
+    addZoneProp('inventory1', { left: inv.left + .45, top: inv.top + .55, width: 6.0, height: 7.0 }, { collisionInset: .16 });
+    addZoneProp('inventory2', { left: inv.left + 6.8, top: inv.top + .75, width: 3.1, height: 2.2 }, { collisionInset: .16 });
+    addZoneProp('inventory3', { left: inv.left + 10.1, top: inv.top + .75, width: 3.1, height: 2.2 }, { collisionInset: .16 });
+    addZoneProp('inventory4', { left: inv.left + 10.1, top: inv.top + 3.15, width: 3.1, height: 3.5 }, { collisionInset: .16 });
+    if (images.table) addZoneProp('table', { left: inv.left + 6.9, top: inv.top + 3.65, width: 5.4, height: 3.4 }, { collisionInset: .18 });
+    else addZoneProp('inventory5', { left: inv.left + 6.9, top: inv.top + 3.65, width: 5.4, height: 3.4 }, { collisionInset: .18 });
+    if (images.table2) addZoneProp('table2', { left: inv.left + 1.0, top: inv.top + 5.55, width: 5.2, height: 2.1 }, { collisionInset: .18 });
+    // table3.png intentionally no longer used.
 
-    // Kitchen artwork is visible, with the reduced inner footprint used for collision.
-    game.zones.kitchens.forEach(k => addZoneProp('kitchen', { left: k.left + 0, top: k.top + 1, width: 6, height: 3 }, { collisionRect: { left: k.left + 0, top: k.top + 1, width: 6, height: 3 }, collisionInset: 0.20, flipX: false }));
+    // Kitchen artwork is 25% larger and centred inside the kitchen zone.
+    game.zones.kitchens.forEach(k => {
+      const kw = 7.5, kh = 3.75;
+      addZoneProp('kitchen', {
+        left: k.left + (k.width - kw) / 2,
+        top: k.top + (k.height - kh) / 2,
+        width: kw,
+        height: kh
+      }, {
+        collisionRect: { left: k.left + (k.width - kw) / 2, top: k.top + (k.height - kh) / 2, width: kw, height: kh },
+        collisionInset: 0.20,
+        flipX: false
+      });
+    });
+
     const d = game.zones.dock;
-    const dockBuilding = { left: d.left + 1, top: d.top + 1, width: 9, height: 4 };
-    const dockFootprint = sceneryFootprint(dockBuilding, 'dock-building');
-    markBlocked(dockFootprint);
-    addCollider(dockFootprint, 'dock-building', .04);
+
+    // Traffic cones guide the top and bottom of the driveway, with deliberate gaps for walking through.
     if (images.cone) {
-      // Never block the Dock spawn point at d.left + 7, d.top + 6.
-      for (let i = 0; i < 4; i++) addZoneProp('cone', { left: d.left + 8 + i, top: d.top + 4, width: 1, height: 1 }, { flipX: i % 2 === 0 });
+      const drivewayTop = d.top + 4.15;
+      const drivewayBottom = d.top + 7.15;
+      const gapXs = [d.left + 3, d.left + 7, d.left + 11];
+      for (let x = d.left - 1; x <= d.left + d.width + 1; x += 1.55) {
+        const nearGap = gapXs.some(g => Math.abs(x - g) < .85);
+        if (!nearGap) {
+          addZoneProp('cone', { left: x, top: drivewayTop, width: .85, height: .85 }, { block: false, flipX: Math.floor(x) % 2 === 0 });
+          addZoneProp('cone', { left: x, top: drivewayBottom, width: .85, height: .85 }, { block: false, flipX: Math.floor(x) % 2 === 1 });
+        }
+      }
     }
   }
+
+  function addPushableSmallBox(left, top) {
+    if (!images.smallbox3) return false;
+    return addDecorativeProp('smallbox3', { left, top, width: .9, height: .75 }, false);
+  }
+  function installTaskAreaEdgeProps() {
+    const areaZones = [game.zones.inventory, game.zones.quarantine, game.zones.exit, ...game.zones.kitchens].filter(Boolean);
+    const hardImages = ['box5', 'box6', 'box7', 'box3'].filter(key => images[key]);
+    if (!hardImages.length && !images.smallbox3) return;
+    areaZones.forEach((z, zi) => {
+      const openLeft = Math.round(z.top + z.height / 2);
+      const openRight = openLeft + (zi % 2 ? 1 : -1);
+      for (let x = Math.floor(z.left); x < Math.ceil(z.left + z.width); x += 2) {
+        const topGap = x >= z.left + z.width / 2 - 1 && x <= z.left + z.width / 2 + 1;
+        if (!topGap && hardImages.length) addZoneProp(hardImages[(x + zi) % hardImages.length], { left: x + .1, top: z.top - 1.05, width: 2.6, height: 1.65 }, { collisionInset: .08 });
+        if (!topGap && hardImages.length) addZoneProp(hardImages[(x + zi + 1) % hardImages.length], { left: x + .1, top: z.top + z.height - .55, width: 2.6, height: 1.65 }, { collisionInset: .08 });
+      }
+      for (let y = Math.floor(z.top + 1); y < Math.ceil(z.top + z.height - 1); y += 2) {
+        if (Math.abs(y - openLeft) <= 1) { addPushableSmallBox(z.left - .95, y + .25); continue; }
+        if (hardImages.length) addZoneProp(hardImages[(y + zi) % hardImages.length], { left: z.left - 1.15, top: y, width: 1.65, height: 1.55 }, { collisionInset: .08 });
+        if (Math.abs(y - openRight) <= 1) { addPushableSmallBox(z.left + z.width + .05, y + .25); continue; }
+        if (hardImages.length) addZoneProp(hardImages[(y + zi + 2) % hardImages.length], { left: z.left + z.width - .55, top: y, width: 1.65, height: 1.55 }, { collisionInset: .08 });
+      }
+    });
+  }
+  function installFillerAreaProps() {
+    const fillerImages = ['printers', 'bathroom'].filter(key => images[key]);
+    const shelfImages = ['box1', 'box2', 'box3', 'box4', 'box5', 'box6', 'box7'].filter(key => images[key]);
+    const slots = (game.zones.areaSlots || []).slice();
+    slots.forEach((slot, i) => {
+      const z = zone(slot.left + .8, slot.top + .8, Math.max(8, slot.width - 1.6), Math.max(5, slot.height - 1.6), i % 2 ? 'BATHROOM / FIRST AID' : 'PRINT ROOM', 5, 3);
+      const img = fillerImages.length ? fillerImages[i % fillerImages.length] : null;
+
+      if (img) {
+        const scale = img === 'printers' ? 0.50 : 0.60;
+        const maxW = z.width - 2.6;
+        const maxH = z.height - 2.6;
+        const aspect = images[img] ? images[img].height / images[img].width : .45;
+        let roomW = Math.max(3.0, maxW * scale);
+        let roomH = roomW * aspect;
+        if (roomH > maxH * scale) {
+          roomH = Math.max(1.8, maxH * scale);
+          roomW = roomH / Math.max(.2, aspect);
+        }
+        addZoneProp(img, {
+          left: z.left + (z.width - roomW) / 2,
+          top: z.top + (z.height - roomH) / 2,
+          width: roomW,
+          height: roomH
+        }, { collisionInset: .22, floorBand: .20, sideInset: .08 });
+      }
+
+      if (!shelfImages.length) return;
+      for (let x = z.left - .2; x < z.left + z.width - 1.6; x += 2.25) {
+        addZoneProp(shelfImages[(Math.floor(x) + i) % shelfImages.length], { left: x, top: z.top - .95, width: 2.15, height: 1.48 }, { collisionInset: .08 });
+        addZoneProp(shelfImages[(Math.floor(x) + i + 1) % shelfImages.length], { left: x, top: z.top + z.height - .50, width: 2.15, height: 1.48 }, { collisionInset: .08 });
+      }
+      const openY = z.top + z.height / 2;
+      for (let y = z.top + .55; y < z.top + z.height - .75; y += 1.55) {
+        if (Math.abs(y - openY) < 1.0) { if (images.smallbox3) { addPushableSmallBox(z.left - .95, y); addPushableSmallBox(z.left + z.width + .05, y); } continue; }
+        addZoneProp(shelfImages[(Math.floor(y) + i + 2) % shelfImages.length], { left: z.left - 1.05, top: y, width: 1.55, height: 1.34 }, { collisionInset: .08 });
+        addZoneProp(shelfImages[(Math.floor(y) + i + 3) % shelfImages.length], { left: z.left + z.width - .50, top: y, width: 1.55, height: 1.34 }, { collisionInset: .08 });
+      }
+    });
+  }
+
   function crossesMainAisle(rect) {
 
 
@@ -663,7 +1063,9 @@
     for (let y = .25; y < MAP_H - .2; y += verticalStep) {
       const leftImage = sideIndex % 2 === 0 ? 'box7' : 'box3';
       const rightImage = sideIndex % 2 === 0 ? 'box3' : 'box7';
-      addBorderProp(leftImage, { left: -.77, top: y, width: 2.08, height: 2.75 }, sideIndex % 3 === 0);
+      const leftRect = { left: -.77, top: y, width: 2.08, height: 2.75 };
+      const road = game.zones && game.zones.dock ? dockDrivewayRect() : null;
+      if (!road || !overlaps(leftRect, road)) addBorderProp(leftImage, leftRect, sideIndex % 3 === 0);
       addBorderProp(rightImage, { left: MAP_W - 1.32, top: y, width: 2.08, height: 2.75 }, sideIndex % 3 === 1);
       sideIndex++;
     }
@@ -710,50 +1112,58 @@
     return gaps;
   }
 
-  function installDenseShelfWalls() {
-    // A warehouse maze made from shelf-wall aisles. Each horizontal band is visible shelving,
-    // broken by regular one-square crossings; no shelf wall runs for more than six rack units
-    // without a clear passage. The gaps move between rows so crossing the building takes navigation.
-    const rackW = 2.42;
-    const rackH = 2.30;
-    const pieceStep = 2.32;
-    const crossingGap = 1.25;
-    const rowStep = 4.02;
-    const rows = [];
-    for (let y = 3.05; y <= MAP_H - 4.2; y += rowStep) rows.push(y);
+  function canPlaceObstacleRect(rect, pad = .35) {
+    return withinMap(rect) && !isZoneBlocked(rect, pad) && !game.obstacles.some(o => overlaps(rect, o));
+  }
 
-    rows.forEach((top, rowIndex) => {
-      let x = 1.40;
-      let groupIndex = 0;
-      while (x < MAP_W - rackW - 1.35) {
-        const runLength = 3 + ((rowIndex * 5 + groupIndex * 3) % 4); // 3 to 6 units per wall run.
-        for (let piece = 0; piece < runLength && x < MAP_W - rackW - 1.35; piece++) {
-          let image;
-          if ((groupIndex + rowIndex) % 8 === 5 && piece >= Math.max(0, runLength - 3)) image = 'box7';
-          else if ((groupIndex + rowIndex) % 9 === 6 && piece >= Math.max(0, runLength - 3)) image = 'box3';
-          else image = (rowIndex + Math.floor(piece / 2) + groupIndex) % 2 === 0 ? 'box5' : 'box6';
-          occupyObstacle({ left: x, top, width: rackW, height: rackH }, image, { floorBand: .24, sideInset: .08 });
-          x += pieceStep;
-        }
-        // The player gets a visible crossing between every rack run.
-        x += crossingGap;
-        groupIndex++;
-      }
+  function placeAlignedShelfRun(left, top, count, options = {}) {
+    const rackW = options.rackW ?? 2.50;
+    const rackH = options.rackH ?? 2.20;
+    const rects = [];
+    for (let i = 0; i < count; i++) rects.push({ left: left + i * rackW, top, width: rackW, height: rackH });
+    if (!rects.every(rect => canPlaceObstacleRect(rect))) return false;
+    rects.forEach((rect, i) => {
+      const image = options.image || (i % 2 === 0 ? 'box5' : 'box6');
+      occupyObstacle(rect, image, { floorBand: .24, sideInset: .08, flipX: false });
     });
+    return true;
+  }
 
-    // Vertical partial shelf dividers interrupt long straight aisles while keeping open turns.
-    // Their alternating position makes the route feel like warehouse corridors, not a blank grid.
-    for (let sectionX = 10.2, section = 0; sectionX < MAP_W - 7; sectionX += 12.5, section++) {
-      for (let row = 0; row < rows.length - 1; row++) {
-        if ((row + section) % 3 === 1) continue;
-        const corridorTop = rows[row] + rackH + .22;
-        const available = rows[row + 1] - corridorTop - .24;
-        if (available < 1.12) continue;
-        const x = sectionX + (((row + section) % 2) ? 1.75 : -1.10);
-        const image = (row + section) % 2 === 0 ? 'box7' : 'box3';
-        occupyObstacle({ left: x, top: corridorTop, width: 1.55, height: Math.min(1.38, available) }, image, { floorBand: .26, sideInset: .11 });
-      }
-    }
+  function templateMazeRegions() {
+    return [
+      { left: 4, top: 4, width: 20, height: 11 },
+      { left: 28, top: 4, width: 24, height: 11 },
+      { left: 56, top: 4, width: 20, height: 11 },
+      { left: 4, top: 19, width: 20, height: 12 },
+      { left: 28, top: 19, width: 24, height: 12 },
+      { left: 56, top: 19, width: 20, height: 12 },
+      { left: 4, top: 35, width: 20, height: 11 },
+      { left: 28, top: 35, width: 24, height: 11 },
+      { left: 56, top: 35, width: 20, height: 11 }
+    ];
+  }
+
+  function installDenseShelfWalls() {
+    // V2.37 locked layout: the walk-lane skeleton stays clear, and each grey block gets aligned maze shelf runs.
+    const rackW = 2.50;
+    const rackH = 2.20;
+    const regions = templateMazeRegions();
+
+    regions.forEach((region, regionIndex) => {
+      const yRows = [];
+      for (let y = region.top + 1.15; y < region.top + region.height - rackH - .55; y += 3.9) yRows.push(y);
+      yRows.forEach((top, rowIndex) => {
+        let x = region.left + 1.0 + ((rowIndex + regionIndex) % 2 ? 1.3 : 0);
+        let run = 0;
+        while (x < region.left + region.width - rackW * 3.2) {
+          const runLength = 3 + ((regionIndex + rowIndex + run) % 3); // 3-5 shelves.
+          const image = (regionIndex + rowIndex + run) % 2 === 0 ? 'box5' : 'box6';
+          placeAlignedShelfRun(x, top, runLength, { rackW, rackH, image });
+          x += runLength * rackW + 2.6;
+          run++;
+        }
+      });
+    });
   }
 
   function viewportHasShelfCoverage(left, top, width, height) {
@@ -761,23 +1171,161 @@
     return game.obstacles.filter(o => /^box[2-7]$/.test(o.image) && overlaps(view, o)).length >= 6;
   }
 
-  function sealUnexpectedOpenPatches() {
-    // Failsafe: scan overlapping camera-sized patches and add a short shelf wall if any
-    // section still has too little visible warehouse storage because a special-zone clearance
-    // or placement rejection left it bare.
-    const patchW = Math.max(10, Math.ceil(W / TILE) + 2);
-    const patchH = Math.max(7, Math.ceil((H - 70) / TILE) + 1);
-    for (let top = 2; top < MAP_H - patchH - 1; top += Math.max(3, Math.floor(patchH / 2))) {
-      for (let left = 2; left < MAP_W - patchW - 1; left += Math.max(5, Math.floor(patchW / 2))) {
-        if (viewportHasShelfCoverage(left, top, patchW, patchH)) continue;
-        const y = top + Math.floor(patchH / 2) - .7;
-        const centreGap = left + Math.floor(patchW / 2);
-        for (let x = left; x < left + patchW - 2; x += 2.42) {
-          if (x < centreGap + .85 && x + 2.42 > centreGap - .25) continue;
-          occupyObstacle({ left: x, top: y, width: 2.42, height: 2.30 }, ((Math.floor(x) + Math.floor(y)) % 2 === 0 ? 'box5' : 'box6'), { floorBand: .24, sideInset: .08 });
-        }
-      }
+  function addConveyorRun(left, top, count, options = {}) {
+    if (!images.conveyor || count <= 0) return false;
+    const width = 3.05, height = 1.04, gap = 0.08;
+    const totalW = count * width + Math.max(0, count - 1) * gap;
+    const hasEnd = !!images.conveyorEnd && options.noEndCap !== true;
+    const endW = hasEnd ? width : 0;
+    const endH = hasEnd ? width * (437 / 940) : height;
+    let feederSide = options.feederSide || (Math.random() < .5 ? 'left' : 'right');
+    if (hasEnd && feederSide === 'left' && left - endW < 0) feederSide = 'right';
+    if (hasEnd && feederSide === 'right' && left + totalW + endW > MAP_W) feederSide = 'left';
+
+    const visualLeft = hasEnd && feederSide === 'left' ? left - endW : left;
+    const visualRight = hasEnd && feederSide === 'right' ? left + totalW + endW : left + totalW;
+    const rect = { left: visualLeft, top, width: visualRight - visualLeft, height: Math.max(height, endH) };
+
+    if (!withinMap(rect) || (!options.allowZoneOverlap && isZoneBlocked(rect, .25)) || (!options.allowPropOverlap && game.obstacles.some(o => overlaps(rect, o))) || (!options.allowPropOverlap && game.zoneProps.some(o => overlaps(rect, o))) || (!options.allowElevatorOverlap && game.zones.elevator && overlaps(rect, paddedRect(game.zones.elevator, 1)))) return false;
+    markBlocked({ left: visualLeft, top: top + .35, width: visualRight - visualLeft, height: .52 });
+    addCollider({ left: visualLeft, top: top + .35, width: visualRight - visualLeft, height: .52 }, 'conveyor', .02);
+
+    const conveyor = { left, top, width: totalW, height, pieces: count, moving: [], feederSide, endW, endH, visualLeft, visualRight };
+    const itemCount = clamp(Math.floor(count * 1.35), 2, 7);
+    for (let i = 0; i < itemCount; i++) {
+      const collectible = shoeImageKeys().length && Math.random() < .55;
+      const image = collectible ? (nextShoeImage() || 'shoe') : 'conveyorBox';
+      const size = collectible ? rand(.62, .88) : rand(.42, .78);
+      // Items travel on the visible belt only and stop at the machine entrance.
+      const minX = (left + .45) * TILE;
+      const maxX = (left + totalW - .45) * TILE;
+      const item = {
+        conveyor, image, collectible, size,
+        minX, maxX,
+        x: minX + Math.random() * Math.max(10, maxX - minX),
+        y: (top + .22 + Math.random() * .06) * TILE,
+        dir: Math.random() < .5 ? -1 : 1, speed: rand(28, 68)
+      };
+      conveyor.moving.push(item);
+      game.movingConveyorItems.push(item);
     }
+    game.conveyors.push(conveyor);
+    return true;
+  }
+
+  function installConveyors() {
+    if (!images.conveyor) return;
+    const q = game.zones.quarantine;
+    const inv = game.zones.inventory;
+    const d = game.zones.dock;
+
+    // Dock gets conveyor boundaries on the top and bottom of the whole dock area.
+    addConveyorRun(d.left + .35, d.top + .15, 4, { allowZoneOverlap: true, allowPropOverlap: true });
+    addConveyorRun(d.left + .35, d.top + d.height - 1.15, 4, { allowZoneOverlap: true, allowPropOverlap: true });
+
+    // Enclose QS and Inventory from top/bottom so they read as work zones with side entry.
+    addConveyorRun(q.left + 1.05, q.top + .35, 3, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
+    addConveyorRun(q.left + 1.05, q.top + q.height - 1.25, 3, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
+    addConveyorRun(q.left + 4.0, q.top + 4.9, 2, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
+
+    addConveyorRun(inv.left + .75, inv.top + .35, 4, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
+    addConveyorRun(inv.left + .75, inv.top + inv.height - 1.25, 4, { allowZoneOverlap: true, allowPropOverlap: true, allowElevatorOverlap: false });
+
+    const target = game.level >= 5 ? 16 : 10;
+    let attempts = 0;
+    while (game.conveyors.length < target && attempts++ < target * 40) {
+      const count = randInt(2, 4);
+      const x = randInt(3, Math.max(4, MAP_W - count * 3 - 4));
+      const y = randInt(5, Math.max(6, MAP_H - 6));
+      addConveyorRun(x, y, count);
+    }
+  }
+
+  function cleanupClutterOverConveyors() {
+    const protectedRuns = (game.conveyors || []).map(c => ({
+      left: (c.visualLeft ?? c.left) - .18,
+      top: (c.top || 0) - .55,
+      width: ((c.visualRight ?? (c.left + c.width)) - (c.visualLeft ?? c.left)) + .36,
+      height: 2.20
+    }));
+    if (!protectedRuns.length) return;
+    const hits = prop => protectedRuns.some(r => overlaps(prop.collisionRect || prop, r));
+    game.obstacles = game.obstacles.filter(prop => !(clutterImage(prop.image) && hits(prop)));
+    game.zoneProps = game.zoneProps.filter(prop => !(clutterImage(prop.image) && hits(prop)));
+    game.decorativeProps = game.decorativeProps.filter(prop => !(clutterImage(prop.image) && hits(prop)));
+    game.colliders = game.colliders.filter(c => !protectedRuns.some(r => overlaps({ left: c.left / TILE, top: c.top / TILE, width: c.width / TILE, height: c.height / TILE }, r)));
+  }
+
+  function elevatorDestinations() {
+    const dests = [
+      { label: 'DOCK / OFFICE', zone: game.zones.dock },
+      { label: 'INVENTORY', zone: game.zones.inventory },
+      { label: 'QUARANTINE', zone: game.zones.quarantine },
+      { label: 'KITCHEN', zone: game.zones.kitchens[0] }
+    ];
+    if (requiredTasksComplete()) dests.push({ label: 'EXIT', zone: game.zones.exit });
+    return dests;
+  }
+  function currentElevatorDestinations(now = performance.now()) {
+    const dests = elevatorDestinations();
+    if (!dests.length) return [];
+    const rotation = Math.floor(now / 30000);
+    return [0, 1, 2].map(i => dests[(rotation + i) % dests.length]);
+  }
+  function elevatorChangeFlashing(now = performance.now()) { return now % 30000 >= 25000; }
+  function elevatorDoorIndexFromPlayer() {
+    if (!game.player || !game.zones.elevator) return -1;
+    const e = game.zones.elevator;
+    const imgW = e.width * .60;
+    const imgH = imgW * .50;
+    const imgLeft = e.left + (e.width - imgW) / 2;
+    const imgTop = e.top + (e.height - imgH) / 2;
+    const px = game.player.x / TILE;
+    const py = game.player.y / TILE;
+    if (px < imgLeft - .5 || px > imgLeft + imgW + .5 || py < imgTop - .4 || py > imgTop + imgH + 1.2) return -1;
+    const rel = clamp((px - imgLeft) / imgW, 0, .999);
+    return clamp(Math.floor(rel * 3), 0, 2);
+  }
+  function tryUseElevator(now) {
+    const index = elevatorDoorIndexFromPlayer();
+    if (index < 0) return false;
+    const dest = currentElevatorDestinations(now)[index];
+    if (!dest || !dest.zone) return false;
+    teleportTo(dest.zone, `ELEVATOR → ${dest.label}`, null);
+    synth.teleport();
+    return true;
+  }
+
+  function sealUnexpectedOpenPatches() {
+    // V2.37: the template regions already provide the warehouse structure.
+    // Do not add random emergency shelves across the corridor skeleton.
+  }
+  function installWalkwayConeGuides() {
+    if (!images.cone) return;
+    const guidePoints = [];
+    // Subtle one-cell guide lines only; no block clusters.
+    [28, 74].forEach(x => {
+      for (let y = 8; y <= 41; y += 6) guidePoints.push({ x: x - 1.0, y });
+    });
+    [3, 45].forEach(y => {
+      for (let x = 9; x <= 69; x += 8) guidePoints.push({ x, y: y - 1.0 });
+    });
+    guidePoints.forEach((p, i) => {
+      const rect = { left: p.x, top: p.y, width: .75, height: .75 };
+      const tile = { x: Math.floor(p.x), y: Math.floor(p.y) };
+      if (withinMap(rect) && !tileInAnyZone(tile, 0) && !rectHitsProtectedProp(rect) && !rectNearExistingCone(rect, 1.55)) {
+        addZoneProp('cone', rect, { block: false, flipX: i % 2 === 0 });
+      }
+    });
+  }
+  function clearDockDrivewayVisualClutter() {
+    if (!game.zones || !game.zones.dock) return;
+    const road = dockDrivewayRect();
+    const clear = prop => !overlaps(prop.collisionRect || prop, road);
+    game.obstacles = game.obstacles.filter(clear);
+    game.zoneProps = game.zoneProps.filter(prop => prop.image === 'cone' || clear(prop));
+    game.decorativeProps = game.decorativeProps.filter(clear);
+    game.colliders = game.colliders.filter(c => !overlaps({ left: c.left / TILE, top: c.top / TILE, width: c.width / TILE, height: c.height / TILE }, road));
   }
   function buildWarehouseLayout() {
     game.map = makeFloorGrid();
@@ -785,6 +1333,8 @@
     game.zoneProps = [];
     game.borderProps = [];
     game.decorativeProps = [];
+    game.conveyors = [];
+    game.movingConveyorItems = [];
     game.colliders = [];
     setZones();
 
@@ -792,15 +1342,23 @@
     installDenseShelfWalls();
     installExitApproachMaze();
     installSpecialAreaProps();
+    installFillerAreaProps();
+    installTaskAreaEdgeProps();
     sealUnexpectedOpenPatches();
+    installConveyors();
+    cleanupClutterOverConveyors();
     scatterConeHazards();
+    installWalkwayConeGuides();
     installWarehouseBorder();
     scatterDecorativeClutter();
+    clearDockDrivewayVisualClutter();
+    const d = game.zones.dock;
+    addCollider({ left: d.left + d.width - 10.8, top: d.top + 1.10, width: 10.1, height: 3.75 }, 'dock-office', .20);
     game.floorLogos = generateFloorLogos();
   }
 
   function isFloorTile(x, y) { return x >= 0 && x < MAP_W && y >= 0 && y < MAP_H && game.map[y][x] === 0; }
-  function allZones() { return [game.zones.quarantine, game.zones.dock, game.zones.inventory, game.zones.exit, ...game.zones.kitchens]; }
+  function allZones() { return [game.zones.quarantine, game.zones.dock, game.zones.inventory, game.zones.exit, game.zones.elevator, ...game.zones.kitchens].filter(Boolean); }
   function tileInAnyZone(t, margin = 0) {
     return allZones().some(z => t.x >= z.left - margin && t.x < z.left + z.width + margin && t.y >= z.top - margin && t.y < z.top + z.height + margin);
   }
@@ -820,23 +1378,37 @@
   }
   function destinationPosition(z) { return tileCenter({ x: z.x, y: z.y }); }
   function occupiedAt(p, includeEnemies = true) {
-    const objects = [...game.boxes, ...game.looseCoffees, ...game.kitchenCoffees.filter(coffee => coffee.available), ...game.palletJacks.filter(jack => jack.active !== false), ...(includeEnemies ? game.enemies : [])];
+    const decor = game.decorativeProps
+      .filter(prop => prop.collectible || prop.interactive || prop.pushable)
+      .map(prop => decorativeCenter(prop));
+    const movingShoes = (game.movingConveyorItems || [])
+      .filter(item => item.collectible)
+      .map(item => ({ x: item.x, y: item.y }));
+    const objects = [
+      ...game.boxes, ...game.looseCoffees, ...game.kitchenCoffees.filter(coffee => coffee.available),
+      ...game.palletJacks.filter(jack => jack.active !== false), ...decor, ...movingShoes,
+      ...(includeEnemies ? game.enemies : [])
+    ];
     if (includeEnemies && game.forklifts.length) objects.push(...game.forklifts);
-    return objects.some(o => dist(p, o) < TILE * 0.78);
+    return objects.some(o => dist(p, o) < TILE * 1.35);
   }
   function randomFloorTile(minDistance = 0, excludeZones = true, avoidScenery = true) {
+    // Prefer the guaranteed light walking lanes for pickups, so collectables do not hide in shelf blocks.
+    const laneTile = randomTemplatePathTile(minDistance);
+    if (laneTile) return laneTile;
+
     for (let attempt = 0; attempt < 160; attempt++) {
       const t = { x: randInt(1, MAP_W - 2), y: randInt(1, MAP_H - 2) };
       if (!isFloorTile(t.x, t.y)) continue;
       if (excludeZones && tileInAnyZone(t, 0)) continue;
-      if (avoidScenery && tileInsideVisibleScenery(t)) continue;
+      if (avoidScenery && (tileInsideVisibleScenery(t) || tileInsideTemplatePath(t) || rectHitsProtectedProp({ left: t.x, top: t.y, width: 1, height: 1 }))) continue;
       const p = tileCenter(t);
       if ((!game.player || dist(p, game.player) >= minDistance) && !occupiedAt(p)) return t;
     }
     const tiles = shuffle(availableFloorTiles(excludeZones));
     for (const t of tiles) {
       const p = tileCenter(t);
-      if (avoidScenery && tileInsideVisibleScenery(t)) continue;
+      if (avoidScenery && (tileInsideVisibleScenery(t) || tileInsideTemplatePath(t) || rectHitsProtectedProp({ left: t.x, top: t.y, width: 1, height: 1 }))) continue;
       if ((!game.player || dist(p, game.player) >= minDistance) && !occupiedAt(p)) return t;
     }
     return tiles.find(t => !avoidScenery || !tileInsideVisibleScenery(t)) || tiles[0] || { x: 1, y: 1 };
@@ -865,7 +1437,7 @@
     // Fixed coffee point beside the right-hand side of each kitchen refrigerator.
     // It reappears once the player leaves the pickup spot, so it cannot be collected continuously while standing still.
     game.kitchenCoffees = game.zones.kitchens.map(k => ({
-      x: (k.left + 6.56) * TILE,
+      x: (k.left + k.width - .85) * TILE,
       y: (k.top + 2.55) * TILE,
       bob: rand(0, Math.PI * 2),
       available: true
@@ -920,7 +1492,7 @@
   }
   function disableEnemyFromPalletJack(attacker, now, forklift = false) {
     if (!attacker) return;
-    attacker.disabledUntil = now + 30000;
+    attacker.disabledUntil = now + PALLET_JACK_ROBOT_DISABLE;
     attacker.path = [];
     const exile = tileCenter(randomFloorTile(0, true));
     attacker.x = exile.x;
@@ -939,24 +1511,17 @@
   function spawnEnemies() {
     game.enemies = [];
     let index = 0;
-    [
-      game.zones.quarantine, game.zones.quarantine, game.zones.quarantine, game.zones.quarantine,
-      game.zones.quarantine, game.zones.quarantine, game.zones.quarantine, game.zones.quarantine,
-      game.zones.quarantine, game.zones.quarantine, game.zones.quarantine, game.zones.quarantine,
-      game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock,
-      game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock,
-      game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock, game.zones.dock
-    ].forEach(z => {
-      const t = tileNearZoneEdge(z);
-      if (t) game.enemies.push(makeRobotAtTile(t, true, index++));
-    });
-    const roamingCount = (2 + Math.floor((game.level - 1) * 0.72)) * 6;
-    for (let i = 0; i < roamingCount; i++) game.enemies.push(makeRobotAtTile(randomFloorTile(700, true), false, index++));
+    const targetCount = [15, 20, 30][(game.level - 1) % 3];
+    const patrolTiles = shuffle(availableFloorTiles(true).filter(t => !tileInsideSafeZone(t) && !tileInsideVisibleScenery(t)));
+    for (let i = 0; i < targetCount && i < patrolTiles.length; i++) {
+      game.enemies.push(makeRobotAtTile(patrolTiles[i], i < 2, index++));
+    }
 
-    // Four forklift threats patrol every warehouse.
+    // Forklifts are rarer than robots and also follow the same safe-zone rules.
     game.forklifts = [];
-    for (let i = 0; i < 4; i++) {
-      const ft = i === 0 ? tileNearZoneEdge(game.zones.dock) : randomFloorTile(900, true);
+    const forkliftCount = game.level >= 3 ? 2 : 1;
+    for (let i = 0; i < forkliftCount; i++) {
+      const ft = patrolTiles[targetCount + i] || randomFloorTile(900, true);
       const fp = tileCenter(ft);
       game.forklifts.push({
         x: fp.x, y: fp.y, path: [], nextPathAt: 0, speed: 137 + game.level * 11 + i * 8,
@@ -982,10 +1547,17 @@
     game.looseCoffees = [];
     game.kitchenCoffees = [];
     game.palletJacks = [];
+    game.movingConveyorItems = game.movingConveyorItems || [];
     game.qsPuzzle = null;
     game.qsCooldownUntil = 0;
+    game.noEanPuzzle = null;
+    game.noEanCooldownUntil = 0;
+    game.inventoryCooldownUntil = 0;
+    game.qsCooldownUntil = 0;
+    game.taskCooldowns = {};
+    game.noEanTargetHistory = [];
     game.fire = null;
-    game.nextFireAt = performance.now() + randInt(45000, 90000);
+    game.nextFireAt = performance.now() + randInt(240000, FIRE_COOLDOWN);
     for (let i = 0; i < activeBoxCount(); i++) spawnBox();
     for (let i = 0; i < activeCoffeeCount(); i++) spawnLooseCoffee();
     placeKitchenCoffees();
@@ -1001,115 +1573,146 @@
     saveShift();
   }
 
-  function loadProfiles() {
-    try {
-      const raw = JSON.parse(localStorage.getItem(SAVE_LIST_KEY) || '[]');
-      return Array.isArray(raw) ? raw.slice(0, MAX_SAVE_PROFILES) : [];
-    } catch (_) { return []; }
-  }
-  function saveProfiles(profiles) {
-    localStorage.setItem(SAVE_LIST_KEY, JSON.stringify(profiles.slice(0, MAX_SAVE_PROFILES)));
-  }
-  function profileEmoji(index) { return ['😀','🤖','📦'][index % 3]; }
-  function makeProfileId() { return `profile-${Date.now()}-${Math.floor(Math.random() * 10000)}`; }
-  function findProfileByName(name) {
-    const target = String(name || '').trim().toLowerCase();
-    return loadProfiles().find(profile => String(profile.playerName || '').trim().toLowerCase() === target) || null;
-  }
-  function activeProfile() {
-    const profiles = loadProfiles();
-    return profiles.find(profile => profile.id === game.activeProfileId) || null;
-  }
-  function ensureProfileForName(name) {
-    const trimmed = String(name || '').trim();
-    if (!trimmed) return null;
-    const profiles = loadProfiles();
-    let existing = profiles.find(profile => String(profile.playerName || '').trim().toLowerCase() === trimmed.toLowerCase());
-    if (existing) {
-      game.activeProfileId = existing.id;
-      localStorage.setItem(ACTIVE_PROFILE_KEY, existing.id);
-      return existing;
-    }
-    if (profiles.length >= MAX_SAVE_PROFILES) {
-      nameWarning.textContent = 'You already have 3 saved games. Delete one before creating another.';
-      nameWarning.classList.remove('hidden');
-      renderProfileList();
-      return null;
-    }
-    const profile = { id: makeProfileId(), playerName: trimmed, level: 1, score: 0, health: MAX_HEARTS, coffees: 0, tasks: freshTasks(), stats: freshStats(), updatedAt: Date.now() };
-    profiles.push(profile);
-    saveProfiles(profiles);
-    game.activeProfileId = profile.id;
-    localStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
-    return profile;
-  }
-  function deleteProfile(id) {
-    const profiles = loadProfiles().filter(profile => profile.id !== id);
-    saveProfiles(profiles);
-    if (game.activeProfileId === id) {
-      game.activeProfileId = profiles[0] ? profiles[0].id : '';
-      if (game.activeProfileId) localStorage.setItem(ACTIVE_PROFILE_KEY, game.activeProfileId);
-      else localStorage.removeItem(ACTIVE_PROFILE_KEY);
-    }
-    const active = activeProfile();
-    if (active) { game.playerName = active.playerName; nameInput.value = active.playerName; }
-    else { game.playerName = ''; nameInput.value = ''; }
-    refreshSavedButton();
-  }
-  function renderProfileList() {
-    if (!profileList) return;
-    const profiles = loadProfiles();
-    profileList.innerHTML = '';
-    profileList.classList.toggle('hidden', profiles.length === 0 || game.mode !== 'title');
-    profiles.forEach((profile, index) => {
-      const card = document.createElement('div');
-      card.setAttribute('role', 'button');
-      card.tabIndex = 0;
-      card.className = `profile-slot${profile.id === game.activeProfileId ? ' is-selected' : ''}`;
-      card.innerHTML = `<strong>${profileEmoji(index)} ${profile.playerName}</strong><span>Warehouse ${profile.level || 1} · ${formatScore(profile.score || 0)} pts</span>`;
-      const selectProfile = () => {
-        game.activeProfileId = profile.id;
-        localStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
-        game.playerName = profile.playerName;
-        nameInput.value = profile.playerName;
-        nameWarning.classList.add('hidden');
-        refreshSavedButton();
-      };
-      card.addEventListener('click', selectProfile);
-      card.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectProfile(); } });
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'profile-delete';
-      del.textContent = '×';
-      del.title = 'Delete saved game';
-      del.addEventListener('click', event => { event.stopPropagation(); deleteProfile(profile.id); });
-      card.appendChild(del);
-      profileList.appendChild(card);
-    });
-  }
-
   function resetRun() {
     game.level = 1;
     game.score = 0;
-    game.health = 3;
+    game.maxHearts = STARTING_MAX_HEARTS;
+    game.health = game.maxHearts;
+    game.boss = null;
     game.coffees = 0;
     game.tasks = freshTasks();
     game.stats = freshStats();
     game.messages = [];
     game.particles = [];
     game.specialMusic = null;
+    game.noEanPuzzle = null;
+    game.noEanCooldownUntil = 0;
+    game.inventoryCooldownUntil = 0;
+    game.qsCooldownUntil = 0;
+    game.taskCooldowns = {};
+    game.noEanTargetHistory = [];
+  }
+  function profileId() { return `shift-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
+  function profileAvatarFor(name) {
+    const avatars = ['😀','🤖','📦','🧡','🚚','☕'];
+    const total = String(name || '').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+    return avatars[total % avatars.length];
+  }
+  function readProfiles() {
+    let profiles = [];
+    try { profiles = JSON.parse(localStorage.getItem(PROFILES_KEY) || '[]'); } catch (_) { profiles = []; }
+    if (!Array.isArray(profiles)) profiles = [];
+    if (!profiles.length) {
+      let legacy = null;
+      try { legacy = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (_) { legacy = null; }
+      if (legacy && legacy.playerName) {
+        const migrated = { id: profileId(), name: legacy.playerName, avatar: profileAvatarFor(legacy.playerName), save: legacy };
+        profiles = [migrated];
+        localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+        localStorage.setItem(ACTIVE_PROFILE_KEY, migrated.id);
+        game.selectedProfileId = migrated.id;
+      }
+    }
+    return profiles.slice(0, MAX_PROFILES);
+  }
+  function writeProfiles(profiles) {
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles.slice(0, MAX_PROFILES)));
+  }
+  function selectedProfile() {
+    const profiles = readProfiles();
+    return profiles.find(profile => profile.id === game.selectedProfileId) || null;
+  }
+  function showProfileWarning(message = '') {
+    if (!message) { profileWarning.classList.add('hidden'); profileWarning.textContent = ''; return; }
+    profileWarning.textContent = message;
+    profileWarning.classList.remove('hidden');
+  }
+  function selectProfile(id, autoContinue = false) {
+    const profile = readProfiles().find(item => item.id === id);
+    if (!profile) return;
+    game.selectedProfileId = profile.id;
+    game.playerName = profile.name;
+    localStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
+    localStorage.setItem(NAME_KEY, profile.name);
+    nameInput.value = profile.name;
+    showProfileWarning();
+    refreshSavedButton();
+    if (autoContinue && profile.save) {
+      synth.init();
+      performContinueSavedShift();
+    }
+  }
+  function deleteProfile(id) {
+    const profiles = readProfiles();
+    const profile = profiles.find(item => item.id === id);
+    if (!profile || !window.confirm(`Delete the saved shift for ${profile.name}?`)) return;
+    const updated = profiles.filter(item => item.id !== id);
+    writeProfiles(updated);
+    if (game.selectedProfileId === id) {
+      game.selectedProfileId = updated[0] ? updated[0].id : '';
+      localStorage.setItem(ACTIVE_PROFILE_KEY, game.selectedProfileId);
+      game.playerName = updated[0] ? updated[0].name : '';
+      nameInput.value = game.playerName;
+    }
+    showProfileWarning();
+    refreshSavedButton();
+  }
+  function renderProfiles() {
+    const profiles = readProfiles();
+    profileSlots.innerHTML = '';
+    for (let i = 0; i < MAX_PROFILES; i++) {
+      const profile = profiles[i];
+      if (!profile) {
+        const empty = document.createElement('div');
+        empty.className = 'profile-empty';
+        empty.textContent = String(i + 1);
+        profileSlots.appendChild(empty);
+        continue;
+      }
+      const card = document.createElement('div');
+      card.className = `profile-slot${profile.id === game.selectedProfileId ? ' is-selected' : ''}`;
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'profile-select'; button.setAttribute('aria-label', `Continue saved shift for ${profile.name}`);
+      const avatar = document.createElement('span'); avatar.className = 'profile-avatar'; avatar.textContent = profile.avatar || profileAvatarFor(profile.name);
+      const copy = document.createElement('span'); copy.className = 'profile-copy';
+      const name = document.createElement('strong'); name.className = 'profile-name'; name.textContent = profile.name;
+      const progress = document.createElement('small'); progress.className = 'profile-progress';
+      progress.textContent = profile.save ? `Warehouse ${profile.save.level || 1}  ·  ${formatScore(profile.save.score || 0)} pts` : 'New shift';
+      copy.append(name, progress); button.append(avatar, copy); button.addEventListener('click', () => selectProfile(profile.id, true));
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'profile-delete'; remove.textContent = '✕'; remove.title = `Delete ${profile.name}`; remove.addEventListener('click', event => { event.stopPropagation(); deleteProfile(profile.id); });
+      card.append(button, remove); profileSlots.appendChild(card);
+    }
   }
   function requireName() {
     const value = nameInput.value.trim();
     if (!value) { nameWarning.classList.remove('hidden'); nameInput.focus(); return null; }
     nameWarning.classList.add('hidden');
-    nameWarning.textContent = 'Enter your name to begin your shift.';
     game.playerName = value;
     localStorage.setItem(NAME_KEY, value);
     return value;
   }
+  function prepareProfileForNewShift(name) {
+    const profiles = readProfiles();
+    let profile = profiles.find(item => item.name.toLowerCase() === name.toLowerCase());
+    if (!profile && profiles.length >= MAX_PROFILES) {
+      showProfileWarning('You already have 3 saved games. Delete one of your old games before creating a new one.');
+      return false;
+    }
+    if (!profile) {
+      profile = { id: profileId(), name, avatar: profileAvatarFor(name), save: null };
+      profiles.push(profile);
+      writeProfiles(profiles);
+    }
+    game.selectedProfileId = profile.id;
+    game.playerName = profile.name;
+    localStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
+    localStorage.setItem(NAME_KEY, profile.name);
+    renderProfiles();
+    return true;
+  }
   function performNewShift() {
-    if (!ensureProfileForName(game.playerName)) return;
+    nameInput.blur();
+    keys.clear();
     game.adminMode = false;
     showAdminPanel(false);
     resetRun();
@@ -1120,27 +1723,31 @@
     buildLevel(game.level);
     music.playGameplay(true);
     addMessage(`WELCOME, ${game.playerName.toUpperCase()} — FIND THE EXIT`, '#ff7700', 3000);
+    saveShift();
   }
   function loadSavedShift() {
-    const profiles = loadProfiles();
-    let profile = profiles.find(item => item.id === game.activeProfileId);
-    if (!profile && game.playerName) profile = profiles.find(item => String(item.playerName || '').toLowerCase() === String(game.playerName || '').toLowerCase());
-    if (profile) return profile;
-    try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (_) { return null; }
+    const profile = selectedProfile();
+    return profile && profile.save ? profile.save : null;
   }
   function performContinueSavedShift() {
+    nameInput.blur();
+    keys.clear();
     game.adminMode = false;
     showAdminPanel(false);
-    const matched = findProfileByName(game.playerName);
-    if (matched) { game.activeProfileId = matched.id; localStorage.setItem(ACTIVE_PROFILE_KEY, matched.id); }
     const save = loadSavedShift();
     if (!save) { performNewShift(); return; }
+    game.playerName = save.playerName || game.playerName;
     game.level = Number(save.level) || 1;
     game.score = Number(save.score) || 0;
-    game.health = clamp(Number(save.health) || MAX_HEARTS, 1, MAX_HEARTS);
+    game.maxHearts = Math.max(STARTING_MAX_HEARTS, Number(save.maxHearts) || game.maxHearts || STARTING_MAX_HEARTS);
+    game.health = clamp(Number(save.health) || game.maxHearts, 1, game.maxHearts);
     game.coffees = clamp(Number(save.coffees) || 0, 0, 2);
     game.stats = { ...freshStats(), ...(save.stats || {}) };
     game.tasks = { ...freshTasks(), ...(save.tasks || {}), completed: { ...freshTasks().completed, ...((save.tasks && save.tasks.completed) || {}) } };
+    game.inventoryCooldownUntil = Number(save.inventoryCooldownUntil) || 0;
+    game.qsCooldownUntil = Number(save.qsCooldownUntil) || 0;
+    game.noEanCooldownUntil = Number(save.noEanCooldownUntil) || 0;
+    game.fireCooldownUntil = Number(save.fireCooldownUntil) || 0;
     game.mode = 'play';
     titleUI.classList.add('hidden');
     gameoverUI.classList.add('hidden');
@@ -1154,7 +1761,7 @@
   }
   function startNewShift() {
     const name = requireName();
-    if (!name || !ensureProfileForName(name)) return;
+    if (!name || !prepareProfileForNewShift(name)) return;
     synth.init();
     pendingShiftStart = 'new';
     if (introIsReady()) startIntro();
@@ -1163,14 +1770,18 @@
   function continueSavedShift() {
     const name = requireName();
     if (!name) return;
-    const matched = findProfileByName(name);
-    if (matched) { game.activeProfileId = matched.id; localStorage.setItem(ACTIVE_PROFILE_KEY, matched.id); }
+    const profiles = readProfiles();
+    const matched = profiles.find(item => item.name.toLowerCase() === name.toLowerCase());
+    if (!matched) { showProfileWarning('Select a saved shift above, or choose New Shift to create this scout.'); return; }
+    selectProfile(matched.id, false);
     synth.init();
     pendingShiftStart = 'continue';
     if (introIsReady()) startIntro();
     else completePendingShiftStart();
   }
   function completePendingShiftStart() {
+    nameInput.blur();
+    keys.clear();
     const requested = pendingShiftStart;
     pendingShiftStart = null;
     stopIntroTyping();
@@ -1233,6 +1844,8 @@
     introNextButton.textContent = game.introIndex === introSlides.length - 1 ? 'Start Shift' : 'Next';
   }
   function startIntro() {
+    nameInput.blur();
+    keys.clear();
     game.mode = 'intro';
     titleUI.classList.add('hidden');
     gameoverUI.classList.add('hidden');
@@ -1257,6 +1870,22 @@
     displayToggleButton.setAttribute('aria-label', isMobile ? 'Mobile controls active. Switch to desktop controls' : 'Desktop controls active. Switch to mobile controls');
     displayToggleButton.title = isMobile ? 'Mobile controls — switch to desktop layout' : 'Desktop controls — switch to mobile layout';
   }
+  function gameplayZoomFactor() {
+    return 1 + clamp(game.viewZoomStep || 0, -2, 2) * 0.15;
+  }
+  function updateGameplayZoomButtons() {
+    const zoomIn = document.getElementById('game-zoom-in');
+    const zoomOut = document.getElementById('game-zoom-out');
+    if (zoomIn) zoomIn.disabled = (game.viewZoomStep || 0) >= 2;
+    if (zoomOut) zoomOut.disabled = (game.viewZoomStep || 0) <= -2;
+  }
+  function changeGameplayZoom(delta) {
+    game.viewZoomStep = clamp((game.viewZoomStep || 0) + delta, -2, 2);
+    centerCamera();
+    updateGameplayZoomButtons();
+    if (game.mode === 'play') addMessage(`ZOOM ${game.viewZoomStep > 0 ? '+' : ''}${game.viewZoomStep}`, '#ffd054', 850);
+  }
+
   function toggleDisplayMode() {
     game.displayMode = game.displayMode === 'mobile' ? 'desktop' : 'mobile';
     localStorage.setItem(DISPLAY_MODE_KEY, game.displayMode);
@@ -1288,22 +1917,31 @@
   }
 
   function setVolume(value) {
-    game.volume = clamp(Number(value) / 100, 0, 1);
+    const next = clamp(Number(value) / 100, 0, 1);
+    if (next > 0) game.previousVolume = next;
+    game.volume = next;
     game.muted = game.volume <= 0;
     localStorage.setItem(VOLUME_KEY, String(Math.round(game.volume * 100)));
     localStorage.setItem(MUTE_KEY, game.muted ? '1' : '0');
+    if (game.previousVolume) localStorage.setItem('zalando-scout-prev-volume', String(Math.round(game.previousVolume * 100)));
     music.setVolume(game.volume);
     music.setMuted(game.muted);
     updateMuteButton();
   }
   function toggleAudio() {
-    if (game.muted || game.volume <= 0) setVolume(72);
-    else setVolume(0);
+    if (game.muted || game.volume <= 0) {
+      const previous = game.previousVolume || clamp(Number(localStorage.getItem('zalando-scout-prev-volume') || 72) / 100, .05, 1);
+      setVolume(Math.round(previous * 100));
+    } else {
+      game.previousVolume = game.volume;
+      localStorage.setItem('zalando-scout-prev-volume', String(Math.round(game.previousVolume * 100)));
+      setVolume(0);
+    }
     if (game.mode === 'play') addMessage(game.muted ? 'SOUND OFF' : `VOLUME ${Math.round(game.volume * 100)}%`, '#eadab8', 1000);
   }
 
   function continueAfterDeath() {
-    game.health = MAX_HEARTS;
+    game.health = game.maxHearts;
     game.coffees = 0;
     const p = destinationPosition(game.zones.dock);
     game.player = { x: p.x, y: p.y, r: 23, speed: 315, facing: 'down', frame: 0, anim: 0, moving: false, sprinting: false, invulnerableUntil: performance.now() + 3000, action: null, palletJackUntil: 0 };
@@ -1320,23 +1958,29 @@
   }
   function saveShift() {
     if (game.adminMode || !game.playerName || game.mode === 'title') return;
-    const save = { id: game.activeProfileId || makeProfileId(), playerName: game.playerName, level: game.level, score: game.score, health: game.health, coffees: game.coffees, tasks: game.tasks, stats: game.stats, updatedAt: Date.now() };
-    game.activeProfileId = save.id;
-    localStorage.setItem(ACTIVE_PROFILE_KEY, save.id);
-    const profiles = loadProfiles();
-    const index = profiles.findIndex(profile => profile.id === save.id);
-    if (index >= 0) profiles[index] = { ...profiles[index], ...save };
-    else if (profiles.length < MAX_SAVE_PROFILES) profiles.push(save);
-    saveProfiles(profiles);
-    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+    const save = { playerName: game.playerName, level: game.level, score: game.score, health: game.health, maxHearts: game.maxHearts, coffees: game.coffees, tasks: game.tasks, stats: game.stats, inventoryCooldownUntil: game.inventoryCooldownUntil, qsCooldownUntil: game.qsCooldownUntil, noEanCooldownUntil: game.noEanCooldownUntil, fireCooldownUntil: game.fireCooldownUntil };
+    const profiles = readProfiles();
+    let profile = profiles.find(item => item.id === game.selectedProfileId);
+    if (!profile) {
+      profile = profiles.find(item => item.name.toLowerCase() === game.playerName.toLowerCase());
+      if (!profile && profiles.length < MAX_PROFILES) { profile = { id: profileId(), name: game.playerName, avatar: profileAvatarFor(game.playerName), save: null }; profiles.push(profile); }
+    }
+    if (!profile) return;
+    profile.name = game.playerName;
+    profile.avatar = profile.avatar || profileAvatarFor(profile.name);
+    profile.save = save;
+    game.selectedProfileId = profile.id;
+    localStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
+    writeProfiles(profiles);
     refreshSavedButton();
   }
   function refreshSavedButton() {
-    nameInput.value = game.playerName;
-    const save = loadSavedShift();
-    continueSavedButton.classList.toggle('hidden', !save);
-    if (save) continueSavedButton.textContent = `Continue ${save.playerName || 'Shift'} — Warehouse ${save.level || 1} / ${formatScore(save.score || 0)}`;
-    renderProfileList();
+    const profiles = readProfiles();
+    if (!game.selectedProfileId && profiles[0]) { game.selectedProfileId = profiles[0].id; localStorage.setItem(ACTIVE_PROFILE_KEY, game.selectedProfileId); }
+    const profile = profiles.find(item => item.id === game.selectedProfileId) || null;
+    if (profile && (document.activeElement !== nameInput || !nameInput.value.trim())) { game.playerName = profile.name; nameInput.value = profile.name; }
+    renderProfiles();
+    continueSavedButton.classList.add('hidden');
   }
   function updateBest() {
     if (game.adminMode) return;
@@ -1426,16 +2070,43 @@
     addMessage('EMERGENCY MOVE — SAFE AISLE REACHED', '#ffd054', 2200);
   }
   function tileInsideZone(t, z) {
+    if (!t || !z) return false;
     return t.x >= z.left && t.x < z.left + z.width && t.y >= z.top && t.y < z.top + z.height;
   }
   function pointInsideZone(p, z) {
+    if (!p || !z) return false;
     return tileInsideZone(worldToTile(p.x, p.y), z);
   }
-  function tileInsideSafeZone(t) {
-    return tileInsideZone(t, game.zones.dock) || game.zones.kitchens.some(k => tileInsideZone(t, k));
+  function dockDrivewayRect() {
+    const d = game.zones && game.zones.dock;
+    if (!d) return { left: -999, top: -999, width: 0, height: 0 };
+    return { left: 0, top: d.top + 4.35, width: d.left + d.width + 3.0, height: 2.95 };
   }
+  function tileInsideDockDriveway(t) {
+    const r = dockDrivewayRect();
+    return t.x >= r.left && t.x < r.left + r.width && t.y >= r.top && t.y < r.top + r.height;
+  }
+  function pointInsideDockDriveway(p) {
+    return tileInsideDockDriveway(worldToTile(p.x, p.y));
+  }
+  function isSafeZone(t) {
+    if (!t) return false;
+    return tileInsideZone(t, game.zones.dock) ||
+      tileInsideZone(t, game.zones.elevator) ||
+      tileInsideDockDriveway(t) ||
+      tileInsideTemplatePath(t) ||
+      tileInsideZone(t, game.zones.inventory) ||
+      tileInsideZone(t, game.zones.quarantine) ||
+      game.zones.kitchens.some(k => tileInsideZone(t, k));
+  }
+  function tileInsideSafeZone(t) { return isSafeZone(t); }
   function playerInsideSafeZone() {
-    return !!game.player && (pointInsideZone(game.player, game.zones.dock) || game.zones.kitchens.some(k => pointInsideZone(game.player, k)));
+    return !!game.player && (
+      pointInsideZone(game.player, game.zones.dock) ||
+      pointInsideZone(game.player, game.zones.elevator) ||
+      pointInsideDockDriveway(game.player) ||
+      game.zones.kitchens.some(k => pointInsideZone(game.player, k))
+    );
   }
   function updateSpecialMusic() {
     let wanted = null;
@@ -1471,8 +2142,11 @@
   function playerNearDockOffice() {
     if (!game.player) return false;
     const z = game.zones.dock;
-    const office = tileCenter({ x: z.left + 4, y: z.top + 4 });
-    return dist(game.player, office) < TILE * 4.5 || pointInsideZone(game.player, z);
+    const door = {
+      x: (z.left + z.width - 5.6) * TILE,
+      y: (z.top + 4.75) * TILE
+    };
+    return dist(game.player, door) < TILE * 2.05;
   }
   function enterDockOffice() {
     if (game.mode !== 'play' || !playerNearDockOffice()) return false;
@@ -1484,6 +2158,7 @@
   function handleActionPress(now) {
     if (game.mode !== 'play' || !game.player || game.player.action) return false;
     if (tryFireAction(now)) return true;
+    if (tryUseElevator(now)) return true;
     if (openNearbyBox(now)) return true;
     if (activateNearbyPalletJack(now)) return true;
     if (playerNearDockOffice() && enterDockOffice()) return true;
@@ -1510,6 +2185,45 @@
     }
     return true;
   }
+
+  function propFootRect(prop, left = prop.left, top = prop.top) {
+    return { left, top, width: prop.width || .9, height: prop.height || .75 };
+  }
+  function rectBlockedForPush(rect, movingProp) {
+    if (!withinMap(rect)) return true;
+    const corners = [
+      { x: Math.floor(rect.left), y: Math.floor(rect.top) },
+      { x: Math.floor(rect.left + rect.width - .05), y: Math.floor(rect.top) },
+      { x: Math.floor(rect.left), y: Math.floor(rect.top + rect.height - .05) },
+      { x: Math.floor(rect.left + rect.width - .05), y: Math.floor(rect.top + rect.height - .05) }
+    ];
+    if (corners.some(t => !isFloorTile(t.x, t.y) || tileInsideTemplatePath(t))) return true;
+    if (rectHitsProtectedProp(rect)) return true;
+    if (game.obstacles.some(o => overlaps(rect, o))) return true;
+    if (game.zoneProps.some(p => p.image !== 'cone' && overlaps(rect, p))) return true;
+    if (game.decorativeProps.some(p => p !== movingProp && (p.pushable || p.interactive || p.collectible) && overlaps(rect, propFootRect(p)))) return true;
+    return false;
+  }
+  function pushSmallBoxIfNeeded(dx, dy, step) {
+    if (!game.player || (!dx && !dy)) return;
+    const ahead = { x: game.player.x + dx * (game.player.r + 28), y: game.player.y + dy * (game.player.r + 28) };
+    for (const prop of game.decorativeProps) {
+      if (!prop.pushable) continue;
+      const c = decorativeCenter(prop);
+      if (Math.hypot(ahead.x - c.x, ahead.y - c.y) > TILE * .72) continue;
+      const moveTiles = Math.max(.04, step / TILE);
+      const nextLeft = prop.left + dx * moveTiles;
+      const nextTop = prop.top + dy * moveTiles;
+      const nextRect = propFootRect(prop, nextLeft, nextTop);
+      if (!rectBlockedForPush(nextRect, prop)) {
+        prop.left = nextLeft;
+        prop.top = nextTop;
+        prop.bob = 0;
+      }
+      break;
+    }
+  }
+
   function updatePlayer(dt, now) {
     if (updatePlayerAction(now)) { centerCamera(); return; }
     const p = game.player;
@@ -1527,6 +2241,7 @@
       const responseSpeed = game.fire ? 2 : 1;
       const step = p.speed * (playerRidingPalletJack(now) ? 2 : (p.sprinting ? 1.72 : responseSpeed)) * dt;
       const moveRadius = playerRidingPalletJack(now) ? 18 : p.r;
+      pushSmallBoxIfNeeded(dx, dy, step);
       if (canMove(p.x + dx * step, p.y, moveRadius)) p.x += dx * step;
       if (canMove(p.x, p.y + dy * step, moveRadius)) p.y += dy * step;
       p.anim += dt * (playerRidingPalletJack(now) || game.fire ? 15 : (p.sprinting ? 17 : 10));
@@ -1551,24 +2266,36 @@
     });
     for (let i = game.decorativeProps.length - 1; i >= 0; i--) {
       const prop = game.decorativeProps[i];
-      if (prop.image === 'shoe' && dist(p, decorativeCenter(prop)) < TILE * .48) {
+      if (isShoeImage(prop.image) && dist(p, decorativeCenter(prop)) < TILE * .48) {
         game.decorativeProps.splice(i, 1);
         game.stats.shoesCollected++;
         addTaskProgress(Math.random() < .5 ? 'alm' : 'sl', 1, 'SHOE FOUND');
         spawnShelfFrontProp('shoe');
       }
     }
+    for (let i = game.movingConveyorItems.length - 1; i >= 0; i--) {
+      const item = game.movingConveyorItems[i];
+      if (item.collectible && dist(p, item) < TILE * .52) {
+        game.movingConveyorItems.splice(i, 1);
+        if (item.conveyor && item.conveyor.moving) item.conveyor.moving = item.conveyor.moving.filter(m => m !== item);
+        game.stats.shoesCollected++;
+        addTaskProgress(Math.random() < .5 ? 'alm' : 'sl', 1, 'CONVEYOR SHOE');
+      }
+    }
     // Exit does not require Action, but it is locked until all four task categories have been completed.
     if (pointInsideZone(p, game.zones.exit)) triggerLevelWin();
-    if (!game.fire && pointInsideZone(p, game.zones.inventory) && now >= game.inventoryCooldownUntil) startInventoryBriefing();
-    if (!game.fire && pointInsideZone(p, game.zones.quarantine) && now >= game.qsCooldownUntil) startQSPuzzle();
+    if (!game.fire && !playerRidingPalletJack(now) && pointInsideZone(p, game.zones.inventory) && now >= game.inventoryCooldownUntil) startInventoryBriefing();
+    if (!game.fire && !playerRidingPalletJack(now) && pointInsideZone(p, game.zones.quarantine) && now >= game.qsCooldownUntil) startQSPuzzle();
     updateSpecialMusic();
     centerCamera();
   }
   function centerCamera() {
     if (!game.player) return;
-    game.camera.x = clamp(game.player.x - W / 2, 0, Math.max(0, WORLD_W - W));
-    game.camera.y = clamp(game.player.y - H / 2, 0, Math.max(0, WORLD_H - H));
+    const z = gameplayZoomFactor();
+    const viewW = W / z;
+    const viewH = H / z;
+    game.camera.x = clamp(game.player.x - viewW / 2, 0, Math.max(0, WORLD_W - viewW));
+    game.camera.y = clamp(game.player.y - viewH / 2, 0, Math.max(0, WORLD_H - viewH));
   }
 
   function bfs(start, goal, avoidSafeZones = false) {
@@ -1616,7 +2343,8 @@
     const pt = worldToTile(game.player.x, game.player.y);
     const et = worldToTile(enemy.x, enemy.y);
     if (tileInsideSafeZone(et)) {
-      const safeZone = tileInsideZone(et, game.zones.dock) ? game.zones.dock : game.zones.kitchens.find(k => tileInsideZone(et, k));
+      const safeZone = tileInsideZone(et, game.zones.dock) ? game.zones.dock :
+        (tileInsideZone(et, game.zones.elevator) ? game.zones.elevator : game.zones.kitchens.find(k => tileInsideZone(et, k)));
       const outside = safeZone ? tileNearZoneEdge(safeZone) : randomFloorTile(0, true);
       const reset = tileCenter(outside);
       enemy.x = reset.x; enemy.y = reset.y; enemy.path = [];
@@ -1650,7 +2378,7 @@
     else game.stats.robotHits++;
     game.player.invulnerableUntil = now + 2600;
     if (attacker) {
-      attacker.disabledUntil = now + 30000;
+      attacker.disabledUntil = now + PALLET_JACK_ROBOT_DISABLE;
       attacker.path = [];
       const dx = game.player.x - attacker.x;
       const dy = game.player.y - attacker.y;
@@ -1666,7 +2394,7 @@
     synth.hurt();
     synth.powerDown();
     shake(12);
-    const remaining = `${game.health}/${MAX_HEARTS} HEARTS REMAINING`;
+    const remaining = `${game.health}/${game.maxHearts} HEARTS REMAINING`;
     addMessage(`${label}  -${damage} HEART${damage > 1 ? 'S' : ''} — ${remaining}`, '#ee394d', 2900);
     burst(game.player.x, game.player.y, '#ee394d', 15);
     if (game.health <= 0) triggerDeath();
@@ -1678,7 +2406,7 @@
     game.stats.coffeesCollected++;
     if (game.coffees >= 3) {
       game.coffees = 0;
-      if (game.health < MAX_HEARTS) { game.health++; addMessage('3 COFFEES — HEART RESTORED!', '#e38537', 1800); }
+      if (game.health < game.maxHearts) { game.health++; addMessage('3 COFFEES — HEART RESTORED!', '#e38537', 1800); }
       else { game.score += 100; addMessage('FULL ENERGY — +100', '#e38537', 1600); }
     } else addMessage(`COFFEE COLLECTED  ${game.coffees}/3`, '#e38537', 1350);
     synth.pickup();
@@ -1686,23 +2414,36 @@
   }
 
   const lootTable = [
-    { id: 'heart', weight: 8 }, { id: 'coffee', weight: 13 },
-    { id: 'emailTask', weight: 30 }, { id: 'workdayTask', weight: 30 }, { id: 'sopToken', weight: 2 },
-    { id: 'return', weight: 8 }, { id: 'mixed', weight: 7 }, { id: 'mould', weight: 8 }, { id: 'break', weight: 6 },
+    { id: 'heart', weight: 8 }, { id: 'coffee', weight: 13 }, { id: 'shoeReward', weight: 18 },
+    { id: 'emailTask', weight: 25 }, { id: 'workdayTask', weight: 25 }, { id: 'noean', weight: 16 }, { id: 'sopToken', weight: 2 },
+    { id: 'mixed', weight: 7 }, { id: 'mould', weight: 8 }, { id: 'break', weight: 6 },
     { id: 'ops', weight: 3 }, { id: 'empty', weight: 5 }
   ];
   const smallBoxLoot = [
-    { id: 'empty', weight: 38 }, { id: 'heart', weight: 8 }, { id: 'coffee', weight: 10 },
-    { id: 'emailTask', weight: 20 }, { id: 'workdayTask', weight: 20 }, { id: 'sopToken', weight: 2 }
+    { id: 'empty', weight: 14 }, { id: 'heart', weight: 8 }, { id: 'coffee', weight: 12 }, { id: 'shoeReward', weight: 20 },
+    { id: 'emailTask', weight: 17 }, { id: 'workdayTask', weight: 17 }, { id: 'noean', weight: 10 }, { id: 'sopToken', weight: 2 }
   ];
   function weightedFrom(table) {
     const total = table.reduce((sum, item) => sum + item.weight, 0);
+    if (total <= 0) return 'coffee';
     let roll = Math.random() * total;
     for (const item of table) { roll -= item.weight; if (roll <= 0) return item.id; }
-    return 'empty';
+    return table[0] ? table[0].id : 'coffee';
   }
-  function weightedLoot() { return weightedFrom(lootTable); }
-  function weightedSmallBoxLoot() { return weightedFrom(smallBoxLoot); }
+  function lootAvailable(id, now = performance.now()) {
+    if (id === 'emailTask') return !game.tasks.completed.email && taskCooldownRemaining('email', now) <= 0;
+    if (id === 'workdayTask') return !game.tasks.completed.workday && taskCooldownRemaining('workday', now) <= 0;
+    if (id === 'noean') return now >= game.noEanCooldownUntil;
+    if (id === 'mixed') return now >= game.inventoryCooldownUntil;
+    if (id === 'mould') return now >= game.qsCooldownUntil;
+    if (id === 'ops') return requiredTasksComplete() && !game.tasks.opsExit;
+    return true;
+  }
+  function filteredLootTable(table, now = performance.now()) {
+    return table.filter(item => lootAvailable(item.id, now));
+  }
+  function weightedLoot() { return weightedFrom(filteredLootTable(lootTable, performance.now())); }
+  function weightedSmallBoxLoot() { return weightedFrom(filteredLootTable(smallBoxLoot, performance.now())); }
   function openNearbyBox(now) {
     if (game.player.action || game.mode !== 'play') return false;
     let smallIndex = -1, smallDistance = TILE * 1.05;
@@ -1758,31 +2499,35 @@
     switch (item) {
       case 'heart':
         game.stats.heartsFound++;
-        if (game.health < MAX_HEARTS) { game.health++; synth.pickup(); addMessage('HEART RESTORED!', '#ed4959', 1600); }
+        if (game.health < game.maxHearts) { game.health++; synth.pickup(); addMessage('HEART RESTORED!', '#ed4959', 1600); }
         else { game.score += 100; synth.points(); addMessage('FULL HEALTH  +100', '#ed4959', 1600); }
         break;
       case 'coffee': collectCoffee(); return;
+      case 'shoeReward': game.stats.shoesCollected++; addTaskProgress(Math.random() < .5 ? 'alm' : 'sl', 1, 'OFFLINE STOCK FOUND'); return;
       case 'emailTask': addTaskProgress('email', 1, 'EMAIL TASK FOUND'); return;
       case 'workdayTask': addTaskProgress('workday', 1, 'WORKDAY TASK FOUND'); return;
+      case 'noean': if (now < game.noEanCooldownUntil) { resolveLoot('coffee', now); return; } game.stats.noEanTasks++; teleportTo(game.zones.dock, 'NO EAN ON SHIPPING NOTICE — SCANNER TASK', null); startNoEanBriefing(); return;
       case 'sopToken':
         game.tasks.tokens++;
         game.stats.sopTokensFound++;
-        game.tokenFlashUntil = performance.now() + 900;
+        game.tokenFlashUntil = performance.now() + 2200;
         synth.route();
-        addMessage('SOP SCOUT TOKEN FOUND!', '#ff7700', 2500);
+        addMessage('Use the SOPScout to help you complete a task in the office!', '#ff7700', 3300);
         updateBest();
         return;
       case 'return': game.score += 150; game.stats.returnsProcessed++; teleportTo(game.zones.dock, 'RETURN — SENT TO DOCK  +150', null); break;
-      case 'mixed': game.stats.mixedStock++; teleportTo(game.zones.inventory, 'MIXED STOCK — INVENTORY CHECK', 'inventory'); startInventoryBriefing(); break;
-      case 'mould': game.stats.mouldyClothes++; teleportTo(game.zones.quarantine, 'MOULDY CLOTHES — QUARANTINE', null); break;
+      case 'mixed': if (now < game.inventoryCooldownUntil) { resolveLoot('shoeReward', now); return; } game.stats.mixedStock++; teleportTo(game.zones.inventory, 'MIXED STOCK — INVENTORY CHECK', 'inventory'); startInventoryBriefing(); break;
+      case 'mould': if (now < game.qsCooldownUntil) { resolveLoot('coffee', now); return; } game.stats.mouldyClothes++; teleportTo(game.zones.quarantine, 'SPERRLAGER: ITEMS IN BAD CONDITION', null); break;
       case 'break': game.stats.lunchBreaks++; teleportTo(choice(game.zones.kitchens), 'COFFEE BREAK — SENT TO KITCHEN', 'kitchen'); break;
       case 'ops':
         game.stats.opsFinds++;
+        game.tasks.opsExit = true;
         game.routePath = bfs(worldToTile(game.player.x, game.player.y), { x: game.zones.exit.x, y: game.zones.exit.y });
-        game.routeUntil = now + 10000;
+        game.routeUntil = now + 18000;
         game.score += 250;
         synth.route();
-        addMessage('OPERATIONS EXCELLENCE — ROUTE REVEALED  +250', '#ff7700', 2800);
+        addMessage('You’ve achieved Operational Excellence!', '#ff7700', 3300);
+        addMessage('You can go right to the exit without having to complete any more tasks!', '#ffd054', 4300);
         break;
       default: synth.note(180, .08, 'square', .03); addMessage('EMPTY BOX', '#e9dac2', 1250);
     }
@@ -1805,11 +2550,13 @@
   }
 
   function startInventoryBriefing() {
-    if (game.mode !== 'play' || performance.now() < game.inventoryCooldownUntil) return;
+    const now = performance.now();
+    if (playerRidingPalletJack(now)) { addMessage('GET OFF THE PALLET JACK BEFORE INVENTORY CHECK', '#ffd054', 2200); return false; }
+    if (game.mode !== 'play' || now < game.inventoryCooldownUntil) return false;
     game.stats.inventoryChecks++;
     game.mode = 'inventoryBriefing';
     setGameplayControlsVisible(false);
-    game.inventoryBriefUntil = performance.now() + 3400;
+    game.inventoryBriefUntil = now + 3400;
     keys.clear();
     game.specialMusic = 'inventory';
     music.play('inventory', true);
@@ -1826,7 +2573,7 @@
     game.mode = 'inventoryPuzzle';
   }
   function puzzleGridMetrics() {
-    return { x: 58, y: 124, cell: 70, gap: 8, cols: PUZZLE_COLS, rows: PUZZLE_ROWS };
+    return { x: 50, y: 124, cell: 80, gap: 8, cols: PUZZLE_COLS, rows: PUZZLE_ROWS };
   }
   function puzzleCellAt(px, py) {
     const m = puzzleGridMetrics();
@@ -1841,16 +2588,23 @@
     const puzzle = game.inventoryPuzzle;
     if (!puzzle || game.mode !== 'inventoryPuzzle') return;
     const index = puzzleCellAt(x, y);
-    if (index < 0) return;
-    if (index === puzzle.emptyIndex) { puzzle.selectedEmpty = true; return; }
-    if (!puzzle.selectedEmpty) return;
+    if (index < 0 || index === puzzle.emptyIndex) return;
+    const empty = puzzle.emptyIndex;
+    const indexRow = Math.floor(index / PUZZLE_COLS), indexCol = index % PUZZLE_COLS;
+    const emptyRow = Math.floor(empty / PUZZLE_COLS), emptyCol = empty % PUZZLE_COLS;
+    const isNeighbour = Math.abs(indexRow - emptyRow) + Math.abs(indexCol - emptyCol) === 1;
+    if (!isNeighbour) {
+      puzzle.flashText = 'ONLY NEIGHBOUR ITEMS CAN MOVE';
+      puzzle.flashUntil = performance.now() + 850;
+      synth.note(190, .08, 'square', .03);
+      return;
+    }
     const movedType = puzzle.cells[index];
-    puzzle.cells[puzzle.emptyIndex] = movedType;
+    puzzle.cells[empty] = movedType;
     puzzle.cells[index] = null;
-    const movedTo = puzzle.emptyIndex;
     puzzle.emptyIndex = index;
     puzzle.selectedEmpty = false;
-    checkInventoryMatch(movedTo);
+    checkInventoryMatch(empty);
   }
   function checkInventoryMatch(index) {
     const pz = game.inventoryPuzzle;
@@ -1890,7 +2644,7 @@
     const pos = tileCenter(exitTile);
     game.player.x = pos.x; game.player.y = pos.y;
     game.player.invulnerableUntil = performance.now() + 2300;
-    game.inventoryCooldownUntil = performance.now() + 30000;
+    game.inventoryCooldownUntil = performance.now() + TASK_COOLDOWN;
     game.inventoryPuzzle = null;
     game.specialMusic = null;
     game.mode = 'play';
@@ -1911,10 +2665,10 @@
       frame: randInt(0, 11),
       baseX: rand(70, W - 70),
       x: 0,
-      y: -144,
+      y: -72,
       w: randInt(112, 148),
       h: randInt(124, 168),
-      speed: rand(178, 224),
+      speed: rand(214, 269),
       phase: rand(0, Math.PI * 2),
       drift: rand(14, 33),
       driftSpeed: rand(1.3, 2.2),
@@ -1935,12 +2689,14 @@
       missedCount: 0,
       flashUntil: 0,
       flashText: '',
-      basket: { x: W / 2, y: H - 125, w: 596, h: 210, speed: 820, dragging: false, pointerId: null, offsetX: 0 }
+      basket: { x: W / 2, y: H - 111, w: 596, h: 210, speed: 720, dragging: false, pointerId: null, offsetX: 0 }
     };
     game.mode = 'qsPuzzle';
   }
   function startQSPuzzle() {
-    if (game.mode !== 'play' || performance.now() < game.qsCooldownUntil) return;
+    const now = performance.now();
+    if (playerRidingPalletJack(now)) { addMessage('GET OFF THE PALLET JACK BEFORE SPERRLAGER', '#ffd054', 2200); return false; }
+    if (game.mode !== 'play' || now < game.qsCooldownUntil) return false;
     setGameplayControlsVisible(false);
     keys.clear();
     stopSprint();
@@ -1956,14 +2712,14 @@
       let dx = 0;
       if (keys.has('ArrowLeft') || keys.has('KeyA')) dx--;
       if (keys.has('ArrowRight') || keys.has('KeyD')) dx++;
-      b.x = clamp(b.x + dx * b.speed * dt, b.w / 2 + 18, W - b.w / 2 - 18);
+      b.x = clamp(b.x + dx * b.speed * dt, 0, W);
     }
     const elapsed = now - pz.startedAt;
     while (now >= pz.nextSpawnAt && now < pz.until) {
       pz.items.push(createQSItem(now));
       pz.nextSpawnAt += qsSpawnInterval(elapsed);
     }
-    const basketTop = b.y - b.h / 2 + 18;
+    const basketTop = b.y - b.h / 2 + 34;
     for (let i = pz.items.length - 1; i >= 0; i--) {
       const item = pz.items[i];
       item.y += item.speed * dt;
@@ -2001,7 +2757,7 @@
     game.player.x = pos.x;
     game.player.y = pos.y;
     game.player.invulnerableUntil = performance.now() + 2300;
-    game.qsCooldownUntil = performance.now() + 30000;
+    game.qsCooldownUntil = performance.now() + TASK_COOLDOWN;
     game.qsPuzzle = null;
     game.specialMusic = null;
     game.mode = 'play';
@@ -2009,9 +2765,472 @@
     setGameplayControlsVisible(true);
     centerCamera();
     music.playGameplay();
-    addMessage(`QUARANTINE SORT COMPLETE  +${pz.scoreEarned}  DISPOSE ${pz.disposeCount}  DESTROY ${pz.destroyCount}`, '#ff7700', 3400);
+    addMessage(`SPERRLAGER COMPLETE  +${pz.scoreEarned}  DISPOSE ${pz.disposeCount}  DESTROY ${pz.destroyCount}`, '#ff7700', 3400);
     updateBest();
   }
+
+  function startNoEanBriefing() {
+    const now = performance.now();
+    if (game.mode !== 'play' || now < game.noEanCooldownUntil) return false;
+    setGameplayControlsVisible(false);
+    keys.clear(); stopSprint();
+    game.noEanBriefUntil = now + 5200;
+    game.mode = 'noEanBriefing';
+    game.specialMusic = 'inventory';
+    music.play('inventory', true);
+    return true;
+  }
+
+  function createNoEanPuzzle() {
+    const now = performance.now();
+    const scannerY = H * (748 / 941);
+    const target = nextNoEanTarget();
+    game.noEanPuzzle = {
+      startedAt: now,
+      until: now + NOEAN_DURATION,
+      target,
+      targetLabel: target === 'shoes' ? 'SHOES' : (target === 'tops' ? 'TOPS' : 'PANTS'),
+      toastUntil: now + 2000,
+      nextSpawnAt: now + 1000,
+      items: [],
+      path: makeNoEanPath(),
+      scanner: { x: W * (836 / 1672), y: scannerY, minX: W * (104 / 1672), maxX: W * (1311 / 1672), speed: 540, angle: 90, lastAngleStepAt: 0 },
+      beam: null,
+      feedback: null,
+      wrongFlashUntil: 0,
+      scoreEarned: 0,
+      correctHits: 0,
+      wrongHits: 0,
+      missedTargets: 0
+    };
+    game.mode = 'noEanPuzzle';
+  }
+
+  function nextNoEanTarget() {
+    const recent = game.noEanTargetHistory || [];
+    let options = NOEAN_TARGETS.filter(target => !recent.slice(-1).includes(target));
+    if (!options.length) options = NOEAN_TARGETS.slice();
+    const chosen = choice(options);
+    game.noEanTargetHistory = [...recent.slice(-2), chosen];
+    return chosen;
+  }
+
+  function noEanSpawnInterval(elapsed) {
+    if (elapsed < 20000) return rand(1150, 1450);
+    if (elapsed < 40000) return rand(850, 1150);
+    return rand(620, 900);
+  }
+  function makeNoEanPath() {
+    // V2.43: aligned to conveyor.jpg in its 1672 x 941 design coordinate space.
+    // These points are the visual centreline of the baked conveyor belts.
+    const DESIGN_W = 1672, DESIGN_H = 941;
+    const sx = W / DESIGN_W, sy = H / DESIGN_H;
+    const points = [];
+    const add = (x, y) => points.push({ x: x * sx, y: y * sy });
+    const addLine = (a, b, steps = 32) => {
+      for (let i = points.length ? 1 : 0; i <= steps; i++) {
+        const t = i / steps;
+        add(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t);
+      }
+    };
+    const addQuad = (a, c, b, steps = 24) => {
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps, mt = 1 - t;
+        add(mt * mt * a[0] + 2 * mt * t * c[0] + t * t * b[0], mt * mt * a[1] + 2 * mt * t * c[1] + t * t * b[1]);
+      }
+    };
+
+    // Feeder/top-left -> top belt -> right curve -> middle belt -> left U-turn -> lower belt -> lower-right exit.
+    addLine([330, 118], [1268, 118], 42);
+    addQuad([1268, 118], [1418, 132], [1362, 301], 28);
+    addLine([1362, 301], [312, 301], 48);
+    addQuad([312, 301], [118, 390], [258, 510], 34);
+    addLine([258, 510], [1268, 510], 44);
+    addQuad([1268, 510], [1404, 548], [1342, 675], 28);
+    addLine([1342, 675], [1342, 970], 24);
+
+    const lengths = [0];
+    let total = 0;
+    for (let i = 1; i < points.length; i++) {
+      total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+      lengths.push(total);
+    }
+    return { points, lengths, total };
+  }
+  function pointOnNoEanPath(path, distance) {
+    const d = clamp(distance, 0, path.total);
+    let i = 1;
+    while (i < path.lengths.length && path.lengths[i] < d) i++;
+    const a = path.points[i - 1] || path.points[0], b = path.points[i] || a;
+    const span = Math.max(1, (path.lengths[i] || 0) - (path.lengths[i - 1] || 0));
+    const t = clamp((d - (path.lengths[i - 1] || 0)) / span, 0, 1);
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+  }
+  function tangentOnNoEanPath(path, distance) {
+    const ahead = pointOnNoEanPath(path, distance + 18);
+    const behind = pointOnNoEanPath(path, distance - 18);
+    const dx = ahead.x - behind.x, dy = ahead.y - behind.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: dx / len, y: dy / len };
+  }
+  function noEanItemVisualOffset(item, path) {
+    const tangent = tangentOnNoEanPath(path, item.distance || 0);
+    const normal = { x: -tangent.y, y: tangent.x };
+    const mostlyVertical = Math.abs(tangent.y) > Math.abs(tangent.x);
+    if (mostlyVertical) return { x: 0, y: 0 };
+    const amount = item.category === 'shoes' ? -10 : (item.category === 'pants' ? -5 : -7);
+    return { x: normal.x * amount, y: normal.y * amount };
+  }
+  function noEanPathPosition(item, path) {
+    const p = pointOnNoEanPath(path, item.distance || 0);
+    const offset = noEanItemVisualOffset(item, path);
+    return { x: p.x + offset.x, y: p.y + offset.y };
+  }
+  function noEanClothingFrame(category) {
+    const tops = [2, 3, 5, 7, 9, 11];
+    const pants = [0, 1, 6, 10];
+    return choice(category === 'tops' ? tops : pants);
+  }
+  function chooseNoEanSpawnCategory() {
+    const pz = game.noEanPuzzle;
+    if (!pz || !pz.target) return choice(NOEAN_TARGETS);
+    // Roughly half target items, half distractors.
+    if (Math.random() < .52) return pz.target;
+    const nonTargets = NOEAN_TARGETS.filter(cat => cat !== pz.target);
+    return choice(nonTargets);
+  }
+
+  function createNoEanItem(now) {
+    const category = chooseNoEanSpawnCategory();
+    const shoeKeys = shoeImageKeys();
+    const isShoe = category === 'shoes';
+    const frameCount = noEanFrameCount(category);
+    return {
+      category,
+      image: isShoe ? (choice(shoeKeys.length ? shoeKeys : ['shoe'])) : 'clothes',
+      frame: randInt(0, Math.max(0, frameCount - 1)),
+      distance: 0,
+      speed: rand(126, 158),
+      w: category === 'shoes' ? rand(82, 108) : (category === 'tops' ? rand(72, 96) : rand(68, 92)),
+      h: category === 'shoes' ? rand(50, 68) : (category === 'tops' ? rand(78, 104) : rand(70, 96)),
+      x: -999,
+      y: -999,
+      hitAt: 0,
+      removing: false,
+      flashUntil: 0
+    };
+  }
+  function noEanAdvanceAngle(pz, direction, now) {
+    const scanner = pz.scanner;
+    const currentIndex = NOEAN_ANGLES.indexOf(scanner.angle);
+    let next;
+    if (currentIndex < 0) {
+      next = direction > 0 ? NOEAN_ANGLES.find(a => a > scanner.angle) : [...NOEAN_ANGLES].reverse().find(a => a < scanner.angle);
+    } else next = NOEAN_ANGLES[clamp(currentIndex + direction, 0, NOEAN_ANGLES.length - 1)];
+    if (typeof next === 'number') scanner.angle = next;
+    scanner.lastAngleStepAt = now;
+  }
+  function resetNoEanScanner() {
+    const pz = game.noEanPuzzle;
+    if (!pz) return;
+    pz.scanner.x = W / 2;
+    pz.scanner.angle = 90;
+    pz.scanner.lastAngleStepAt = performance.now();
+  }
+  function scannerBeamOrigin(scanner) {
+    const rad = scanner.angle * Math.PI / 180;
+    const dx = Math.cos(rad), dy = -Math.sin(rad);
+    const scannerDrawH = 178;
+    return { x: scanner.x + dx * (scannerDrawH / 2), y: scanner.y + dy * (scannerDrawH / 2), dx, dy };
+  }
+  function distancePointToRay(px, py, ray) {
+    const vx = px - ray.x, vy = py - ray.y;
+    const along = vx * ray.dx + vy * ray.dy;
+    const perp = Math.abs(vx * ray.dy - vy * ray.dx);
+    return { along, perp };
+  }
+  function setNoEanFeedback(type, now) {
+    const pz = game.noEanPuzzle;
+    if (!pz) return;
+    pz.feedback = { type, start: now, until: now + 1500 };
+  }
+  function applyNoEanPenalty(pz, now, reason) {
+    if (game.score >= 30) game.score -= 30;
+    else { game.score = 0; game.health = Math.max(0, game.health - 1); }
+    if (reason === 'wrong') { pz.wrongHits++; game.stats.noEanWrong++; }
+    if (reason === 'missed') { pz.missedTargets++; game.stats.noEanMissed++; }
+    synth.note(160, .12, 'sawtooth', .045);
+    shake(8);
+    updateBest();
+    if (game.health <= 0) {
+      finishNoEanPuzzle(true);
+      game.mode = 'play';
+      triggerDeath();
+    }
+  }
+  function fireNoEanScanner(now) {
+    const pz = game.noEanPuzzle;
+    if (!pz || now < (pz.nextShotAt || 0)) return;
+    pz.nextShotAt = now + 100;
+    const ray = scannerBeamOrigin(pz.scanner);
+    let best = null;
+    pz.items.forEach(item => {
+      if (item.removing) return;
+      const hit = distancePointToRay(item.x, item.y, ray);
+      const radius = Math.min(item.w, item.h) * .40;
+      if (hit.along > 0 && hit.along < W * 1.35 && hit.perp <= radius && (!best || hit.along < best.along)) best = { item, along: hit.along };
+    });
+    const beamEnd = best ? { x: ray.x + ray.dx * best.along, y: ray.y + ray.dy * best.along } : { x: ray.x + ray.dx * W * 1.45, y: ray.y + ray.dy * W * 1.45 };
+    pz.beam = { x1: ray.x, y1: ray.y, x2: beamEnd.x, y2: beamEnd.y, until: now + 130 };
+    synth.note(760, .035, 'square', .025);
+    if (!best) return;
+    const item = best.item;
+    if (item.category === pz.target) {
+      item.flashUntil = now + 140;
+      item.removing = true;
+      item.hitAt = now;
+      pz.correctHits++;
+      pz.scoreEarned += 15;
+      game.stats.noEanScans++;
+      game.score += 15;
+      setNoEanFeedback('correct', now);
+      synth.note(1040, .08, 'sine', .05);
+      burst(item.x, item.y, '#ff3b3b', 12);
+      updateBest();
+    } else {
+      setNoEanFeedback('wrong', now);
+      pz.wrongFlashUntil = now + 300;
+      applyNoEanPenalty(pz, now, 'wrong');
+    }
+  }
+  function updateNoEanPuzzle(dt, now) {
+    const pz = game.noEanPuzzle;
+    if (!pz) return;
+    let move = 0;
+    if (keys.has('ArrowLeft') || keys.has('KeyA')) move--;
+    if (keys.has('ArrowRight') || keys.has('KeyD')) move++;
+    pz.scanner.x = clamp(pz.scanner.x + move * pz.scanner.speed * dt, pz.scanner.minX, pz.scanner.maxX);
+    const upHeld = keys.has('ArrowUp') || keys.has('KeyW');
+    const downHeld = keys.has('ArrowDown') || keys.has('KeyS');
+    if ((upHeld || downHeld) && now - (pz.scanner.lastAngleStepAt || 0) >= 1000) noEanAdvanceAngle(pz, upHeld ? 1 : -1, now);
+    const elapsed = now - pz.startedAt;
+    if (now >= pz.nextSpawnAt && now < pz.until) {
+      const active = pz.items.filter(item => !item.removing);
+      const last = active[active.length - 1];
+      // No max active cap. Keep only a path-gap rule so late-round speed does not leave big empty conveyor sections.
+      if (!last || last.distance > 105) {
+        const item = createNoEanItem(now);
+        const pos = noEanPathPosition(item, pz.path);
+        item.x = pos.x; item.y = pos.y;
+        pz.items.push(item);
+        pz.nextSpawnAt = now + noEanSpawnInterval(elapsed);
+      } else pz.nextSpawnAt = now + 90;
+    }
+    for (let i = pz.items.length - 1; i >= 0; i--) {
+      const item = pz.items[i];
+      if (item.removing) {
+        if (now - item.hitAt > 260) pz.items.splice(i, 1);
+        continue;
+      }
+      item.distance += item.speed * dt;
+      const point = noEanPathPosition(item, pz.path);
+      item.x = point.x; item.y = point.y;
+      if (item.distance >= pz.path.total) {
+        if (item.category === pz.target) applyNoEanPenalty(pz, now, 'missed');
+        else synth.note(320, .05, 'triangle', .018);
+        pz.items.splice(i, 1);
+      }
+    }
+  }
+  function finishNoEanPuzzle(silent = false) {
+    const pz = game.noEanPuzzle;
+    if (!pz) return;
+    const exitTile = tileNearZoneEdge(game.zones.dock);
+    const pos = tileCenter(exitTile);
+    if (game.player) { game.player.x = pos.x; game.player.y = pos.y; game.player.invulnerableUntil = performance.now() + 2300; }
+    game.noEanCooldownUntil = performance.now() + TASK_COOLDOWN;
+    game.noEanPuzzle = null;
+    game.specialMusic = null;
+    game.mode = 'play';
+    keys.clear();
+    setGameplayControlsVisible(true);
+    centerCamera();
+    if (!silent) addMessage(`NO EAN SCAN COMPLETE  +${pz.scoreEarned}  SCANNED ${pz.correctHits}`, '#ff7700', 3400);
+    music.playGameplay();
+    updateBest();
+  }
+
+  function roundRect(x, y, w, h, r, fill = true, stroke = false) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.lineTo(x + w - rr, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+    ctx.lineTo(x + w, y + h - rr);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    ctx.lineTo(x + rr, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+    ctx.lineTo(x, y + rr);
+    ctx.quadraticCurveTo(x, y, x + rr, y);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+
+  function drawNoEanBriefing() {
+    if (images.noEanWelcome) drawCoverImage(images.noEanWelcome, 0, 0, W, H);
+    else { ctx.fillStyle = '#27313c'; ctx.fillRect(0, 0, W, H); }
+    ctx.fillStyle = 'rgba(8,10,13,.62)'; ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff6900'; ctx.font = 'bold 48px Trebuchet MS'; ctx.fillText('NO EAN ON SHIPPING NOTICE', W / 2, 138);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 24px Trebuchet MS'; ctx.lineWidth = 5; ctx.strokeStyle = '#000';
+    const lines = [
+      'In a recent delivery we have many items which had no EAN on the shipping notice.',
+      'Scan the items missing the EAN so we can add them to a Jira ticket.'
+    ];
+    lines.forEach((line, i) => { ctx.strokeText(line, W / 2, 245 + i * 42); ctx.fillText(line, W / 2, 245 + i * 42); });
+    ctx.fillStyle = 'rgba(15,18,22,.80)'; ctx.fillRect(W / 2 - 430, 365, 860, 120);
+    ctx.strokeStyle = '#ff6900'; ctx.strokeRect(W / 2 - 430, 365, 860, 120);
+    ctx.fillStyle = '#ffd054'; ctx.font = 'bold 23px Trebuchet MS'; ctx.fillText('AIM WITH ARROWS / WASD  •  SPACE TO SCAN  •  ENTER TO RESET', W / 2, 412);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 20px Trebuchet MS'; ctx.fillText('Be careful — you may not need to scan every item.', W / 2, 455);
+    const seconds = Math.max(1, Math.ceil((game.noEanBriefUntil - performance.now()) / 1000));
+    ctx.fillStyle = '#ffd054'; ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText(`STARTING IN ${seconds}...`, W / 2, 548);
+    ctx.restore();
+  }
+  function noEanSheetForCategory(category) {
+    if (category === 'shoes') return images.noEanShoes || null;
+    if (category === 'tops') return images.noEanTops || null;
+    if (category === 'pants') return images.noEanPants || null;
+    return null;
+  }
+  function noEanSheetGrid(img) {
+    // The No EAN cards are 1500x1200 with a fixed 4 x 3 layout.
+    return { cols: 4, rows: 3, count: 12 };
+  }
+  function noEanFrameBounds(category, frame, sw, sh) {
+    const list = NOEAN_FRAME_BOUNDS[category];
+    if (!list || !list.length) return [0, 0, sw, sh];
+    return list[frame % list.length] || [0, 0, sw, sh];
+  }
+  function noEanFrameCount(category) {
+    const img = noEanSheetForCategory(category);
+    return noEanSheetGrid(img).count;
+  }
+  function drawNoEanCardItem(item, x, y, w, h, alpha = 1) {
+    const img = noEanSheetForCategory(item.category);
+    if (!img) return false;
+    const grid = noEanSheetGrid(img);
+    const frame = (item.frame || 0) % grid.count;
+    const col = frame % grid.cols;
+    const row = Math.floor(frame / grid.cols);
+    const cellW = img.width / grid.cols;
+    const cellH = img.height / grid.rows;
+    const crop = noEanFrameBounds(item.category, frame, cellW, cellH);
+    const sx = col * cellW + crop[0], sy = row * cellH + crop[1];
+    const sw = crop[2] - crop[0], sh = crop[3] - crop[1];
+    const scale = Math.min(w / sw, h / sh);
+    const dw = sw * scale, dh = sh * scale;
+    const dx = x + (w - dw) / 2, dy = y + (h - dh) / 2;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = 'rgba(0,0,0,.72)';
+    ctx.shadowBlur = 13;
+    ctx.shadowOffsetX = 4;
+    ctx.shadowOffsetY = 9;
+    ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+    ctx.restore();
+    return true;
+  }
+  function drawNoEanItem(item, alpha = 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const x = item.x - item.w / 2;
+    const y = item.y - item.h / 2;
+    const usedCard = drawNoEanCardItem(item, x, y, item.w, item.h, alpha);
+    if (!usedCard) {
+      if (item.category === 'shoes' && images[item.image]) drawContain(images[item.image], x, y, item.w, item.h, alpha, true);
+      else if (images.clothes) drawClothingItem(item.frame, x, y, item.w, item.h, alpha);
+    }
+    if (performance.now() < item.flashUntil) {
+      ctx.globalAlpha = .45; ctx.fillStyle = '#ff1f2a'; ctx.beginPath(); ctx.ellipse(item.x, item.y, item.w * .55, item.h * .55, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+  function drawNoEanScannerSprite(pz, now) {
+    const s = pz.scanner;
+    // scanner.png is 229 x 500. Keep that tall aspect ratio; do not squash it horizontally.
+    const h = 178, w = h * (229 / 500);
+    const rad = (90 - s.angle) * Math.PI / 180;
+    let feedbackImg = null, feedbackAlpha = 0;
+    if (pz.feedback && now < pz.feedback.until) {
+      const progress = (now - pz.feedback.start) / 1500;
+      feedbackAlpha = progress < .2 ? progress / .2 : (progress > .8 ? (1 - progress) / .2 : 1);
+      feedbackImg = pz.feedback.type === 'correct' ? images.scannerCorrect : images.scannerWrong;
+    }
+    const baseImg = images.scanner;
+    const drawRotated = (img, alpha) => {
+      ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(rad); ctx.globalAlpha = alpha;
+      if (img) { drawShadow(-w / 2, -h / 2, w, h, .20 * alpha); ctx.drawImage(img, -w / 2, -h / 2, w, h); }
+      else { ctx.fillStyle = '#333'; ctx.fillRect(-w/2, -h/2, w, h); ctx.fillStyle = '#ff3333'; ctx.fillRect(-8, -h/2, 16, 28); }
+      ctx.restore();
+    };
+    drawRotated(baseImg, 1);
+    if (feedbackImg && feedbackAlpha > 0) drawRotated(feedbackImg, feedbackAlpha);
+  }
+  function drawNoEanPuzzle(now) {
+    const pz = game.noEanPuzzle;
+    if (!pz) return;
+    if (images.noEanBg) drawCoverImage(images.noEanBg, 0, 0, W, H);
+    else { ctx.fillStyle = '#293037'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#6a6d70'; ctx.fillRect(70, 110, W - 180, 58); ctx.fillRect(220, 300, W - 350, 58); ctx.fillRect(190, 470, W - 270, 58); }
+    pz.items.forEach(item => {
+      const fade = item.removing ? clamp(1 - (now - item.hitAt) / 260, 0, 1) : 1;
+      drawNoEanItem(item, fade);
+    });
+    if (pz.beam && now < pz.beam.until) {
+      ctx.save();
+      ctx.globalAlpha = clamp((pz.beam.until - now) / 130, 0, 1);
+      ctx.strokeStyle = 'rgba(255,0,30,.85)'; ctx.lineWidth = 4; ctx.shadowBlur = 16; ctx.shadowColor = '#ff1f2a';
+      ctx.beginPath(); ctx.moveTo(pz.beam.x1, pz.beam.y1); ctx.lineTo(pz.beam.x2, pz.beam.y2); ctx.stroke();
+      ctx.restore();
+    }
+    drawNoEanScannerSprite(pz, now);
+    ctx.save();
+    // Narrow vertical mini-game HUD, centered in the left-side open space instead of a long top box.
+    const hudW = 184, hudH = 206, hudX = 40, hudY = Math.round((H - hudH) * .52);
+    ctx.fillStyle = 'rgba(12,15,18,.82)';
+    roundRect(hudX, hudY, hudW, hudH, 12, true, false);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2;
+    roundRect(hudX, hudY, hudW, hudH, 12, false, true);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#fff4df';
+    ctx.font = 'bold 18px Trebuchet MS';
+    ctx.fillText('SCORE', hudX + 22, hudY + 42);
+    ctx.fillText(formatScore(game.score), hudX + 96, hudY + 42);
+    ctx.fillText('HEARTS', hudX + 22, hudY + 84);
+    ctx.fillText('♥'.repeat(Math.max(0, game.health)), hudX + 96, hudY + 84);
+    ctx.fillText('TIME', hudX + 22, hudY + 126);
+    ctx.fillText(`${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, hudX + 96, hudY + 126);
+    ctx.fillStyle = '#ffd054';
+    ctx.font = 'bold 17px Trebuchet MS';
+    ctx.fillText('TARGET', hudX + 22, hudY + 168);
+    ctx.fillText(pz.targetLabel, hudX + 22, hudY + 196);
+    if (now < pz.toastUntil) {
+      ctx.fillStyle = 'rgba(15,18,22,.88)';
+      roundRect(42, Math.round(H * .72), 300, 60, 12, true, false);
+      ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2;
+      roundRect(42, Math.round(H * .72), 300, 60, 12, false, true);
+      ctx.fillStyle = '#ffd054'; ctx.font = 'bold 25px Trebuchet MS'; ctx.textAlign = 'center';
+      ctx.fillText(`SHOOT ALL ${pz.targetLabel}`, 192, Math.round(H * .72) + 38);
+    }
+    if (pz.wrongFlashUntil && now < pz.wrongFlashUntil) {
+      ctx.globalAlpha = clamp((pz.wrongFlashUntil - now) / 300, 0, 1) * .35;
+      ctx.fillStyle = '#ff1f2a'; ctx.fillRect(0, 0, W, H);
+    }
+    ctx.restore();
+  }
+
   function handleQSPointerDown(x, y, pointerId = null) {
     const pz = game.qsPuzzle;
     if (!pz) return false;
@@ -2027,7 +3246,7 @@
     if (!pz || !pz.basket.dragging) return false;
     const b = pz.basket;
     if (b.pointerId !== null && pointerId !== null && b.pointerId !== pointerId) return false;
-    b.x = clamp(x - b.offsetX, b.w / 2 + 18, W - b.w / 2 - 18);
+    b.x = clamp(x - b.offsetX, 0, W);
     return true;
   }
   function handleQSPointerUp(x, y, pointerId = null) {
@@ -2048,7 +3267,7 @@
     game.zones.kitchens.forEach((zone, index) => stations.push({ label: `KITCHEN ${index + 1}`, pos: destinationPosition(zone) }));
     return stations;
   }
-  function scheduleNextFire(now) { game.nextFireAt = now + randInt(50000, 115000); }
+  function scheduleNextFire(now) { game.nextFireAt = now + FIRE_COOLDOWN; }
   function startFireEvent(now) {
     if (game.fire || game.mode !== 'play') return;
     let tile = randomFloorTile(TILE * 6, true);
@@ -2061,32 +3280,503 @@
     synth.hurt();
   }
   function tryFireAction(now) {
-    if (!game.fire || game.mode !== 'play') return false;
+    if (!game.fire || game.mode !== 'play' || game.fire.extinguishing) return false;
     if (!game.fire.hasExtinguisher && dist(game.player, game.fire.station.pos) < TILE * 3.0) {
       game.fire.hasExtinguisher = true;
       synth.pickup();
       addMessage('EXTINGUISHER COLLECTED — GET TO THE FIRE!', '#ffd054', 3500);
       return true;
     }
-    if (game.fire.hasExtinguisher && dist(game.player, game.fire) < TILE * 1.7) {
+    if (game.fire.hasExtinguisher && dist(game.player, game.fire) < TILE * 1.9) {
       const seconds = (now - game.fire.startedAt) / 1000;
       const reward = seconds <= 60 ? 200 : seconds <= 90 ? 150 : seconds <= 120 ? 100 : seconds <= 150 ? 50 : 0;
-      game.score += reward;
-      game.stats.firesExtinguished++;
-      game.stats.firePoints += reward;
-      burst(game.fire.x, game.fire.y, '#ffd054', 28);
-      game.fire = null;
-      hideFireOverlay();
-      scheduleNextFire(now);
-      synth.points();
-      addMessage(`FIRE EXTINGUISHED  +${reward}`, '#71dd8d', 3500);
-      updateBest();
+      game.fire.extinguishing = true;
+      game.fire.extinguishStartedAt = now;
+      game.fire.extinguishUntil = now + 1450;
+      game.fire.reward = reward;
+      game.player.facing = game.fire.x < game.player.x ? 'left' : 'right';
+      synth.spray();
+      burst(game.fire.x, game.fire.y, '#d9ecff', 34);
       return true;
     }
     return false;
   }
+  function finishFireExtinguish(now) {
+    if (!game.fire) return;
+    const reward = game.fire.reward || 0;
+    game.score += reward;
+    game.stats.firesExtinguished++;
+    game.stats.firePoints += reward;
+    burst(game.fire.x, game.fire.y, '#ffd054', 28);
+    game.fire = null;
+    hideFireOverlay();
+    scheduleNextFire(now);
+    synth.points();
+    addMessage(`FIRE EXTINGUISHED!  +${reward}`, '#71dd8d', 3800);
+    updateBest();
+  }
   function updateFireEvent(now) {
+    if (game.fire && game.fire.extinguishing && now >= game.fire.extinguishUntil) {
+      finishFireExtinguish(now);
+      return;
+    }
     if (!game.fire && now >= game.nextFireAt) startFireEvent(now);
+  }
+
+
+  function shouldStartBossAfterWarehouse(level) { return level > 0 && level % 3 === 0; }
+  function startBossIntro() {
+    game.mode = 'bossIntro';
+    setGameplayControlsVisible(false);
+    keys.clear();
+    game.health = game.maxHearts;
+    const bg = images.bossBg || images.bossBgWin;
+    const bgW = bg ? bg.width : 2000;
+    const bgH = bg ? bg.height : 576;
+    const worldScale = H / bgH;
+    const bossWorldW = Math.max(2000, bgW);
+    game.boss = {
+      phase: 'intro',
+      introStart: performance.now(),
+      cameraX: 0,
+      worldW: bossWorldW,
+      worldScale,
+      countdown: 3,
+      player: { x: bossWorldW / 2, y: H + 220, speed: 430, invulnerableUntil: performance.now() + 2300 },
+      boss: { x: bossWorldW / 2, y: -350, w: 560, h: 560, vx: 135, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
+      fireballs: [],
+      shoes: [],
+      effects: [],
+      nextFireAt: performance.now() + 4200,
+      nextVoiceAt: performance.now() + randInt(10000, 15000),
+      startedAt: performance.now(),
+      victoryStart: 0,
+      rewardShown: false,
+      summaryUntil: 0,
+      fade: 1
+    };
+    music.play('boss', true);
+  }
+  function startBossFight() {
+    if (!game.boss) return;
+    game.mode = 'bossFight';
+    game.boss.phase = 'fight';
+    game.boss.startedAt = performance.now();
+    game.boss.nextFireAt = performance.now() + 2200;
+    game.boss.nextVoiceAt = performance.now() + randInt(10000, 15000);
+    setGameplayControlsVisible(true);
+    music.play('boss', true);
+  }
+  function bossViewport() {
+    const bg = images.bossBg || images.bossBgWin;
+    const bgW = bg ? bg.width : 2000;
+    const bgH = bg ? bg.height : 576;
+    const scale = H / bgH;
+    const worldW = game.boss && game.boss.worldW ? game.boss.worldW : bgW;
+    const scaledW = worldW * scale;
+    const maxCamera = Math.max(0, scaledW - W);
+    const desired = game.boss ? game.boss.player.x * scale - W / 2 : maxCamera / 2;
+    return { scale, scaledW, maxCamera, cameraX: clamp(desired, 0, maxCamera) };
+  }
+  function tintDraw(img, x, y, w, h, alpha = 1, flipX = false, redTint = true) {
+    if (!img) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    // V2.58: never tint by filling the main canvas rectangle. That was causing the visible square backgrounds.
+    // A drawImage filter only affects the sprite pixels being drawn, so transparent alpha stays transparent.
+    ctx.filter = redTint ? 'brightness(86%) sepia(18%) saturate(118%) hue-rotate(-10deg)' : 'none';
+    if (flipX) {
+      ctx.translate(x + w, y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, w, h);
+    } else ctx.drawImage(img, 0, 0, img.width, img.height, x, y, w, h);
+    ctx.restore();
+  }
+  function bossAlphaHit(a, b, pad = 0) {
+    return a.x - a.w / 2 + pad < b.x + b.w / 2 && a.x + a.w / 2 - pad > b.x - b.w / 2 && a.y - a.h / 2 + pad < b.y + b.h / 2 && a.y + a.h / 2 - pad > b.y - b.h / 2;
+  }
+  function damageBoss(amount, source, hitX = null, hitY = null) {
+    const bz = game.boss;
+    const b = bz && bz.boss;
+    if (!b || b.dead || bz.phase !== 'fight') return false;
+    const now = performance.now();
+
+    let applied = 0;
+    if (source === 'ram') {
+      if (now < (b.ramHitUntil || 0)) return false;
+      applied = 2;
+      b.ramHitUntil = now + 950;
+      game.stats.bossRams++;
+    } else if (source === 'shoe') {
+      if (now < (b.shoeHitUntil || 0)) return false;
+      applied = 1;
+      b.shoeHitUntil = now + 120;
+      game.stats.bossShoeHits++;
+    } else {
+      return false;
+    }
+
+    b.hearts = Math.max(0, b.hearts - applied);
+    b.hitFlashUntil = now + 420;
+    game.stats.bossHits += applied;
+
+    const fxX = hitX == null ? b.x : hitX;
+    const fxY = hitY == null ? b.y : hitY;
+    bz.effects = bz.effects || [];
+    bz.effects.push({
+      type: source === 'ram' ? 'ramImpact' : 'shoeImpact',
+      x: fxX,
+      y: fxY,
+      start: now,
+      dur: source === 'ram' ? 340 : 260
+    });
+
+    burst(fxX, fxY, '#ffef9a', source === 'ram' ? 36 : 24);
+    synth.hurt();
+    addMessage(source === 'ram' ? 'RAM HIT!  -2 IVAN HEARTS' : 'OFFLINE STOCK HIT!  -1 IVAN HEART', '#ffd054', 900);
+    if (b.hearts <= 0) startBossVictory();
+    return true;
+  }
+  function startBossVictory() {
+    const bz = game.boss;
+    if (!bz || bz.phase === 'victory') return;
+    bz.phase = 'victory';
+    game.mode = 'bossVictory';
+    bz.victoryStart = performance.now();
+    bz.boss.dead = true;
+    bz.nextFireAt = Number.POSITIVE_INFINITY;
+    bz.nextVoiceAt = Number.POSITIVE_INFINITY;
+    bz.fireballs = [];
+    bz.shoes = [];
+    bz.effects = [];
+    keys.delete('Space');
+    music.stop();
+    stopOneShots();
+    playOneShot('success.mp3', .75);
+    game.maxHearts += 1;
+    game.health = game.maxHearts;
+    game.stats.bossesDefeated++;
+    game.stats.warehousesCleared++;
+    updateBest();
+  }
+  function throwBossShoe(now) {
+    const bz = game.boss;
+    if (!bz || bz.phase !== 'fight' || bz.boss.dead) return false;
+    if (now < (bz.nextShoeAt || 0)) return false;
+
+    bz.nextShoeAt = now + 460;
+    const keysPool = shoeImageKeys();
+    const size = 54;
+    const startX = bz.player.x;
+    const startY = bz.player.y - 105;
+
+    // You must drive closer before offline stock can reach Ivan.
+    // From the very bottom/back of the arena it will visibly arc and land short.
+    const closeEnoughToHit = bz.player.y <= H - 260;
+    const targetX = clamp((bz.boss ? bz.boss.x : bz.player.x) + rand(-24, 24), 160, bz.worldW - 160);
+    const travelTime = closeEnoughToHit ? 1.25 : 0.82;
+    const groundY = H - 92;
+    const vx = (targetX - startX) / travelTime;
+    const vy = closeEnoughToHit ? -620 : -430;
+    const gravity = closeEnoughToHit ? 900 : 980;
+
+    bz.shoes.push({
+      x: startX,
+      y: startY,
+      prevY: startY,
+      w: size,
+      h: size,
+      vx,
+      vy,
+      gravity,
+      groundY,
+      spin: 0,
+      born: now,
+      armedAt: now + 520,
+      hitEnabledAt: now + 620,
+      canHitBoss: closeEnoughToHit,
+      exploded: false,
+      explodeStart: 0,
+      landed: false,
+      landAt: 0,
+      hit: false,
+      impact: false,
+      impactStart: 0,
+      image: choice(keysPool.length ? keysPool : ['shoe'])
+    });
+    synth.jump();
+    addMessage(closeEnoughToHit ? 'OFFLINE STOCK THROWN!' : 'MOVE CLOSER TO HIT IVAN!', closeEnoughToHit ? '#ffd054' : '#ff9a3b', 650);
+    return true;
+  }
+  function shootBossFireball(now) {
+    const bz = game.boss;
+    if (!bz || !bz.boss || bz.boss.dead) return;
+    const b = bz.boss;
+
+    const activeShoes = (bz.shoes || []).filter(s => !s.hit && !s.exploded && !s.landed);
+    let target = null;
+    if (activeShoes.length) {
+      target = activeShoes.sort((a, z) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(z.x - b.x, z.y - b.y))[0];
+    } else {
+      target = { x: bz.player.x, y: bz.player.y - 35 };
+    }
+
+    const originX = b.x + b.w * 0.04;
+    const originY = b.y + b.h * 0.08;
+    const dx = target.x - originX;
+    const dy = target.y - originY;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const speed = 360;
+
+    bz.fireballs.push({
+      x: originX,
+      y: originY,
+      w: 118,
+      h: 118,
+      vx: dx / len * speed,
+      vy: dy / len * speed,
+      born: now,
+      frameFloat: 0,
+      hit: false
+    });
+  }
+  function updateBossIntro(dt, now) {
+    const bz = game.boss;
+    if (!bz) return;
+    const elapsed = now - bz.introStart;
+    if (elapsed < 900) return;
+    if (elapsed < 6200) {
+      bz.typed = clamp((elapsed - 900) / 4400, 0, 1);
+      return;
+    }
+    if (elapsed < 7900) return;
+    bz.phase = 'enter';
+    game.mode = 'bossEnter';
+    bz.enterStart = now;
+  }
+  function updateBossEnter(dt, now) {
+    const bz = game.boss;
+    if (!bz) return;
+    const t = clamp((now - bz.enterStart) / 2600, 0, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    bz.boss.y = -350 + (H * .34 + 350) * eased;
+    bz.player.y = H + 260 + (H * .84 - H - 260) * eased;
+    if (t >= 1) {
+      bz.phase = 'countdown';
+      game.mode = 'bossCountdown';
+      bz.countdownStart = now;
+    }
+  }
+  function updateBossCountdown(dt, now) {
+    const bz = game.boss;
+    if (!bz) return;
+    const elapsed = now - bz.countdownStart;
+    bz.countdown = Math.max(1, 3 - Math.floor(elapsed / 1000));
+    if (elapsed >= 3300) startBossFight();
+  }
+  function updateBossFight(dt, now) {
+    const bz = game.boss;
+    if (!bz || bz.phase !== 'fight') return;
+    const b = bz.boss;
+    const worldW = bz.worldW || 2000;
+    const speed = bz.player.speed || 520;
+    const dx = (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0);
+    const dy = (keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0) - (keys.has('ArrowUp') || keys.has('KeyW') ? 1 : 0);
+
+    bz.player.x = clamp(bz.player.x + dx * speed * dt, 180, worldW - 180);
+
+    // The forklift artwork is tall and top-heavy, so the gameplay collision/depth point is the lower visible half.
+    // This lets the player drive further "forward" into the arena without the invisible top of the sprite stopping early.
+    const playerForwardLimit = H - 385;
+    bz.player.y = clamp(bz.player.y + dy * speed * dt, playerForwardLimit, H - 70);
+
+    b.x += b.vx * dt;
+    const leftLimit = 320;
+    const rightLimit = worldW - 320;
+    if (b.x < leftLimit || b.x > rightLimit) {
+      b.vx *= -1;
+      b.x = clamp(b.x, leftLimit, rightLimit);
+    }
+
+    // Ivan mostly moves left/right, but can drift a little further backward/forward in the room.
+    b.y = H * .34 + Math.sin(now / 820) * 42;
+
+    if (!b.dead && b.hearts > 0 && now >= bz.nextFireAt) {
+      shootBossFireball(now);
+      bz.nextFireAt = now + rand(2400, 3500);
+    }
+    if (!b.dead && now >= bz.nextVoiceAt) {
+      const voice = choice(['robot1.mp3', 'robot2.mp3', 'robot3.mp3']);
+      playOneShot(voice, .55);
+      bz.nextVoiceAt = now + rand(10000, 15000);
+    }
+
+    bz.fireballs.forEach(f => {
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      f.frameFloat = ((f.frameFloat || 0) + dt * 16) % 17;
+    });
+    bz.fireballs = bz.fireballs.filter(f => f.y < H + 160 && f.x > -180 && f.x < worldW + 180 && !f.hit);
+
+    // Move shoes in an arc. They can only hit on the downward part of the arc.
+    bz.shoes.forEach(s => {
+      s.prevY = s.y;
+      if (!s.landed && !s.exploded && !s.hit && !s.impact) {
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        s.vy += s.gravity * dt;
+        s.spin += dt * Math.PI * 5.4;
+        if (s.y >= s.groundY && s.vy > 0) {
+          s.y = s.groundY;
+          s.landed = true;
+          s.landAt = now;
+          s.vx = 0;
+          s.vy = 0;
+          s.spin = 0;
+        }
+      }
+    });
+
+    // Ivan targets thrown shoes first and can shoot them out of the air.
+    for (const f of bz.fireballs) {
+      if (f.hit) continue;
+      for (const s of bz.shoes) {
+        if (s.hit || s.exploded || s.landed || s.impact) continue;
+        const xClose = Math.abs(f.x - s.x) < (f.w * .32 + s.w * .42);
+        const yClose = Math.abs(f.y - s.y) < (f.h * .32 + s.h * .42);
+        if (xClose && yClose) {
+          f.hit = true;
+          s.exploded = true;
+          s.explodeStart = now;
+          bz.effects.push({
+            type: 'shoeExplosion',
+            x: s.x,
+            y: s.y,
+            start: now,
+            dur: 300
+          });
+          addMessage('IVAN SHOT THE STOCK!', '#ff9a3b', 600);
+          break;
+        }
+      }
+    }
+    bz.fireballs = bz.fireballs.filter(f => !f.hit);
+
+    const bossBox = {
+      x: b.x - b.w * .30,
+      y: b.y - b.h * .43,
+      w: b.w * .60,
+      h: b.h * .76
+    };
+    for (const s of bz.shoes) {
+      if (s.hit || s.exploded || s.landed || s.impact || now < (s.hitEnabledAt || s.armedAt || 0)) continue;
+      if (!s.canHitBoss) continue;
+      if (s.vy <= 55) continue; // only after the shoe has visibly gone up and started coming down
+      const shoeBox = {
+        x: s.x - s.w * .30,
+        y: s.y - s.h * .30,
+        w: s.w * .60,
+        h: s.h * .60
+      };
+      const overlaps = shoeBox.x < bossBox.x + bossBox.w &&
+        shoeBox.x + shoeBox.w > bossBox.x &&
+        shoeBox.y < bossBox.y + bossBox.h &&
+        shoeBox.y + shoeBox.h > bossBox.y;
+      if (overlaps) {
+        s.hit = true;
+        s.impact = true;
+        s.impactStart = now;
+        s.vx = 0;
+        s.vy = 0;
+        s.x = clamp(s.x, bossBox.x + 20, bossBox.x + bossBox.w - 20);
+        s.y = clamp(s.y, bossBox.y + 30, bossBox.y + bossBox.h - 30);
+        damageBoss(1, 'shoe', s.x, s.y);
+      }
+    }
+
+    bz.shoes = bz.shoes.filter(s => {
+      if (s.impact) return now - s.impactStart < 160;
+      if (s.exploded) return now - s.explodeStart < 300;
+      if (s.landed) return now - s.landAt < 520;
+      return s.y > -180;
+    });
+
+    const playerCollisionY = bz.player.y + 10; // lower half / visible driving footprint
+    const activelyRamming = dy < -0.25 || keys.has('ArrowUp') || keys.has('KeyW');
+    const verticalRam = activelyRamming &&
+      Math.abs(bz.player.x - b.x) < b.w * .26 &&
+      playerCollisionY < b.y + b.h * .64 &&
+      playerCollisionY > b.y + b.h * .26;
+    if (verticalRam && now > (bz.nextRamAt || 0)) {
+      if (damageBoss(2, 'ram', bz.player.x, playerCollisionY - 95)) bz.nextRamAt = now + 950;
+    }
+
+    // Fireball hits only the visible lower-body/forklift footprint, not the full transparent/top-heavy image box.
+    const playerHitX = bz.player.x;
+    const playerHitY = bz.player.y + 4;
+    for (const f of bz.fireballs) {
+      if (Math.abs(f.x - playerHitX) < 82 && Math.abs(f.y - playerHitY) < 92 && now > (bz.nextPlayerHitAt || 0)) {
+        bz.nextPlayerHitAt = now + 900;
+        game.health = Math.max(0, game.health - 1);
+        bz.effects.push({
+          type: 'playerImpact',
+          x: playerHitX,
+          y: playerHitY - 40,
+          start: now,
+          dur: 260
+        });
+        burst(playerHitX, playerHitY, '#ee394d', 28);
+        synth.hurt();
+        addMessage('IVAN HIT YOU! -1 HEART', '#ee394d', 850);
+        f.hit = true;
+        if (game.health <= 0) triggerDeath();
+      }
+    }
+    bz.fireballs = bz.fireballs.filter(f => !f.hit);
+
+    bz.effects = (bz.effects || []).filter(fx => now - fx.start < fx.dur);
+  }
+  function updateBossVictory(dt, now) {
+    const bz = game.boss;
+    if (!bz) return;
+    if (!bz.summaryUntil && now - bz.victoryStart > 5600) bz.summaryUntil = now + 8500;
+    if (bz.summaryUntil && now > bz.summaryUntil) {
+      stopOneShots();
+      music.stop();
+      game.level++;
+      game.mode = 'transition';
+      game.transitionUntil = now + 1800;
+      game.boss = null;
+    }
+  }
+  function updateBoss(dt, now) {
+    if (!game.boss) return;
+    if (game.mode === 'bossIntro') updateBossIntro(dt, now);
+    else if (game.mode === 'bossEnter') updateBossEnter(dt, now);
+    else if (game.mode === 'bossCountdown') updateBossCountdown(dt, now);
+    else if (game.mode === 'bossFight') updateBossFight(dt, now);
+    else if (game.mode === 'bossVictory') updateBossVictory(dt, now);
+  }
+
+
+  function makeLevelCarry() {
+    return {
+      coffees: game.coffees,
+      tasks: {
+        alm: game.tasks.alm || 0,
+        sl: game.tasks.sl || 0,
+        email: game.tasks.email || 0,
+        workday: game.tasks.workday || 0,
+        tokens: game.tasks.tokens || 0
+      }
+    };
+  }
+  function applyLevelCarry(carry) {
+    if (!carry) return;
+    game.coffees = clamp(Number(carry.coffees) || 0, 0, 2);
+    ['alm', 'sl', 'email', 'workday'].forEach(type => { game.tasks[type] = Math.max(game.tasks[type] || 0, Number(carry.tasks && carry.tasks[type]) || 0); });
+    game.tasks.tokens = Math.max(game.tasks.tokens || 0, Number(carry.tasks && carry.tasks.tokens) || 0);
+    game.levelCarry = null;
   }
 
   function triggerLevelWin() {
@@ -2094,7 +3784,7 @@
     if (!requiredTasksComplete()) {
       if (performance.now() >= game.exitWarnUntil) {
         game.exitWarnUntil = performance.now() + 3300;
-        addMessage('YOU HAVE UNFINISHED WORK! GO TO THE OFFICE BEFORE YOU CAN LEAVE.', '#ff7700', 3100);
+        addMessage(`YOU NEED ${requiredTaskCountForLevel()} TASKS COMPLETE BEFORE YOU CAN LEAVE.`, '#ff7700', 3100);
         addMessage(completionChecklist(), '#ffd054', 3100);
       }
       return;
@@ -2102,26 +3792,46 @@
     music.play('winner', false);
     startPlayerAction('win', 1040, () => {
       game.score += 750 + game.health * 100;
-      game.health = Math.min(MAX_HEARTS, game.health + 1);
-      game.stats.warehousesCleared++;
-      game.level++;
+      game.health = Math.min(game.maxHearts, game.health + 1);
       updateBest();
-      game.mode = 'transition';
-      game.transitionUntil = performance.now() + 2400;
+      game.levelCarry = makeLevelCarry();
+      if (shouldStartBossAfterWarehouse(game.level)) startBossIntro();
+      else {
+        game.stats.warehousesCleared++;
+        game.level++;
+        game.mode = 'transition';
+        game.transitionUntil = performance.now() + 2400;
+      }
     });
   }
   function finishTransition() {
+    const carry = game.levelCarry;
     game.mode = 'play';
     setGameplayControlsVisible(true);
     buildLevel(game.level);
+    applyLevelCarry(carry);
     music.playGameplay(true);
     addMessage(`WAREHOUSE ${game.level} — THREATS INCREASED`, '#ff7700', 3200);
   }
   function triggerDeath() {
+    if (game.mode === 'bossIntro' || game.mode === 'bossEnter' || game.mode === 'bossCountdown' || game.mode === 'bossFight' || game.mode === 'bossVictory') {
+      game.mode = 'gameover';
+      game.boss = null;
+      setGameplayControlsVisible(false);
+      music.stop();
+      stopOneShots();
+      keys.clear();
+      updateBest();
+      gameoverUI.classList.remove('hidden');
+      music.play('gameover', true);
+      saveShift();
+      return;
+    }
     if (game.mode !== 'play') return;
     game.mode = 'dying';
     setGameplayControlsVisible(false);
     music.stop();
+    stopOneShots();
     startPlayerAction('death', 1080, () => {
       game.mode = 'gameover';
       updateBest();
@@ -2157,9 +3867,9 @@
     else {
       if (!game.truckTimer) game.truckTimer = { due: now + randInt(60000, 180000) };
       if (now >= game.truckTimer.due) {
-        game.truck = { until: now + 30000, phase: 'arriving', arriveStarted: now };
+        game.truck = { until: now + 60000, phase: 'arriving', arriveStarted: now };
         synth.truck();
-        addMessage('CARRIER AT DOCK — 30 SECONDS!', '#ff7700', 3500);
+        addMessage('CARRIER AT DOCK — 60 SECONDS!', '#ff7700', 3500);
       }
     }
   }
@@ -2179,14 +3889,77 @@
     game.messages = game.messages.slice(0, 4);
   }
 
+  function assetDrawUsage(key) {
+    const uses = [];
+    const add = (source, rect) => {
+      if (!rect || !Number.isFinite(rect.width) || !Number.isFinite(rect.height)) return;
+      uses.push(`${source}: ${rect.width.toFixed(2)}×${rect.height.toFixed(2)} tiles`);
+    };
+    (game.obstacles || []).forEach(p => { if (p.image === key) add('obstacle', p); });
+    (game.zoneProps || []).forEach(p => { if (p.image === key) add('zone', p); });
+    (game.borderProps || []).forEach(p => { if (p.image === key) add('border', p); });
+    (game.decorativeProps || []).forEach(p => { if (p.image === key) add(p.collectible ? 'pickup' : 'decor', p); });
+    (game.conveyors || []).forEach(c => {
+      if (key === 'conveyor') add('conveyor belt', { width: 3.05, height: images.conveyor ? 3.05 * images.conveyor.height / images.conveyor.width : 1.04 });
+      if (key === 'conveyorEnd') add('conveyor machine', { width: 3.05, height: images.conveyorEnd ? 3.05 * images.conveyorEnd.height / images.conveyorEnd.width : 1.42 });
+    });
+    if (key === 'minimap') uses.push('HUD minimap: exact image aspect, 25% smaller');
+    if (key === 'title') uses.push('title screen/report image');
+    if (key === 'walksprite') uses.push('player walking sprite sheet');
+    if (key === 'bossCar') uses.push('boss battle animated car WebP');
+    if (key === 'fireball') uses.push('boss/fireball animated WebP');
+    return uses.length ? uses.slice(0, 4).join(' | ') + (uses.length > 4 ? ` | +${uses.length - 4} more` : '') : 'not currently placed in this screen';
+  }
+
+  function openAssetAudit() {
+    let modal = document.getElementById('asset-audit-modal');
+    if (!modal) {
+      modal = document.createElement('section');
+      modal.id = 'asset-audit-modal';
+      modal.className = 'asset-audit-modal hidden';
+      modal.innerHTML = `
+        <div class="asset-audit-card">
+          <header><strong>FILE / IMAGE AUDIT</strong><button type="button" id="asset-audit-close">✕</button></header>
+          <p class="asset-audit-note">Shows each configured image, actual loaded dimensions, and current in-game draw usage.</p>
+          <div id="asset-audit-grid" class="asset-audit-grid"></div>
+        </div>`;
+      document.body.appendChild(modal);
+      modal.querySelector('#asset-audit-close').addEventListener('click', () => modal.classList.add('hidden'));
+    }
+    const grid = modal.querySelector('#asset-audit-grid');
+    const keys = Object.keys(assetSources).sort((a, b) => a.localeCompare(b));
+    grid.innerHTML = '';
+    keys.forEach(key => {
+      const img = images[key];
+      const file = (assetSources[key] || [key])[0];
+      const ok = !!img && img.complete !== false && img.naturalWidth !== 0;
+      const nativeW = img && (img.naturalWidth || img.width) || 0;
+      const nativeH = img && (img.naturalHeight || img.height) || 0;
+      const card = document.createElement('article');
+      card.className = `asset-audit-item ${ok ? 'ok' : 'missing'}`;
+      card.innerHTML = `
+        <div class="asset-audit-thumb">${ok ? `<img src="${img.src}" alt="">` : '<span>?</span>'}</div>
+        <div class="asset-audit-meta">
+          <strong>${key}</strong>
+          <span>${file}</span>
+          <span>${ok ? `${nativeW}×${nativeH}px` : 'missing / fallback'}</span>
+          <small>${assetDrawUsage(key)}</small>
+        </div>`;
+      grid.appendChild(card);
+    });
+    modal.classList.remove('hidden');
+  }
+
   function showAdminPanel(show) {
     adminPanel.classList.toggle('hidden', !show);
   }
   function adminReturnToWarehouse() {
+    hideMapBuilderPanel();
     game.mode = 'play';
     game.office = null;
     game.inventoryPuzzle = null;
     game.qsPuzzle = null;
+    game.noEanPuzzle = null;
     game.fire = null;
     hideFireOverlay();
     game.nextFireAt = performance.now() + 9999999;
@@ -2217,6 +3990,7 @@
     addMessage('ADMIN TEST MODE — SCORES NOT SAVED', '#ffd054', 3200);
   }
   function exitAdminMode() {
+    hideMapBuilderPanel();
     game.adminMode = false;
     showAdminPanel(false);
     hideFireOverlay();
@@ -2239,28 +4013,775 @@
     setGameplayControlsVisible(false);
     startOfficePuzzle(type);
   }
+
+  function ensureAdminEditor() {
+    let editor = document.getElementById('admin-editor');
+    if (editor) return editor;
+    editor = document.createElement('section');
+    editor.id = 'admin-editor';
+    editor.className = 'admin-editor hidden';
+    editor.innerHTML = `
+      <div class="admin-editor-card">
+        <header><strong>EDIT GAME SAVE</strong><button type="button" id="admin-editor-close">✕</button></header>
+        <div id="admin-editor-list" class="admin-editor-list"></div>
+        <div id="admin-editor-fields" class="admin-editor-fields hidden"></div>
+        <div class="admin-editor-actions"><button type="button" id="admin-editor-save">Save changes</button><button type="button" id="admin-editor-back">Back to admin</button></div>
+      </div>`;
+    document.getElementById('game-shell').appendChild(editor);
+    editor.querySelector('#admin-editor-close').addEventListener('click', closeAdminEditor);
+    editor.querySelector('#admin-editor-back').addEventListener('click', closeAdminEditor);
+    editor.querySelector('#admin-editor-save').addEventListener('click', saveAdminEditorChanges);
+    return editor;
+  }
+  function closeAdminEditor() { const editor = document.getElementById('admin-editor'); if (editor) editor.classList.add('hidden'); }
+  function adminSliderRow(key, label, value, min, max, step = 1) {
+    return `<label class="admin-slider-row"><span>${label}</span><input data-edit-key="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${value}"><output>${value}</output></label>`;
+  }
+  function adminEditGameSave() {
+    const profiles = readProfiles();
+    const editor = ensureAdminEditor();
+    const list = editor.querySelector('#admin-editor-list');
+    const fields = editor.querySelector('#admin-editor-fields');
+    fields.classList.add('hidden'); fields.innerHTML = ''; editor.dataset.profileIndex = '';
+    if (!profiles.length) list.innerHTML = '<p>No saved games found.</p>';
+    else list.innerHTML = profiles.map((p, i) => `<button type="button" data-profile-index="${i}">${p.name || 'Scout'} — W${p.level || 1} / ${formatScore(p.score || 0)}</button>`).join('');
+    list.querySelectorAll('[data-profile-index]').forEach(btn => btn.addEventListener('click', () => loadAdminEditorProfile(Number(btn.dataset.profileIndex))));
+    editor.classList.remove('hidden');
+  }
+  function loadAdminEditorProfile(index) {
+    const profiles = readProfiles(); const p = profiles[index]; if (!p) return;
+    const editor = ensureAdminEditor(); const fields = editor.querySelector('#admin-editor-fields');
+    editor.dataset.profileIndex = String(index);
+    const tasks = { ...freshTasks(), ...(p.tasks || {}) };
+    fields.innerHTML = `
+      ${adminSliderRow('score', 'Points', Math.max(0, p.score || 0), 0, 50000, 50)}
+      ${adminSliderRow('level', 'Warehouse', Math.max(1, p.level || 1), 1, 30, 1)}
+      ${adminSliderRow('coffees', 'Coffees', Math.max(0, p.coffees || 0), 0, 9, 1)}
+      ${adminSliderRow('tokens', 'SOP tokens', Math.max(0, tasks.tokens || 0), 0, 20, 1)}
+      ${adminSliderRow('alm', 'ALM tasks', Math.max(0, tasks.alm || 0), 0, 20, 1)}
+      ${adminSliderRow('sl', 'SL tasks', Math.max(0, tasks.sl || 0), 0, 20, 1)}
+      ${adminSliderRow('email', 'Email tasks', Math.max(0, tasks.email || 0), 0, 20, 1)}
+      ${adminSliderRow('workday', 'Workday tasks', Math.max(0, tasks.workday || 0), 0, 20, 1)}
+      ${adminSliderRow('maxHearts', 'Max hearts', Math.max(3, p.maxHearts || 3), 3, 10, 1)}
+    `;
+    fields.querySelectorAll('input[type="range"]').forEach(input => input.addEventListener('input', () => { input.nextElementSibling.textContent = input.value; }));
+    fields.classList.remove('hidden');
+  }
+  function saveAdminEditorChanges() {
+    const editor = ensureAdminEditor(); const index = Number(editor.dataset.profileIndex);
+    const profiles = readProfiles(); const p = profiles[index]; if (!p) { addMessage('CHOOSE A SAVE FIRST', '#ffd054', 1500); return; }
+    const get = key => Number(editor.querySelector(`[data-edit-key="${key}"]`)?.value || 0);
+    p.score = get('score'); p.level = Math.max(1, get('level')); p.coffees = get('coffees'); p.maxHearts = Math.max(3, get('maxHearts')); p.health = Math.min(p.maxHearts, p.health || p.maxHearts);
+    const taskDefaults = { ...freshTasks(), ...(p.tasks || {}) };
+    ['tokens','alm','sl','email','workday'].forEach(key => taskDefaults[key] = get(key));
+    p.tasks = taskDefaults;
+    writeProfiles(profiles); refreshSavedButton(); addMessage('ADMIN SAVE EDITED', '#ffd054', 1800); closeAdminEditor();
+  }
+
+
+  function uid(prefix) {
+    return `${prefix || 'id'}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  const MAP_BUILDER_SAVE_KEY = 'zalandoScout.mapBuilder.namedLayouts';
+  const MAP_BUILDER_AUTOSAVE_KEY = 'zalandoScout.mapBuilder.autosave';
+
+  function mapBuilderPalette() {
+    return ['box1','box2','box3','box4','box5','box6','box7','smallbox','smallbox2','smallbox3','conveyor','conveyorEnd','cone','printers','bathroom','kitchen','table','table2','coffee','shoe','shoe1','shoe2','shoe3'].filter(key => images[key]);
+  }
+
+  function defaultMapBuilderAreas() {
+    return [
+      { id: uid('area'), kind:'area', name:'Dock', left:4, top:4, width:14, height:8, image:'entrance', lockedType:'dock' },
+      { id: uid('area'), kind:'area', name:'Area Pod', left:30, top:4, width:14, height:8 },
+      { id: uid('area'), kind:'area', name:'Area Pod', left:60, top:4, width:14, height:8 },
+      { id: uid('area'), kind:'area', name:'Area Pod', left:6, top:20, width:14, height:8 },
+      { id: uid('area'), kind:'area', name:'Elevator', left:33, top:20, width:14, height:8, image:'elevator', lockedType:'elevator' },
+      { id: uid('area'), kind:'area', name:'Area Pod', left:60, top:20, width:14, height:8 },
+      { id: uid('area'), kind:'area', name:'Area Pod', left:6, top:36, width:14, height:8 },
+      { id: uid('area'), kind:'area', name:'Area Pod', left:30, top:36, width:14, height:8 },
+      { id: uid('area'), kind:'area', name:'Area Pod', left:60, top:36, width:14, height:8 }
+    ];
+  }
+
+  function defaultMapBuilderPaths() {
+    return templatePathRects().map(r => ({ id: uid('path'), kind:'path', name:'Clear Path', left:r.left, top:r.top, width:r.width, height:r.height }));
+  }
+
+  function mapBuilderPayload() {
+    const mb=game.mapBuilder;
+    return {
+      version:'v2.56-map-builder',
+      mapTiles:{width:MAP_W,height:MAP_H},
+      paths:(mb?.paths||[]).map(p=>({id:p.id||uid('path'),kind:'path',left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2)})),
+      areas:(mb?.areas||[]).map(p=>({id:p.id||uid('area'),kind:'area',name:p.name||'Area',image:p.image||null,lockedType:p.lockedType||null,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2)})),
+      props:(mb?.props||[]).map(p=>({id:p.id||uid('prop'),kind:'prop',image:p.image,left:+p.left.toFixed(2),top:+p.top.toFixed(2),width:+p.width.toFixed(2),height:+p.height.toFixed(2),baseWidth:+(p.baseWidth||p.width).toFixed(2),baseHeight:+(p.baseHeight||p.height).toFixed(2),scale:+(p.scale||1).toFixed(2),flipX:!!p.flipX,collision:p.collision||'block'}))
+    };
+  }
+
+  function mapBuilderApplyPayload(payload) {
+    if (!payload || !game.mapBuilder) return;
+    game.mapBuilder.paths = (payload.paths||[]).map(p=>({...p,id:p.id||uid('path'),kind:'path'}));
+    game.mapBuilder.areas = (payload.areas||[]).map(p=>({...p,id:p.id||uid('area'),kind:'area'}));
+    game.mapBuilder.props = (payload.props||[]).map(p=>({...p,id:p.id||uid('prop'),kind:'prop',baseWidth:p.baseWidth||p.width,baseHeight:p.baseHeight||p.height,scale:p.scale||1}));
+    game.mapBuilder.selectedIds = [];
+    game.mapBuilder.contextMenu = null;
+  }
+
+  function mapBuilderAutosave() {
+    try { localStorage.setItem(MAP_BUILDER_AUTOSAVE_KEY, JSON.stringify(mapBuilderPayload())); } catch (err) { console.warn('Map builder autosave failed', err); }
+  }
+
+  function mapBuilderReadNamedSaves() {
+    try { return JSON.parse(localStorage.getItem(MAP_BUILDER_SAVE_KEY) || '{}') || {}; } catch { return {}; }
+  }
+
+  function mapBuilderWriteNamedSaves(saves) {
+    localStorage.setItem(MAP_BUILDER_SAVE_KEY, JSON.stringify(saves));
+  }
+
+  function mapBuilderSaveNamed() {
+    const name = window.prompt('Save map as:', `layout-${new Date().toISOString().slice(0,10)}`);
+    if (!name) return;
+    const clean = name.trim();
+    if (!clean) return;
+    const saves = mapBuilderReadNamedSaves();
+    saves[clean] = { savedAt: new Date().toISOString(), layout: mapBuilderPayload() };
+    mapBuilderWriteNamedSaves(saves);
+    mapBuilderAutosave();
+    addMessage(`MAP SAVED: ${clean}`, '#71dd8d', 1800);
+  }
+
+  function mapBuilderLoadNamed() {
+    const saves = mapBuilderReadNamedSaves();
+    const names = Object.keys(saves).sort();
+    if (!names.length) { addMessage('NO SAVED MAPS YET', '#ffd054', 1800); return; }
+    const picked = window.prompt(`Load which map?\n\n${names.join('\n')}`, names[names.length - 1]);
+    if (!picked || !saves[picked]) return;
+    mapBuilderApplyPayload(saves[picked].layout);
+    addMessage(`MAP LOADED: ${picked}`, '#71dd8d', 1800);
+  }
+
+  function startMapBuilder() {
+    adminReturnToWarehouse();
+    game.mode = 'mapBuilder';
+    setGameplayControlsVisible(false);
+    keys.clear();
+    let restored = null;
+    try { restored = JSON.parse(localStorage.getItem(MAP_BUILDER_AUTOSAVE_KEY) || 'null'); } catch {}
+    game.mapBuilder = {
+      zoom:.18, panX:24, panY:56, selected:'box5', tool:'place', placeMode:'prop', propScale:1,
+      props:[], areas:defaultMapBuilderAreas(), paths:defaultMapBuilderPaths(),
+      selectedIds:[], dragging:null, marquee:null, drawing:null, panning:null, contextMenu:null
+    };
+    if (restored && restored.paths && restored.areas) mapBuilderApplyPayload(restored);
+    showMapBuilderPanel();
+    addMessage('MAP BUILDER: save/export before leaving', '#ffd054', 3000);
+  }
+
+  function mapBuilderExitToGame() {
+    mapBuilderAutosave();
+    game.mode='play';
+    game.mapBuilder=null;
+    hideMapBuilderPanel();
+    setGameplayControlsVisible(true);
+    addMessage('MAP AUTOSAVED', '#71dd8d', 1200);
+  }
+
+  function mapBuilderAllObjects() {
+    const mb=game.mapBuilder;
+    return mb ? [...(mb.paths||[]), ...(mb.areas||[]), ...(mb.props||[])] : [];
+  }
+
+  function mapBuilderScreenToTile(x,y) {
+    const mb=game.mapBuilder;
+    return { x:(x-mb.panX)/(TILE*mb.zoom), y:(y-mb.panY)/(TILE*mb.zoom) };
+  }
+
+  function mapBuilderObjectAt(t) {
+    const objects=mapBuilderAllObjects();
+    for(let i=objects.length-1;i>=0;i--){
+      const p=objects[i];
+      if(t.x>=p.left && t.x<=p.left+p.width && t.y>=p.top && t.y<=p.top+p.height) return p;
+    }
+    return null;
+  }
+
+  function mapBuilderHandleAt(obj,t) {
+    if(!obj) return null;
+    const hs=Math.max(.35,9/(TILE*game.mapBuilder.zoom));
+    const corners=[['nw',obj.left,obj.top],['ne',obj.left+obj.width,obj.top],['sw',obj.left,obj.top+obj.height],['se',obj.left+obj.width,obj.top+obj.height]];
+    for(const [name,x,y] of corners){ if(Math.abs(t.x-x)<=hs && Math.abs(t.y-y)<=hs) return name; }
+    const cx=obj.left+obj.width/2, cy=obj.top+obj.height/2;
+    if(Math.abs(t.x-cx)<=hs && Math.abs(t.y-cy)<=hs) return 'move';
+    return null;
+  }
+
+  function mapBuilderSelectedObjects(){
+    const mb=game.mapBuilder;
+    if(!mb) return [];
+    const ids=new Set(mb.selectedIds||[]);
+    return mapBuilderAllObjects().filter(o=>ids.has(o.id));
+  }
+
+  function mapBuilderSelectObject(obj, additive){
+    const mb=game.mapBuilder;
+    if(!mb||!obj) return;
+    if(additive){
+      const set=new Set(mb.selectedIds||[]);
+      set.has(obj.id)?set.delete(obj.id):set.add(obj.id);
+      mb.selectedIds=[...set];
+    } else mb.selectedIds=[obj.id];
+    mb.contextMenu=null;
+  }
+
+  function mapBuilderListForObject(obj) {
+    const mb=game.mapBuilder;
+    if(!mb||!obj) return null;
+    if(obj.kind==='prop') return mb.props;
+    if(obj.kind==='area') return mb.areas;
+    if(obj.kind==='path') return mb.paths;
+    return null;
+  }
+
+  function mapBuilderDeleteSelected(){
+    const mb=game.mapBuilder;
+    if(!mb||!mb.selectedIds?.length) return;
+    const ids=new Set(mb.selectedIds);
+    mb.props=mb.props.filter(p=>!ids.has(p.id));
+    mb.areas=mb.areas.filter(p=>!ids.has(p.id));
+    mb.paths=mb.paths.filter(p=>!ids.has(p.id));
+    mb.selectedIds=[];
+    mb.contextMenu=null;
+    mapBuilderAutosave();
+  }
+
+  function mapBuilderDuplicateSelected(){
+    const mb=game.mapBuilder;
+    if(!mb||!mb.selectedIds?.length) return;
+    const copies=[];
+    mapBuilderSelectedObjects().forEach(obj=>{
+      const copy={...obj,id:uid(obj.kind||'prop'),left:obj.left+1,top:obj.top+1};
+      if(obj.kind==='prop') mb.props.push(copy);
+      else if(obj.kind==='area') mb.areas.push(copy);
+      else if(obj.kind==='path') mb.paths.push(copy);
+      copies.push(copy.id);
+    });
+    mb.selectedIds=copies;
+    mb.contextMenu=null;
+    mapBuilderAutosave();
+  }
+
+  function mapBuilderFlipSelected(){
+    mapBuilderSelectedObjects().forEach(obj=>{ if(obj.kind==='prop') obj.flipX=!obj.flipX; });
+    if(game.mapBuilder) game.mapBuilder.contextMenu=null;
+    mapBuilderAutosave();
+  }
+
+  function mapBuilderCycleCollisionSelected(){
+    const order=['block','decor','pushable','interaction'];
+    mapBuilderSelectedObjects().forEach(obj=>{
+      if(obj.kind!=='prop') return;
+      const current=order.indexOf(obj.collision||'block');
+      obj.collision=order[(current+1)%order.length];
+    });
+    if(game.mapBuilder) game.mapBuilder.contextMenu=null;
+    mapBuilderAutosave();
+  }
+
+  function mapBuilderMoveSelectedLayer(mode){
+    const mb=game.mapBuilder;
+    if(!mb||!mb.selectedIds?.length) return;
+    const ids=new Set(mb.selectedIds);
+    const operate = list => {
+      if(!list || !list.some(o=>ids.has(o.id))) return list;
+      if(mode==='front') return [...list.filter(o=>!ids.has(o.id)), ...list.filter(o=>ids.has(o.id))];
+      if(mode==='back') return [...list.filter(o=>ids.has(o.id)), ...list.filter(o=>!ids.has(o.id))];
+      const next=[...list];
+      if(mode==='forward'){
+        for(let i=next.length-2;i>=0;i--) if(ids.has(next[i].id)&&!ids.has(next[i+1].id)) [next[i],next[i+1]]=[next[i+1],next[i]];
+      }
+      if(mode==='backward'){
+        for(let i=1;i<next.length;i++) if(ids.has(next[i].id)&&!ids.has(next[i-1].id)) [next[i],next[i-1]]=[next[i-1],next[i]];
+      }
+      return next;
+    };
+    mb.props=operate(mb.props);
+    mb.areas=operate(mb.areas);
+    mb.paths=operate(mb.paths);
+    mb.contextMenu=null;
+    mapBuilderAutosave();
+  }
+
+  function mapBuilderSetSelectedScale(scale){
+    const selected=mapBuilderSelectedObjects();
+    selected.forEach(obj=>{
+      if(obj.kind==='prop'){
+        obj.baseWidth=obj.baseWidth||obj.width;
+        obj.baseHeight=obj.baseHeight||obj.height;
+        obj.scale=scale;
+        obj.width=obj.baseWidth*scale;
+        obj.height=obj.baseHeight*scale;
+      } else {
+        const cx=obj.left+obj.width/2, cy=obj.top+obj.height/2;
+        obj.width=Math.max(.75,obj.width*scale);
+        obj.height=Math.max(.75,obj.height*scale);
+        obj.left=cx-obj.width/2;
+        obj.top=cy-obj.height/2;
+      }
+      obj.left=mapBuilderClampLeft(obj,obj.left);
+      obj.top=mapBuilderClampTop(obj,obj.top);
+    });
+    if(game.mapBuilder) game.mapBuilder.contextMenu=null;
+    mapBuilderAutosave();
+  }
+
+  function mapBuilderExport(){
+    const payload=mapBuilderPayload();
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='custom_map_layout.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    mapBuilderAutosave();
+    addMessage('MAP JSON EXPORTED','#71dd8d',1800);
+  }
+
+  function makeViewportDraggable(panel, handle) {
+    if (!panel || !handle || panel.dataset.dragReady === '1') return;
+    panel.dataset.dragReady = '1';
+    let drag = null;
+    handle.addEventListener('pointerdown', event => {
+      if (event.target.closest('button')) return;
+      const rect = panel.getBoundingClientRect();
+      drag = { startX: event.clientX, startY: event.clientY, left: rect.left, top: rect.top };
+      panel.style.left = `${rect.left}px`;
+      panel.style.top = `${rect.top}px`;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      handle.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    handle.addEventListener('pointermove', event => {
+      if (!drag) return;
+      const maxLeft = Math.max(4, window.innerWidth - panel.offsetWidth - 4);
+      const maxTop = Math.max(4, window.innerHeight - panel.offsetHeight - 4);
+      const nextLeft = clamp(drag.left + event.clientX - drag.startX, 4, maxLeft);
+      const nextTop = clamp(drag.top + event.clientY - drag.startY, 4, maxTop);
+      panel.style.left = `${nextLeft}px`;
+      panel.style.top = `${nextTop}px`;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    const endDrag = event => { drag = null; handle.releasePointerCapture?.(event.pointerId); };
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
+  }
+
+  function mapBuilderControlPanel() {
+    if (mapBuilderPanel) return mapBuilderPanel;
+    mapBuilderPanel = document.createElement('aside');
+    mapBuilderPanel.id = 'map-builder-panel';
+    mapBuilderPanel.className = 'map-builder-panel hidden';
+    mapBuilderPanel.innerHTML = `
+      <header class="map-builder-header">
+        <strong>BUILD A MAP</strong>
+        <div class="admin-window-controls">
+          <button type="button" data-map-builder="back" class="admin-exit" title="Back to game">↩️</button>
+          <button type="button" data-map-builder="collapse" class="admin-exit" title="Collapse">—</button>
+          <button type="button" data-map-builder="back" class="admin-exit" title="Close">✕</button>
+        </div>
+      </header>
+      <div class="map-builder-body">
+        <div class="map-builder-row map-builder-tools">
+          <button type="button" data-tool="place" title="Place">📍</button>
+          <button type="button" data-tool="erase" title="Erase">🧽</button>
+          <button type="button" data-tool="move" title="Move">✋</button>
+          <button type="button" data-tool="select" title="Select">⬚</button>
+        </div>
+        <div class="map-builder-row map-builder-modes">
+          <button type="button" data-place-mode="prop" title="Props">📦</button>
+          <button type="button" data-place-mode="area" title="Green Area"><span class="green-dot"></span></button>
+          <button type="button" data-place-mode="path" title="Yellow Path"><span class="yellow-dot"></span></button>
+        </div>
+        <div class="map-builder-row">
+          <button type="button" data-map-builder="save" title="Save named map">🏷️</button>
+          <button type="button" data-map-builder="load" title="Load named map">📂</button>
+          <button type="button" data-map-builder="export" title="Export JSON">💾</button>
+        </div>
+        <div class="map-builder-row">
+          <button type="button" data-map-builder="zoomIn" title="Zoom in">➕</button>
+          <button type="button" data-map-builder="zoomOut" title="Zoom out">➖</button>
+          <button type="button" data-map-builder="rescale" title="Rescale selected">📏</button>
+        </div>
+        <div class="map-builder-row map-builder-scale-row">
+          <button type="button" data-prop-scale="1" title="New props 1x">1×</button>
+          <button type="button" data-prop-scale="2" title="New props 2x">2×</button>
+          <button type="button" data-prop-scale="3" title="New props 3x">3×</button>
+        </div>
+        <div class="map-builder-rescale hidden">
+          <button type="button" data-rescale="1">1×</button>
+          <button type="button" data-rescale="2">2×</button>
+          <button type="button" data-rescale="3">3×</button>
+        </div>
+        <div class="map-builder-hint">Middle mouse pans. Right-click selected objects for layer/delete/duplicate.</div>
+        <div class="map-builder-palette"></div>
+      </div>`;
+    document.body.appendChild(mapBuilderPanel);
+    makeViewportDraggable(mapBuilderPanel, mapBuilderPanel.querySelector('.map-builder-header'));
+    mapBuilderPanel.addEventListener('click', event => {
+      const button = event.target.closest('[data-map-builder], [data-prop], [data-tool], [data-place-mode], [data-prop-scale], [data-rescale]');
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const mb=game.mapBuilder;
+      const action=button.dataset.mapBuilder;
+      if(action==='back'){ mapBuilderExitToGame(); return; }
+      if(action==='collapse'){ mapBuilderPanel.classList.toggle('collapsed'); refreshMapBuilderPanel(); return; }
+      if(!mb) return;
+      if(action==='save'){ mapBuilderSaveNamed(); return; }
+      if(action==='load'){ mapBuilderLoadNamed(); refreshMapBuilderPanel(); return; }
+      if(action==='export'){ mapBuilderExport(); return; }
+      if(action==='zoomIn'){ mb.zoom=Math.min(.42,mb.zoom+.025); refreshMapBuilderPanel(); return; }
+      if(action==='zoomOut'){ mb.zoom=Math.max(.08,mb.zoom-.025); refreshMapBuilderPanel(); return; }
+      if(action==='rescale'){ mapBuilderPanel.querySelector('.map-builder-rescale')?.classList.toggle('hidden'); return; }
+      if(button.dataset.rescale){ mapBuilderSetSelectedScale(Number(button.dataset.rescale)); mapBuilderPanel.querySelector('.map-builder-rescale')?.classList.add('hidden'); return; }
+      if(button.dataset.propScale){ mb.propScale=Number(button.dataset.propScale); refreshMapBuilderPanel(); return; }
+      if(button.dataset.tool){ mb.tool=button.dataset.tool; mb.contextMenu=null; refreshMapBuilderPanel(); return; }
+      if(button.dataset.placeMode){ mb.placeMode=button.dataset.placeMode; mb.tool='place'; mb.contextMenu=null; refreshMapBuilderPanel(); return; }
+      if(button.dataset.prop){ mb.selected=button.dataset.prop; mb.placeMode='prop'; mb.tool='place'; mb.contextMenu=null; refreshMapBuilderPanel(); return; }
+    });
+    return mapBuilderPanel;
+  }
+
+  function refreshMapBuilderPanel(){
+    const panel=mapBuilderControlPanel();
+    const mb=game.mapBuilder;
+    const body=panel.querySelector('.map-builder-body');
+    const paletteEl=panel.querySelector('.map-builder-palette');
+    if(!mb||!paletteEl) return;
+    panel.querySelectorAll('[data-tool]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.tool===mb.tool));
+    panel.querySelectorAll('[data-place-mode]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.placeMode===mb.placeMode));
+    panel.querySelectorAll('[data-prop-scale]').forEach(btn=>btn.classList.toggle('selected',Number(btn.dataset.propScale)===(mb.propScale||1)));
+    paletteEl.innerHTML='';
+    mapBuilderPalette().forEach(key=>{
+      const button=document.createElement('button');
+      button.type='button';
+      button.dataset.prop=key;
+      button.title=key;
+      button.className=key===mb.selected?'selected':'';
+      const file=assetSources[key]?.[0]||'';
+      button.innerHTML=`${file?`<img src="${ASSET_PATH}${file}" alt="${key}">`:''}<span>${key}</span>`;
+      paletteEl.appendChild(button);
+    });
+    if(body) body.style.display=panel.classList.contains('collapsed')?'none':'';
+  }
+
+  function showMapBuilderPanel(){ const panel=mapBuilderControlPanel(); panel.classList.remove('hidden'); refreshMapBuilderPanel(); }
+  function hideMapBuilderPanel(){ if(mapBuilderPanel) mapBuilderPanel.classList.add('hidden'); }
+
+  function mapBuilderPlaceAt(t){
+    const mb=game.mapBuilder; if(!mb) return;
+    if(mb.placeMode==='path'||mb.placeMode==='area') return;
+    const img=images[mb.selected];
+    const baseW=mb.selected==='conveyorEnd'?3.05:(mb.selected==='conveyor'?3.05:(mb.selected==='printers'||mb.selected==='bathroom'?9.8:2.4));
+    const baseH=img?baseW*(img.height/img.width):1.6;
+    const scale=mb.propScale||1;
+    mb.props.push({id:uid('prop'),kind:'prop',image:mb.selected,left:Math.round(t.x*2)/2,top:Math.round(t.y*2)/2,width:baseW*scale,height:baseH*scale,baseWidth:baseW,baseHeight:baseH,scale,collision:mb.selected==='cone'?'decor':(mb.selected==='smallbox3'?'pushable':'block')});
+    mapBuilderAutosave();
+  }
+
+  function mapBuilderClampLeft(obj, left) {
+    return clamp(left, 1 - Math.max(.5, obj.width), MAP_W - 1);
+  }
+
+  function mapBuilderClampTop(obj, top) {
+    return clamp(top, 1 - Math.max(.5, obj.height), MAP_H - 1);
+  }
+
+  function mapBuilderHandleContextCommand(x,y){
+    const mb=game.mapBuilder;
+    if(!mb||!mb.contextMenu) return false;
+    if(x<mb.contextMenu.x||x>mb.contextMenu.x+170||y<mb.contextMenu.y||y>mb.contextMenu.y+272) return false;
+    const row=Math.floor((y-mb.contextMenu.y)/34);
+    if(row===0) mapBuilderMoveSelectedLayer('front');
+    else if(row===1) mapBuilderMoveSelectedLayer('forward');
+    else if(row===2) mapBuilderMoveSelectedLayer('backward');
+    else if(row===3) mapBuilderMoveSelectedLayer('back');
+    else if(row===4) mapBuilderDuplicateSelected();
+    else if(row===5) mapBuilderDeleteSelected();
+    else if(row===6) mapBuilderFlipSelected();
+    else if(row===7) mapBuilderCycleCollisionSelected();
+    refreshMapBuilderPanel();
+    return true;
+  }
+
+  function handleMapBuilderClick(x,y){
+    const mb=game.mapBuilder; if(!mb) return;
+    if(mapBuilderHandleContextCommand(x,y)) return;
+  }
+
+  function beginMapBuilderPointer(x,y,pointerId,sourceEvent){
+    const mb=game.mapBuilder; if(!mb) return false;
+
+    if(sourceEvent&&sourceEvent.button===1){
+      mb.panning={pointerId,startX:x,startY:y,panX:mb.panX,panY:mb.panY};
+      mb.contextMenu=null;
+      return true;
+    }
+
+    if(sourceEvent&&sourceEvent.button===2){
+      const t=mapBuilderScreenToTile(x,y);
+      const obj=mapBuilderObjectAt(t);
+      if(obj&&!(mb.selectedIds||[]).includes(obj.id)) mapBuilderSelectObject(obj,false);
+      if((mb.selectedIds||[]).length) mb.contextMenu={x:Math.min(x,W-176),y:Math.min(y,H-276)};
+      return true;
+    }
+
+    if(mapBuilderHandleContextCommand(x,y)) return true;
+    mb.contextMenu=null;
+
+    const t=mapBuilderScreenToTile(x,y);
+    if(t.x<0||t.y<0||t.x>MAP_W||t.y>MAP_H) return false;
+
+    if(mb.tool==='place'&&(mb.placeMode==='path'||mb.placeMode==='area')){
+      mb.drawing={pointerId,kind:mb.placeMode,startX:t.x,startY:t.y,x:t.x,y:t.y};
+      return true;
+    }
+
+    if(mb.tool==='place'){ mapBuilderPlaceAt(t); return true; }
+
+    const obj=mapBuilderObjectAt(t);
+    if(mb.tool==='erase'){
+      if(obj){
+        mb.props=mb.props.filter(p=>p.id!==obj.id);
+        mb.areas=mb.areas.filter(p=>p.id!==obj.id);
+        mb.paths=mb.paths.filter(p=>p.id!==obj.id);
+        mb.selectedIds=(mb.selectedIds||[]).filter(id=>id!==obj.id);
+        mapBuilderAutosave();
+      }
+      return true;
+    }
+
+    if((mb.tool==='move'||mb.tool==='select')&&obj){
+      const handle=mapBuilderHandleAt(obj,t)||'move';
+      if(!(mb.selectedIds||[]).includes(obj.id)) mapBuilderSelectObject(obj,!!sourceEvent?.shiftKey);
+      const selected=mapBuilderSelectedObjects().map(o=>({obj:o,left:o.left,top:o.top,width:o.width,height:o.height}));
+      mb.dragging={pointerId,type:handle==='move'?'move':'resize',handle,startX:t.x,startY:t.y,selected};
+      return true;
+    }
+
+    if(mb.tool==='select'){
+      mb.selectedIds=[];
+      mb.marquee={startX:t.x,startY:t.y,x:t.x,y:t.y};
+      return true;
+    }
+    return false;
+  }
+
+  function updateMapBuilderPointer(x,y,pointerId){
+    const mb=game.mapBuilder; if(!mb) return false;
+
+    if(mb.panning&&mb.panning.pointerId===pointerId){
+      mb.panX=mb.panning.panX+x-mb.panning.startX;
+      mb.panY=mb.panning.panY+y-mb.panning.startY;
+      return true;
+    }
+
+    const t=mapBuilderScreenToTile(x,y);
+
+    if(mb.drawing&&mb.drawing.pointerId===pointerId){
+      mb.drawing.x=clamp(t.x,0,MAP_W);
+      mb.drawing.y=clamp(t.y,0,MAP_H);
+      return true;
+    }
+
+    if(mb.marquee){ mb.marquee.x=t.x; mb.marquee.y=t.y; return true; }
+
+    if(!mb.dragging||mb.dragging.pointerId!==pointerId) return false;
+    const dx=t.x-mb.dragging.startX, dy=t.y-mb.dragging.startY;
+    if(mb.dragging.type==='move'){
+      mb.dragging.selected.forEach(s=>{
+        s.obj.left=mapBuilderClampLeft(s.obj,s.left+dx);
+        s.obj.top=mapBuilderClampTop(s.obj,s.top+dy);
+      });
+    } else {
+      const s=mb.dragging.selected[0]; if(!s) return true;
+      const obj=s.obj, minSize=.75;
+      if(mb.dragging.handle.includes('e')) obj.width=Math.max(minSize,s.width+dx);
+      if(mb.dragging.handle.includes('s')) obj.height=Math.max(minSize,s.height+dy);
+      if(mb.dragging.handle.includes('w')){ const right=s.left+s.width; obj.left=Math.min(right-minSize,s.left+dx); obj.width=right-obj.left; }
+      if(mb.dragging.handle.includes('n')){ const bottom=s.top+s.height; obj.top=Math.min(bottom-minSize,s.top+dy); obj.height=bottom-obj.top; }
+      obj.left=mapBuilderClampLeft(obj,obj.left);
+      obj.top=mapBuilderClampTop(obj,obj.top);
+    }
+    return true;
+  }
+
+  function endMapBuilderPointer(pointerId){
+    const mb=game.mapBuilder; if(!mb) return false;
+
+    if(mb.panning&&mb.panning.pointerId===pointerId){ mb.panning=null; return true; }
+
+    if(mb.drawing&&mb.drawing.pointerId===pointerId){
+      const d=mb.drawing;
+      const x1=Math.max(0,Math.min(d.startX,d.x)), x2=Math.min(MAP_W,Math.max(d.startX,d.x));
+      const y1=Math.max(0,Math.min(d.startY,d.y)), y2=Math.min(MAP_H,Math.max(d.startY,d.y));
+      const w=Math.max(.75,x2-x1), h=Math.max(.75,y2-y1);
+      if(d.kind==='path') mb.paths.push({id:uid('path'),kind:'path',name:'Clear Path',left:Math.round(x1*2)/2,top:Math.round(y1*2)/2,width:Math.round(w*2)/2,height:Math.round(h*2)/2});
+      else mb.areas.push({id:uid('area'),kind:'area',name:'Area Pod',left:Math.round(x1*2)/2,top:Math.round(y1*2)/2,width:Math.round(w*2)/2,height:Math.round(h*2)/2});
+      mb.drawing=null;
+      mapBuilderAutosave();
+      return true;
+    }
+
+    if(mb.marquee){
+      const x1=Math.min(mb.marquee.startX,mb.marquee.x), x2=Math.max(mb.marquee.startX,mb.marquee.x);
+      const y1=Math.min(mb.marquee.startY,mb.marquee.y), y2=Math.max(mb.marquee.startY,mb.marquee.y);
+      mb.selectedIds=mapBuilderAllObjects().filter(o=>o.left<=x2&&o.left+o.width>=x1&&o.top<=y2&&o.top+o.height>=y1).map(o=>o.id);
+      mb.marquee=null;
+      return true;
+    }
+
+    if(mb.dragging&&mb.dragging.pointerId===pointerId){ mb.dragging=null; mapBuilderAutosave(); return true; }
+    return false;
+  }
+
+  function drawMapBuilderObject(o,now){
+    const selected=(game.mapBuilder.selectedIds||[]).includes(o.id);
+    if(o.kind==='path'){
+      ctx.fillStyle='rgba(255,210,84,.26)';
+      ctx.fillRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE);
+      ctx.strokeStyle=selected?'#fff4df':'#ffd054';
+      ctx.lineWidth=(selected?4:2)/game.mapBuilder.zoom;
+      ctx.strokeRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE);
+    } else if(o.kind==='area'){
+      ctx.fillStyle='rgba(70,180,90,.22)';
+      ctx.fillRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE);
+      if(o.image&&images[o.image]) drawContain(images[o.image],o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE,.72,true);
+      ctx.strokeStyle=selected?'#fff4df':'#58d34c';
+      ctx.lineWidth=(selected?4:2)/game.mapBuilder.zoom;
+      ctx.strokeRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE);
+      ctx.fillStyle='#c9ffbf';
+      ctx.font=`${Math.max(44,15/game.mapBuilder.zoom)}px Trebuchet MS`;
+      ctx.fillText(o.name||'Area',(o.left+.3)*TILE,(o.top+.8)*TILE);
+    } else {
+      if(images[o.image]) drawContain(images[o.image],o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE,1,true,!!o.flipX);
+      ctx.strokeStyle=o.collision==='decor'?'#58d34c':(o.collision==='pushable'?'#ffd054':(o.collision==='interaction'?'#57c7ff':'#ff3949'));
+      ctx.lineWidth=(selected?4:2)/game.mapBuilder.zoom;
+      ctx.strokeRect(o.left*TILE,o.top*TILE,o.width*TILE,o.height*TILE);
+    }
+    if(selected){
+      const hs=Math.max(10/game.mapBuilder.zoom,28);
+      const handles=[
+        [o.left,o.top],[o.left+o.width,o.top],[o.left,o.top+o.height],[o.left+o.width,o.top+o.height],
+        [o.left+o.width/2,o.top+o.height/2]
+      ];
+      handles.forEach((h,i)=>{
+        ctx.fillStyle=i===4?'#57c7ff':'#fff4df';
+        ctx.beginPath();
+        ctx.arc(h[0]*TILE,h[1]*TILE,hs,0,Math.PI*2);
+        ctx.fill();
+        ctx.strokeStyle='#101316';
+        ctx.lineWidth=2/game.mapBuilder.zoom;
+        ctx.stroke();
+      });
+    }
+  }
+
+  function drawMapBuilder(now){
+    const mb=game.mapBuilder; if(!mb) return;
+    mb.paths=mb.paths||[]; mb.areas=mb.areas||[]; mb.props=mb.props||[];
+    ctx.save();
+    ctx.fillStyle='#11161a'; ctx.fillRect(0,0,W,H);
+    ctx.translate(mb.panX,mb.panY); ctx.scale(mb.zoom,mb.zoom);
+    ctx.fillStyle='#31383d'; ctx.fillRect(0,0,WORLD_W,WORLD_H);
+    ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1/mb.zoom;
+    for(let x=0;x<=MAP_W;x++){ ctx.beginPath(); ctx.moveTo(x*TILE,0); ctx.lineTo(x*TILE,WORLD_H); ctx.stroke(); }
+    for(let y=0;y<=MAP_H;y++){ ctx.beginPath(); ctx.moveTo(0,y*TILE); ctx.lineTo(WORLD_W,y*TILE); ctx.stroke(); }
+    mb.paths.forEach(p=>drawMapBuilderObject(p,now));
+    mb.areas.forEach(p=>drawMapBuilderObject(p,now));
+    mb.props.forEach(p=>drawMapBuilderObject(p,now));
+    if(mb.marquee){
+      const x1=Math.min(mb.marquee.startX,mb.marquee.x), x2=Math.max(mb.marquee.startX,mb.marquee.x);
+      const y1=Math.min(mb.marquee.startY,mb.marquee.y), y2=Math.max(mb.marquee.startY,mb.marquee.y);
+      ctx.strokeStyle='#57c7ff'; ctx.lineWidth=3/mb.zoom; ctx.setLineDash([20/mb.zoom,12/mb.zoom]);
+      ctx.strokeRect(x1*TILE,y1*TILE,(x2-x1)*TILE,(y2-y1)*TILE);
+      ctx.setLineDash([]);
+    }
+    if(mb.drawing){
+      const x1=Math.min(mb.drawing.startX,mb.drawing.x), x2=Math.max(mb.drawing.startX,mb.drawing.x);
+      const y1=Math.min(mb.drawing.startY,mb.drawing.y), y2=Math.max(mb.drawing.startY,mb.drawing.y);
+      ctx.fillStyle=mb.drawing.kind==='path'?'rgba(255,210,84,.28)':'rgba(70,180,90,.24)';
+      ctx.fillRect(x1*TILE,y1*TILE,(x2-x1)*TILE,(y2-y1)*TILE);
+      ctx.strokeStyle=mb.drawing.kind==='path'?'#ffd054':'#58d34c';
+      ctx.lineWidth=3/mb.zoom;
+      ctx.strokeRect(x1*TILE,y1*TILE,(x2-x1)*TILE,(y2-y1)*TILE);
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle='rgba(10,13,17,.72)';
+    roundRect(18,16,610,42,8,true,false);
+    ctx.strokeStyle='rgba(255,105,0,.8)';
+    roundRect(18,16,610,42,8,false,true);
+    ctx.fillStyle='#fff4df'; ctx.font='bold 14px Trebuchet MS';
+    ctx.fillText(`Build a Map — ${mb.tool.toUpperCase()} ${mb.placeMode==='prop'?mb.selected:mb.placeMode.toUpperCase()} — ${mb.propScale||1}× — zoom ${Math.round(mb.zoom*100)}%`,34,43);
+    if(mb.contextMenu){
+      const rows=['Bring front','Move forward','Move backward','Send back','Duplicate','Delete','Flip','Collision'];
+      ctx.fillStyle='rgba(12,15,18,.98)';
+      roundRect(mb.contextMenu.x,mb.contextMenu.y,170,rows.length*34,8,true,false);
+      ctx.strokeStyle='#ff6900';
+      roundRect(mb.contextMenu.x,mb.contextMenu.y,170,rows.length*34,8,false,true);
+      rows.forEach((label,i)=>{
+        ctx.fillStyle='#fff4df'; ctx.font='bold 13px Trebuchet MS';
+        ctx.fillText(label,mb.contextMenu.x+12,mb.contextMenu.y+22+i*34);
+      });
+    }
+    ctx.restore();
+  }
+
   function handleAdminAction(action) {
     if (!game.adminMode) return;
     const now = performance.now();
     if (action === 'points') { game.score += 500; addMessage('ADMIN +500 POINTS', '#ffd054', 1400); return; }
     if (action === 'token') { game.tasks.tokens++; addMessage('ADMIN +1 SOP TOKEN', '#ffd054', 1400); return; }
-    if (action === 'hearts') { game.health = MAX_HEARTS; addMessage('ADMIN HEARTS RESTORED', '#ffd054', 1400); return; }
+    if (action === 'hearts') { game.health = game.maxHearts; addMessage('ADMIN HEARTS RESTORED', '#ffd054', 1400); return; }
     if (action === 'inventory') { adminReturnToWarehouse(); game.inventoryCooldownUntil = 0; startInventoryBriefing(); return; }
     if (action === 'qs') { adminReturnToWarehouse(); game.qsCooldownUntil = 0; startQSPuzzle(); return; }
+    if (action === 'noean') { adminReturnToWarehouse(); game.noEanCooldownUntil = 0; startNoEanBriefing(); return; }
     if (action === 'fire') { adminReturnToWarehouse(); game.fire = null; startFireEvent(now); return; }
     if (action === 'office') { adminReturnToWarehouse(); game.tasks.alm = Math.max(game.tasks.alm, 5); game.tasks.sl = Math.max(game.tasks.sl, 5); game.tasks.email = Math.max(game.tasks.email, 5); game.tasks.workday = Math.max(game.tasks.workday, 5); game.mode = 'office'; game.office = { page: 'menu', selectedType: null, puzzle: null, hotspots: [], result: null }; setGameplayControlsVisible(false); return; }
     if (action === 'alm' || action === 'sl' || action === 'email' || action === 'workday') { adminDirectPuzzle(action); return; }
     if (action === 'sop') { adminReturnToWarehouse(); game.tasks.email = Math.max(game.tasks.email, 5); game.tasks.tokens = Math.max(game.tasks.tokens, 1); game.mode = 'office'; game.office = { page: 'sop', selectedType: null, puzzle: null, hotspots: [], result: null }; setGameplayControlsVisible(false); return; }
-    if (action === 'truck') { adminReturnToWarehouse(); game.truck = { until: now + 30000, phase: 'waiting', arriveStarted: now }; addMessage('ADMIN: CARRIER AT DOCK — 30 SECONDS!', '#ff7700', 3000); return; }
+    if (action === 'truck') { adminReturnToWarehouse(); game.truck = { until: now + 60000, phase: 'waiting', arriveStarted: now }; addMessage('ADMIN: CARRIER AT DOCK — 60 SECONDS!', '#ff7700', 3000); return; }
     if (action === 'pallet') { adminReturnToWarehouse(); game.player.palletJackUntil = now + PALLET_JACK_DURATION; addMessage('ADMIN: PALLET JACK ACTIVE — 30s', '#ffd054', 2200); return; }
     if (action === 'exitLocked') { adminReturnToWarehouse(); game.tasks = freshTasks(); const pos = destinationPosition(game.zones.exit); game.player.x = pos.x; game.player.y = pos.y; centerCamera(); triggerLevelWin(); return; }
     if (action === 'exitOpen') { adminReturnToWarehouse(); TASK_TYPES.forEach(type => game.tasks.completed[type] = true); const pos = destinationPosition(game.zones.exit); game.player.x = pos.x; game.player.y = pos.y; centerCamera(); triggerLevelWin(); return; }
     if (action === 'gameover') { adminReturnToWarehouse(); game.health = 0; triggerDeath(); return; }
+    if (action === 'boss') { adminReturnToWarehouse(); game.level = 3; startBossIntro(); return; }
+    if (action === 'editGame') { adminEditGameSave(); return; }
+    if (action === 'buildMap') { startMapBuilder(); return; }
+    if (action === 'auditAssets') { openAssetAudit(); return; }
     if (action === 'next') { adminReturnToWarehouse(); game.level++; buildLevel(game.level); addMessage(`ADMIN: WAREHOUSE ${game.level}`, '#ffd054', 2300); return; }
   }
 
+  function updateConveyorItems(dt) {
+    if (!game.movingConveyorItems || !game.movingConveyorItems.length) return;
+    game.movingConveyorItems.forEach(item => {
+      item.x += item.dir * item.speed * dt;
+      if (item.x < item.minX) { item.x = item.minX; item.dir = 1; }
+      if (item.x > item.maxX) { item.x = item.maxX; item.dir = -1; }
+    });
+  }
+
   function update(dt, now) {
-    if (game.mode === 'play') {
+    if (game.mode === 'bossIntro' || game.mode === 'bossEnter' || game.mode === 'bossCountdown' || game.mode === 'bossFight' || game.mode === 'bossVictory') { updateBoss(dt, now); }
+    else if (game.mode === 'play') {
       updatePlayer(dt, now);
       if (game.mode !== 'play') {
         game.messages = game.messages.filter(message => message.until > now);
@@ -2271,6 +4792,7 @@
       game.forklifts.forEach(forklift => updateEnemy(forklift, dt, now, true));
       updateTruck(now);
       updateFireEvent(now);
+      updateConveyorItems(dt);
       game.messages = game.messages.filter(message => message.until > now);
     } else if (game.mode === 'inventoryBriefing' && now >= game.inventoryBriefUntil) {
       createInventoryPuzzle();
@@ -2279,6 +4801,11 @@
     } else if (game.mode === 'qsPuzzle' && game.qsPuzzle) {
       updateQSPuzzle(dt, now);
       if (now >= game.qsPuzzle.until) finishQSPuzzle();
+    } else if (game.mode === 'noEanBriefing' && now >= game.noEanBriefUntil) {
+      createNoEanPuzzle();
+    } else if (game.mode === 'noEanPuzzle' && game.noEanPuzzle) {
+      updateNoEanPuzzle(dt, now);
+      if (game.noEanPuzzle && now >= game.noEanPuzzle.until) finishNoEanPuzzle();
     } else if (game.mode === 'dying') {
       updatePlayerAction(now);
       game.messages = game.messages.filter(message => message.until > now);
@@ -2287,8 +4814,11 @@
   }
 
   function onScreenRect(x, y, w, h, margin = DRAW_MARGIN) {
-    return x + w >= game.camera.x - margin && x <= game.camera.x + W + margin &&
-      y + h >= game.camera.y - margin && y <= game.camera.y + H + margin;
+    const z = gameplayZoomFactor ? gameplayZoomFactor() : 1;
+    const viewW = W / z;
+    const viewH = H / z;
+    return x + w >= game.camera.x - margin && x <= game.camera.x + viewW + margin &&
+      y + h >= game.camera.y - margin && y <= game.camera.y + viewH + margin;
   }
   function isZoneVisible(z, margin = DRAW_MARGIN) {
     return onScreenRect(z.left * TILE, z.top * TILE, z.width * TILE, z.height * TILE, margin);
@@ -2334,6 +4864,31 @@
     else ctx.drawImage(img, col * sw, row * sh, sw, sh, dx, dy, dw, dh);
     ctx.restore();
   }
+  function drawTintedSpriteFrame(img, cols, rows, col, row, dx, dy, dw, dh, flip = false, alpha = 1, shadow = true, redTint = false) {
+    const sw = img.width / cols, sh = img.height / rows;
+    if (shadow) drawShadow(dx, dy, dw, dh, .28 * alpha);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.filter = 'brightness(92%) sepia(12%) saturate(112%) hue-rotate(-8deg)';
+    if (flip) { ctx.translate(dx + dw, dy); ctx.scale(-1, 1); ctx.drawImage(img, col * sw, row * sh, sw, sh, 0, 0, dw, dh); }
+    else ctx.drawImage(img, col * sw, row * sh, sw, sh, dx, dy, dw, dh);
+    ctx.restore();
+  }
+
+  function drawTintedSpriteFrameContain(img, cols, rows, col, row, cx, cy, maxW, maxH, flip = false, alpha = 1, shadow = true, redTint = false) {
+    const sw = img.width / cols, sh = img.height / rows;
+    const scale = Math.min(maxW / sw, maxH / sh);
+    const dw = sw * scale, dh = sh * scale;
+    const dx = cx - dw / 2, dy = cy - dh / 2;
+    if (shadow) drawShadow(dx, dy, dw, dh, .28 * alpha);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.filter = 'brightness(92%) sepia(12%) saturate(112%) hue-rotate(-8deg)';
+    if (flip) { ctx.translate(dx + dw, dy); ctx.scale(-1, 1); ctx.drawImage(img, col * sw, row * sh, sw, sh, 0, 0, dw, dh); }
+    else ctx.drawImage(img, col * sw, row * sh, sw, sh, dx, dy, dw, dh);
+    ctx.restore();
+  }
+
   function drawPatternRect(pattern, x, y, w, h, alpha = 1) {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -2373,23 +4928,75 @@
     if (isZoneVisible(game.zones.quarantine, 50)) drawPatternRect(patterns.qs, game.zones.quarantine.left * TILE, game.zones.quarantine.top * TILE, game.zones.quarantine.width * TILE, game.zones.quarantine.height * TILE);
     if (isZoneVisible(game.zones.inventory, 50)) drawPatternRect(patterns.carpet, game.zones.inventory.left * TILE, game.zones.inventory.top * TILE, game.zones.inventory.width * TILE, game.zones.inventory.height * TILE);
     game.zones.kitchens.forEach(k => { if (isZoneVisible(k, 50)) drawPatternRect(patterns.tiles, k.left * TILE, k.top * TILE, k.width * TILE, k.height * TILE); });
+    // Subtle walkable-lane overlay: light aisles, darker shelf/blocked cells.
+    const left = Math.max(0, Math.floor(view.x / TILE));
+    const top = Math.max(0, Math.floor(view.y / TILE));
+    const right = Math.min(MAP_W, Math.ceil((view.x + view.width) / TILE));
+    const bottom = Math.min(MAP_H, Math.ceil((view.y + view.height) / TILE));
     ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,.055)';
-    ctx.fillRect(view.x, view.y, view.width, view.height);
+    for (let y = top; y < bottom; y++) {
+      for (let x = left; x < right; x++) {
+        const onPath = tileInsideTemplatePath({ x, y });
+        const blocked = game.map[y] && game.map[y][x] === 1;
+        ctx.fillStyle = onPath ? 'rgba(255,255,255,.105)' : (blocked ? 'rgba(0,0,0,.145)' : 'rgba(0,0,0,.070)');
+        ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+      }
+    }
     ctx.restore();
   }
   function drawSceneryProp(prop, shadow = true) {
     if (!prop || !images[prop.image]) return;
     if (!onScreenRect(prop.left * TILE, prop.top * TILE, prop.width * TILE, prop.height * TILE, 100)) return;
-    const inset = prop.image === 'box5' || prop.image === 'box6' ? 2 : 5;
+    const inset = prop.image === 'conveyor' ? 0 : (prop.image === 'box5' || prop.image === 'box6' ? 2 : 5);
     let width = prop.width * TILE - inset * 2;
     let height = prop.height * TILE - inset * 2;
     if (prop.image === 'cone') { width *= .78; height *= .86; }
     drawContain(images[prop.image], prop.left * TILE + inset, prop.top * TILE + inset, width, height, 1, shadow, !!prop.flipX);
   }
+  function drawConveyors(now = performance.now()) {
+    game.conveyors.forEach(conveyor => {
+      const visualX = (conveyor.visualLeft ?? conveyor.left) * TILE;
+      const visualW = ((conveyor.visualRight ?? (conveyor.left + conveyor.width)) - (conveyor.visualLeft ?? conveyor.left)) * TILE;
+      if (!images.conveyor || !onScreenRect(visualX, (conveyor.top - .2) * TILE, visualW, 2.0 * TILE, 100)) return;
+
+      // V2.51: conveyor.png and conveyor2.png are authored at matching scale.
+      // Draw both by width-derived natural aspect at the same top baseline; do not centre the
+      // flat conveyor inside a taller fake hitbox, because that visually breaks the seam.
+      const pieceW = 3.05 * TILE;
+      const pieceH = pieceW * (images.conveyor.height / images.conveyor.width);
+      const y = (conveyor.top + CONVEYOR_DRAW_Y_OFFSET) * TILE;
+      for (let i = 0; i < conveyor.pieces; i++) {
+        const x = (conveyor.left + i * 3.13) * TILE;
+        ctx.save();
+        ctx.drawImage(images.conveyor, x, y, pieceW, pieceH);
+        ctx.restore();
+      }
+      if (images.conveyorEnd) {
+        const endW = pieceW;
+        const endH = endW * (images.conveyorEnd.height / images.conveyorEnd.width);
+        const machineLeft = conveyor.feederSide === 'left'
+          ? (conveyor.left - 3.05) * TILE
+          : (conveyor.left + conveyor.width) * TILE;
+        if (conveyor.feederSide === 'left') {
+          ctx.save();
+          ctx.translate(machineLeft + endW, y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(images.conveyorEnd, 0, 0, endW, endH);
+          ctx.restore();
+        } else ctx.drawImage(images.conveyorEnd, machineLeft, y, endW, endH);
+      }
+    });
+    game.movingConveyorItems.forEach(item => {
+      if (!images[item.image] || !onScreenRect(item.x - 90, item.y - 70, 180, 120, 80)) return;
+      const w = (item.collectible ? 126 : 170) * item.size;
+      const h = (item.collectible ? 80 : 100) * item.size;
+      drawContain(images[item.image], item.x - w / 2, item.y - h * .72, w, h, 1, true, item.dir < 0 && item.collectible);
+    });
+  }
   function drawObstacles() {
     game.borderProps.forEach(prop => drawSceneryProp(prop, true));
     game.obstacles.forEach(o => drawSceneryProp(o, true));
+    drawConveyors(performance.now());
   }
   function propNeedsForegroundLayer(prop) {
     if (!game.player || !prop || !prop.collisionRect || prop.image === 'cone') return false;
@@ -2419,40 +5026,111 @@
     });
   }
   function drawZoneSign(text, z, width = 300, height = 78) {
-    const x = z.left * TILE + z.width * TILE / 2;
-    const y = z.top * TILE + height * .78;
+    const cx = z.left * TILE + z.width * TILE / 2;
+    const top = z.top * TILE + 6;
+    const left = cx - width / 2;
     ctx.save();
+    if (images.sign) {
+      drawContain(images.sign, left, top, width, height, 1, true);
+    } else {
+      ctx.fillStyle = 'rgba(255,183,82,.82)';
+      ctx.fillRect(left, top, width, height);
+    }
+    ctx.font = 'bold 25px Trebuchet MS';
     ctx.textAlign = 'center';
-    ctx.font = 'bold 24px Trebuchet MS';
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = 'rgba(255,244,223,.78)';
-    ctx.strokeText(text, x, y);
-    ctx.fillStyle = '#29231d';
-    ctx.fillText(text, x, y);
+    ctx.fillStyle = '#1d2228';
+    ctx.fillText(text, cx, top + height * .60);
     ctx.restore();
   }
   function drawDock(z) {
+    const drivewayY = z.top * TILE + TILE * 4.45;
+    const drivewayH = TILE * 2.65;
+    const drivewayX = -TILE * 18;
+    const drivewayW = (z.left + z.width + 3) * TILE + TILE * 18;
+
     ctx.save();
-    ctx.fillStyle = 'rgba(246,183,53,.2)';
-    ctx.fillRect(z.left * TILE + 10, z.top * TILE + TILE * 2.4, z.width * TILE - 20, TILE * 3.5);
+    ctx.fillStyle = 'rgba(246,183,53,.22)';
+    ctx.fillRect(drivewayX, drivewayY, drivewayW, drivewayH);
     ctx.strokeStyle = '#f0a623';
-    ctx.lineWidth = 8;
-    ctx.setLineDash([34, 22]);
+    ctx.lineWidth = 7;
+    ctx.setLineDash([30, 20]);
     ctx.beginPath();
-    ctx.moveTo(z.left * TILE + 25, z.top * TILE + TILE * 5.5);
-    ctx.lineTo((z.left + z.width) * TILE - 25, z.top * TILE + TILE * 5.5);
+    ctx.moveTo(drivewayX + 20, drivewayY + drivewayH / 2);
+    ctx.lineTo(drivewayX + drivewayW - 20, drivewayY + drivewayH / 2);
     ctx.stroke();
     ctx.restore();
+
     drawZoneSign('DOCK', z, 330, 82);
-    drawContain(images.entrance, z.left * TILE + 18, z.top * TILE + 64, TILE * 8.1, TILE * 3.0, .96, true);
+
+    // Bigger office/door building on the far right of the driveway.
+    const officeW = TILE * 10.1;
+    const officeH = TILE * 3.75;
+    const officeX = (z.left + z.width) * TILE - officeW - 12;
+    const officeY = z.top * TILE + TILE * 1.08;
+    drawContain(images.entrance, officeX, officeY, officeW, officeH, .98, true);
+
     // Truck is drawn dynamically above the cached warehouse layer when it arrives.
   }
+  function drawElevator(now = performance.now()) {
+    const e = game.zones.elevator;
+    if (!e || !isZoneVisible(e, 140)) return;
+    const zoneX = e.left * TILE, zoneY = e.top * TILE;
+    const imgW = e.width * TILE * .60;
+    const imgH = imgW * .50; // elevator.png is 1000 x 500
+    const x = zoneX + (e.width * TILE - imgW) / 2;
+    const y = zoneY + (e.height * TILE - imgH) / 2;
+    if (images.elevator) drawContain(images.elevator, x, y, imgW, imgH, .98, true);
+    else { ctx.save(); ctx.fillStyle = '#b7c0cb'; ctx.fillRect(x, y, imgW, imgH); ctx.restore(); }
+    const labels = currentElevatorDestinations(now);
+    const flash = elevatorChangeFlashing(now) && Math.floor(now / 250) % 2 === 0;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 13px Trebuchet MS';
+    labels.forEach((dest, i) => {
+      if (!dest) return;
+      const tx = x + (i + .5) * (imgW / 3);
+      const ty = y + imgH * .095;
+      const labelMax = imgW / 3 - 10;
+      ctx.fillStyle = flash ? '#d3ffb5' : '#58d34c';
+      ctx.strokeStyle = 'rgba(0,0,0,.92)';
+      ctx.lineWidth = 4;
+      const text = dest.label.length > 13 ? dest.label.replace(' / ', '/').replace('QUARANTINE', 'QS').replace('INVENTORY', 'INV.') : dest.label;
+      ctx.strokeText(text, tx, ty, labelMax);
+      ctx.fillText(text, tx, ty, labelMax);
+    });
+    if (game.player && pointInsideZone(game.player, e)) {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 14px Trebuchet MS';
+      ctx.fillStyle = '#ffd054';
+      ctx.strokeStyle = 'rgba(0,0,0,.95)';
+      ctx.lineWidth = 4;
+      const help = 'Press SPACE to take the elevator to the listed area';
+      const hx = game.player.x;
+      const hy = game.player.y - TILE * .72;
+      ctx.strokeText(help, hx, hy);
+      ctx.fillText(help, hx, hy);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  function drawZonePod(z) {
+    // Area pods should not get a dark overlay now; keep only a very faint outline for orientation.
+    if (!z || !isZoneVisible(z, 80)) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.055)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(z.left * TILE + 4, z.top * TILE + 4, z.width * TILE - 8, z.height * TILE - 8);
+    ctx.restore();
+  }
   function drawZones() {
+    [game.zones.dock, game.zones.quarantine, game.zones.inventory, game.zones.exit, game.zones.elevator, ...game.zones.kitchens].forEach(drawZonePod);
     const q = game.zones.quarantine, inv = game.zones.inventory, ex = game.zones.exit;
     if (isZoneVisible(q, 120)) drawZoneSign('QUARANTINE STORAGE', q, 560, 84);
     if (isZoneVisible(game.zones.dock, 120)) drawDock(game.zones.dock);
     if (isZoneVisible(inv, 120)) drawZoneSign('INVENTORY CHECK', inv, 490, 84);
     game.zones.kitchens.forEach(k => { if (isZoneVisible(k, 120)) drawZoneSign('KITCHEN', k, 300, 80); });
+    drawElevator(performance.now());
     game.zoneProps.forEach(prop => drawSceneryProp(prop, true));
 
     if (!isZoneVisible(ex, 120)) return;
@@ -2474,24 +5152,23 @@
   }
   function truckDrawX(now) {
     const z = game.zones.dock;
-    const targetX = z.left * TILE + TILE * 7.7;
-    const startX = z.left * TILE - TILE * 8.5;
+    const targetX = z.left * TILE + TILE * 1.1;
+    const leftOffMap = z.left * TILE - TILE * 13.5;
     if (!game.truck) return targetX;
     if (game.truck.phase === 'arriving') {
       const progress = clamp((now - game.truck.arriveStarted) / 1250, 0, 1);
-      return startX + (targetX - startX) * progress;
+      return leftOffMap + (targetX - leftOffMap) * progress;
     }
     if (game.truck.phase === 'leaving') {
-      const endX = z.left * TILE + TILE * 20;
       const progress = clamp((now - game.truck.leaveStarted) / 1100, 0, 1);
-      return targetX + (endX - targetX) * progress;
+      return targetX + (leftOffMap - targetX) * progress;
     }
     return targetX;
   }
   function drawLiveTruck(now) {
-    if (!game.truck || !isZoneVisible(game.zones.dock, 40)) return;
+    if (!game.truck || !images.truck || !isZoneVisible(game.zones.dock, 40)) return;
     const z = game.zones.dock;
-    drawContain(images.truck, truckDrawX(now), z.top * TILE + TILE * 4.4, TILE * 9.0, TILE * 3.2, 1, true);
+    drawContain(images.truck, truckDrawX(now), z.top * TILE + TILE * 4.25, TILE * 9.0, TILE * 3.2, 1, true);
   }
 
   function drawRoute(now) {
@@ -2515,7 +5192,6 @@
   }
   function hideFireOverlay() {
     if (fireAnimationOverlay) fireAnimationOverlay.classList.add('hidden');
-    if (fireAnimationOverlaySoft) fireAnimationOverlaySoft.classList.add('hidden');
   }
   function positionFireOverlay(now) {
     if (!fireAnimationOverlay || !game.fire || fireAnimationOverlay.dataset.failed === '1') return false;
@@ -2527,47 +5203,75 @@
     }
     const screenX = game.fire.x - game.camera.x - fireW / 2;
     const screenY = game.fire.y - game.camera.y - fireH * .78;
-    [fireAnimationOverlaySoft, fireAnimationOverlay].forEach(el => {
-      if (!el) return;
-      el.style.left = `${screenX / W * 100}%`;
-      el.style.top = `${screenY / H * 100}%`;
-      el.style.width = `${fireW / W * 100}%`;
-      el.style.height = `${fireH / H * 100}%`;
-      el.classList.remove('hidden');
-    });
+    fireAnimationOverlay.style.left = `${screenX / W * 100}%`;
+    fireAnimationOverlay.style.top = `${screenY / H * 100}%`;
+    fireAnimationOverlay.style.width = `${fireW / W * 100}%`;
+    fireAnimationOverlay.style.height = `${fireH / H * 100}%`;
+    fireAnimationOverlay.classList.remove('hidden');
     return true;
+  }
+  function drawExtinguisherStation(now) {
+    if (!game.fire || game.fire.hasExtinguisher || !game.fire.station) return;
+    const station = game.fire.station.pos;
+    if (!onScreenRect(station.x - 54, station.y - 108, 108, 126, 90)) return;
+    const bob = Math.sin(now / 220) * 5;
+    ctx.save();
+    ctx.globalAlpha = .28 + .12 * (1 + Math.sin(now / 150)) / 2;
+    ctx.fillStyle = '#ffd054';
+    ctx.beginPath(); ctx.ellipse(station.x, station.y + 14, 45, 20, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    if (images.fireExtinguisher) drawContain(images.fireExtinguisher, station.x - 39, station.y - 101 + bob, 78, 112, 1, true);
+    else { ctx.save(); ctx.font = '65px Arial'; ctx.textAlign = 'center'; ctx.fillText('🧯', station.x, station.y - 30 + bob); ctx.restore(); }
+    ctx.save();
+    ctx.font = 'bold 13px Trebuchet MS'; ctx.textAlign = 'center'; ctx.fillStyle = '#ffd054';
+    ctx.fillText('PRESS ACTION', station.x, station.y + 37);
+    ctx.restore();
+  }
+  function drawFireSpray(now) {
+    if (!game.fire || !game.fire.extinguishing || !game.player) return;
+    const t = clamp((now - game.fire.extinguishStartedAt) / Math.max(1, game.fire.extinguishUntil - game.fire.extinguishStartedAt), 0, 1);
+    const sx = game.player.x + (game.fire.x < game.player.x ? -26 : 26);
+    const sy = game.player.y - 40;
+    const ex = game.fire.x;
+    const ey = game.fire.y - 150;
+    ctx.save();
+    ctx.globalAlpha = .82 * (1 - t * .45);
+    ctx.strokeStyle = '#e9f6ff';
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 18; i++) {
+      const wobble = Math.sin(now / 45 + i) * 18;
+      const endX = ex + rand(-42, 42) + wobble * .18;
+      const endY = ey + rand(-58, 48);
+      ctx.beginPath();
+      ctx.moveTo(sx, sy + rand(-6, 6));
+      ctx.quadraticCurveTo((sx + endX) / 2, (sy + endY) / 2 - 22 + rand(-12, 12), endX, endY);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(240,248,255,.72)';
+    for (let i = 0; i < 25; i++) {
+      ctx.beginPath();
+      ctx.arc(ex + rand(-95, 95), ey + rand(-82, 72), rand(2, 7), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
   function drawFireWorld(now) {
     if (!game.fire) { hideFireOverlay(); return; }
-    if (positionFireOverlay(now)) return;
-    if (onScreenRect(game.fire.x - 264, game.fire.y - 520, 528, 680, 90)) {
-      const pulse = 1 + Math.sin(now / 130) * .05;
-      if (images.fireAnim) {
-        drawContain(images.fireAnim, game.fire.x - 248 * pulse, game.fire.y - 500 * pulse, 496 * pulse, 640 * pulse, .25, true);
-        ctx.save(); ctx.globalCompositeOperation = 'screen'; drawContain(images.fireAnim, game.fire.x - 248 * pulse, game.fire.y - 500 * pulse, 496 * pulse, 640 * pulse, .96, false); ctx.restore();
-      }
-      else {
-        ctx.save(); ctx.font = '180px Arial'; ctx.textAlign = 'center'; ctx.fillText('🔥', game.fire.x, game.fire.y); ctx.restore();
-      }
+    const extinguishing = !!game.fire.extinguishing;
+    const fade = extinguishing ? clamp((game.fire.extinguishUntil - now) / Math.max(1, game.fire.extinguishUntil - game.fire.extinguishStartedAt), 0, 1) : 1;
+    const pulse = 1 + Math.sin(now / 130) * .05;
+    const fireW = 496 * pulse, fireH = 640 * pulse;
+    if (onScreenRect(game.fire.x - fireW / 2, game.fire.y - fireH * .78, fireW, fireH, 90)) {
+      if (images.fireAnim) drawContain(images.fireAnim, game.fire.x - fireW / 2, game.fire.y - fireH * .78, fireW, fireH, .75 * fade, true);
+      else { ctx.save(); ctx.globalAlpha = .75 * fade; ctx.font = '300px Arial'; ctx.textAlign = 'center'; ctx.fillText('🔥', game.fire.x, game.fire.y); ctx.restore(); }
     }
+    if (!extinguishing) positionFireOverlay(now); else hideFireOverlay();
+    drawFireSpray(now);
+    drawExtinguisherStation(now);
   }
-  function drawExtinguisherStations(now) {
-    if (!game.fire || game.fire.hasExtinguisher || !images.fireExtinguisher) return;
-    extinguisherStations().forEach(station => {
-      const p = station.pos;
-      if (!onScreenRect(p.x - 38, p.y - 82, 76, 120, 70)) return;
-      const bob = Math.sin(now / 260 + p.x * .01) * 4;
-      ctx.save();
-      ctx.globalAlpha = .26;
-      ctx.fillStyle = '#ee394d';
-      ctx.beginPath(); ctx.ellipse(p.x, p.y + 23, 42, 18, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-      drawContain(images.fireExtinguisher, p.x - 28, p.y - 72 + bob, 56, 112, 1, true);
-    });
-  }
-
   function drawFireAlarm(now) {
-    if (!game.fire) return;
+    if (!game.fire || game.fire.extinguishing) return;
     const pulse = .14 + .15 * (1 + Math.sin(now / 175)) / 2;
     const grad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .28, W / 2, H / 2, Math.max(W, H) * .70);
     grad.addColorStop(0, 'rgba(255,0,0,0)');
@@ -2700,7 +5404,7 @@
       drawShadow(forklift.x - fw / 2, forklift.y - fh * .42, fw, fh, .3 * forkliftAlpha);
       ctx.save();
       ctx.globalAlpha = forkliftAlpha;
-      drawContain(images.evilguy, forklift.x - fw / 2, forklift.y - fh * .42, fw, fh, 1, false, forklift.facing === 'left');
+      drawContain(images.evilguy, forklift.x - fw / 2, forklift.y - fh * .42, fw, fh, 1, false, forklift.facing === 'right');
       ctx.restore();
       if (disabled) drawEnemyPowerDown(forklift, now, 156);
     });
@@ -2776,7 +5480,86 @@
     game.mode = 'play';
     setGameplayControlsVisible(true);
   }
-  function drawTokenCelebration(now) { if (now >= game.tokenFlashUntil) return; const alpha = clamp((game.tokenFlashUntil - now) / 900, 0, 1) * .36; ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#ff6900'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  function miniMapScreenRect() {
+    const maxW = Math.min(210, W * .165);
+    const aspect = images.minimap && images.minimap.width ? images.minimap.height / images.minimap.width : 5 / 8;
+    const w = maxW;
+    const h = w * aspect;
+    return { x: W - w - 18, y: 104, w, h };
+  }
+  function drawMiniMapMarker(x, y, emoji, now, size = 15, flash = true) {
+    const alpha = flash ? (.72 + .28 * Math.sin(now / 130)) : 1;
+    ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.beginPath(); ctx.fillStyle = emoji === '🧍‍♂️' ? 'rgba(255,208,84,.82)' : 'rgba(255,105,0,.72)';
+    ctx.shadowColor = emoji === '🧍‍♂️' ? '#ffd054' : '#ff6900'; ctx.shadowBlur = emoji === '🧍‍♂️' ? 18 : 11;
+    ctx.arc(x, y, Math.max(6, size * .48), 0, Math.PI * 2); ctx.fill();
+    ctx.font = `${size}px Arial`; ctx.fillText(emoji, x, y);
+    if (emoji === '🧍‍♂️') { ctx.font = 'bold 9px Trebuchet MS'; ctx.fillStyle = '#ffd054'; ctx.fillText('YOU', x, y + size * .75); }
+    ctx.restore();
+  }
+  function miniMapPointFromWorld(rect, wx, wy) {
+    return { x: rect.x + clamp(wx / WORLD_W, 0, 1) * rect.w, y: rect.y + clamp(wy / WORLD_H, 0, 1) * rect.h };
+  }
+  function drawMiniMap(now) {
+    if (game.mode !== 'play' && game.mode !== 'dying' && game.mode !== 'cockpitHelp') return;
+    const r = miniMapScreenRect();
+    ctx.save();
+    ctx.fillStyle = 'rgba(11,14,18,.72)'; roundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8, true, false);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; roundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8, false, true);
+    if (images.minimap) drawContain(images.minimap, r.x, r.y, r.w, r.h, .88, false);
+    else { ctx.fillStyle = 'rgba(180,190,190,.35)'; ctx.fillRect(r.x, r.y, r.w, r.h); }
+    const zoneRect = (z, color) => { ctx.fillStyle = color; ctx.fillRect(r.x + (z.left / MAP_W) * r.w, r.y + (z.top / MAP_H) * r.h, (z.width / MAP_W) * r.w, (z.height / MAP_H) * r.h); };
+    zoneRect(game.zones.dock, 'rgba(255,105,0,.22)'); zoneRect(game.zones.elevator, 'rgba(80,210,100,.22)');
+    if (game.fire) {
+      const fp = miniMapPointFromWorld(r, game.fire.x, game.fire.y); drawMiniMapMarker(fp.x, fp.y, '🔥', now, 17, true);
+      if (!game.fire.hasExtinguisher && game.fire.station) { const ep = miniMapPointFromWorld(r, game.fire.station.pos.x, game.fire.station.pos.y); drawMiniMapMarker(ep.x, ep.y, '🧯', now, 15, true); }
+    }
+    if (game.truck) { const tp = miniMapPointFromWorld(r, game.zones.dock.left * TILE + TILE * 2, game.zones.dock.top * TILE + TILE * 5.8); drawMiniMapMarker(tp.x, tp.y, '🚚', now, 15, false); }
+    if (game.debugOverlay) [...game.enemies, ...game.forklifts].forEach(enemy => { if (now < enemy.disabledUntil) return; const ep = miniMapPointFromWorld(r, enemy.x, enemy.y); drawMiniMapMarker(ep.x, ep.y, '🤖', now, 10, false); });
+    if (game.player) { const pp = miniMapPointFromWorld(r, game.player.x, game.player.y); drawMiniMapMarker(pp.x, pp.y, '🧍‍♂️', now, 18, true); }
+    ctx.restore();
+  }
+  function drawDebugWorldOverlay() {
+    if (!game.debugOverlay) return;
+    ctx.save(); ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,0,0,.85)';
+    game.colliders.forEach(c => ctx.strokeRect(c.left, c.top, c.width, c.height));
+    ctx.strokeStyle = 'rgba(0,255,110,.86)';
+    [game.zones.dock, game.zones.elevator, game.zones.inventory, game.zones.quarantine, game.zones.exit, ...game.zones.kitchens].filter(Boolean).forEach(z => ctx.strokeRect(z.left * TILE, z.top * TILE, z.width * TILE, z.height * TILE));
+    extinguisherStations().forEach(st => ctx.strokeRect(st.pos.x - TILE * .45, st.pos.y - TILE * .45, TILE * .9, TILE * .9));
+    ctx.restore();
+  }
+  function drawScreenDebugBoxes() {
+    if (!game.debugOverlay) return;
+    ctx.save(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,255,110,.9)';
+    const c = cockpitRect(); ctx.strokeRect(c.x, c.y, c.w, c.h);
+    ctx.restore();
+  }
+  function drawOfficeDebugBoxes() {
+    if (!(game.debugOverlay || game.adminMode) || !game.office) return;
+    ctx.save(); ctx.lineWidth = 3;
+    (game.office.hotspots || []).forEach(h => { ctx.strokeStyle = h.active ? 'rgba(0,255,110,.95)' : 'rgba(0,255,110,.35)'; ctx.strokeRect(h.x, h.y, h.w, h.h); });
+    ctx.restore();
+  }
+
+  function drawTokenCelebration(now) {
+    if (now >= game.tokenFlashUntil) return;
+    const remain = clamp((game.tokenFlashUntil - now) / 2200, 0, 1);
+    const pulse = .65 + .35 * Math.sin(now / 90);
+    ctx.save();
+    ctx.globalAlpha = .20 * remain; ctx.fillStyle = '#ff6900'; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = remain;
+    ctx.textAlign = 'center';
+    if (images.scoutIcon) {
+      const s = 142 + pulse * 18;
+      ctx.shadowColor = '#ff7700'; ctx.shadowBlur = 34;
+      drawContain(images.scoutIcon, W / 2 - s / 2, H / 2 - s / 2 - 60, s, s, .58, true);
+    }
+    ctx.shadowColor = '#ff7700'; ctx.shadowBlur = 18;
+    ctx.fillStyle = '#ffd054'; ctx.font = 'bold 26px Trebuchet MS';
+    ctx.fillText('Use the SOPScout to help you complete a task in the office!', W / 2, H / 2 + 105);
+    ctx.restore();
+  }
   function drawHUD(now) {
     ctx.save();
     ctx.fillStyle = 'rgba(12,15,18,.88)'; ctx.fillRect(0, 0, W, 70);
@@ -2784,7 +5567,7 @@
     ctx.font = 'bold 19px Trebuchet MS'; ctx.fillStyle = '#edc17e'; ctx.fillText(game.playerName.toUpperCase(), 20, 27);
     ctx.font = 'bold 23px Trebuchet MS'; ctx.fillStyle = '#fff3e1'; ctx.fillText(`SCORE  ${formatScore(game.score)}`, 20, 55);
     ctx.fillText(`WAREHOUSE  ${game.level}`, 252, 43);
-    for (let i = 0; i < MAX_HEARTS; i++) {
+    for (let i = 0; i < (game.maxHearts || STARTING_MAX_HEARTS); i++) {
       const remainingHeart = i < game.health;
       const opacity = remainingHeart ? 1 : .09;
       drawContain(images.heart, 490 + i * 42, 18, 34, 34, opacity, false);
@@ -2801,7 +5584,7 @@
       }
     }
     ctx.globalAlpha = 1;
-    ctx.font = 'bold 14px Trebuchet MS'; ctx.fillStyle = '#f0c7a0'; ctx.fillText(`${game.health}/${MAX_HEARTS}`, 610, 43);
+    ctx.font = 'bold 14px Trebuchet MS'; ctx.fillStyle = '#f0c7a0'; ctx.fillText(`${game.health}/${game.maxHearts}`, 610, 43);
     drawContain(images.coffee, 660, 14, 26, 43); ctx.font = 'bold 23px Trebuchet MS'; ctx.fillStyle = '#fff3e1'; ctx.fillText(`${game.coffees}/3`, 696, 44);
     if (playerRidingPalletJack(now)) {
       ctx.fillStyle = '#ffd054';
@@ -2823,6 +5606,8 @@
     }
     ctx.restore();
     drawTaskBoard();
+    drawMiniMap(now);
+    drawScreenDebugBoxes();
     drawGuidanceArrow(now);
     drawCarrierToast(now);
     drawTokenCelebration(now);
@@ -2836,9 +5621,8 @@
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff4df'; ctx.font = 'bold 29px Trebuchet MS'; ctx.fillText(`WAREHOUSE RUN  •  ${VERSION}`, W / 2, 328);
     ctx.fillStyle = '#f6e8ce'; ctx.font = '18px Trebuchet MS';
-    ctx.fillText('WASD / ARROWS  MOVE     SPACE  ACTION / COFFEE SPRINT     M  MUTE', W / 2, 572);
-    ctx.fillText('Reach the exit. Collect points. Survive the warehouse.', W / 2, 610);
-    ctx.font = 'bold 19px Trebuchet MS'; ctx.fillStyle = '#ffd054'; ctx.fillText(`BEST SCORE  ${formatScore(game.bestScore)}`, W / 2, 650);
+    ctx.fillText('WASD / ARROWS  MOVE     SPACE  ACTION / COFFEE SPRINT     M  MUTE', W / 2, 598);
+    ctx.font = 'bold 19px Trebuchet MS'; ctx.fillStyle = '#ffd054'; ctx.fillText(`BEST SCORE  ${formatScore(game.bestScore)}`, W / 2, 652);
     ctx.restore();
   }
   function drawTransition(now) {
@@ -2862,11 +5646,11 @@
     ctx.fillText(`WAREHOUSES CLEARED  ${game.stats.warehousesCleared}     BEST SCORE  ${formatScore(game.bestScore)}`, W / 2, 337);
 
     const summary = [
-      ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks], ['QS SORTS', game.stats.quarantineSorts], ['FIRES OUT', game.stats.firesExtinguished], ['HINTS BOUGHT', game.stats.hintsBought], ['PALLET JACKS', game.stats.palletJackRides],
-      ['RETURNS', game.stats.returnsProcessed], ['INVENTORY PAIRS', game.stats.inventoryMatches], ['SHOES FOUND', game.stats.shoesCollected],
-      ['BIG BOXES OPENED', game.stats.boxesOpened], ['SMALL BOXES OPENED', game.stats.smallBoxesOpened], ['SOP FOUND', game.stats.sopTokensFound],
-      ['ALM TASKS', game.stats.almTasksCompleted], ['SL TASKS', game.stats.slTasksCompleted], ['EMAIL TASKS', game.stats.emailTasksCompleted],
-      ['WORKDAY TASKS', game.stats.workdayTasksCompleted], ['SOP USED', game.stats.sopTokensUsed], ['TASKS FAILED', game.stats.taskFailures]
+      ['DELIVERIES', game.stats.trucksCompleted], ['COFFEES', game.stats.coffeesCollected], ['LUNCH BREAKS', game.stats.lunchBreaks],
+      ['ARTICLES IN BAD CONDITION', game.stats.quarantineSorts], ['NO EAN SCANS', game.stats.noEanScans], ['FIRES OUT', game.stats.firesExtinguished], ['CNR RETURN', game.stats.returnsProcessed],
+      ['INVENTORY PAIRS', game.stats.inventoryMatches], ['ALM TICKETS', game.stats.almTasksCompleted], ['SL TICKETS', game.stats.slTasksCompleted],
+      ['EMAIL TASKS', game.stats.emailTasksCompleted], ['WORKDAY TASKS', game.stats.workdayTasksCompleted], ['SOP USED', game.stats.sopTokensUsed],
+      ['TASKS FAILED', game.stats.taskFailures]
     ];
     ctx.fillStyle = 'rgba(15,18,21,.76)'; ctx.fillRect(128, 350, 1024, 205);
     ctx.strokeStyle = 'rgba(255,105,0,.74)'; ctx.lineWidth = 2; ctx.strokeRect(128, 350, 1024, 205);
@@ -2888,17 +5672,19 @@
     ctx.save();
     const sx = shakeAmount > .2 ? rand(-shakeAmount, shakeAmount) : 0;
     const sy = shakeAmount > .2 ? rand(-shakeAmount, shakeAmount) : 0;
-    ctx.translate(-game.camera.x + sx, -game.camera.y + sy);
+    const z = gameplayZoomFactor();
+    ctx.scale(z, z);
+    ctx.translate(-game.camera.x + sx / z, -game.camera.y + sy / z);
     drawStaticWorldView();
     drawLiveTruck(now);
     drawFireWorld(now);
-    drawExtinguisherStations(now);
     drawRoute(now);
     drawPickups(now);
     drawEnemies(now);
     drawPlayer(now);
     drawForegroundSceneryOverPlayer();
     drawParticles();
+    drawDebugWorldOverlay();
     ctx.restore();
     if (hud) drawHUD(now);
   }
@@ -2930,17 +5716,18 @@
     if (!pz) return;
     const m = puzzleGridMetrics();
     ctx.save();
-    ctx.fillStyle = 'rgba(16,18,22,.88)'; ctx.fillRect(35, 24, W - 70, 74);
-    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(35, 24, W - 70, 74);
+    const barRight = W - 178;
+    ctx.fillStyle = 'rgba(16,18,22,.88)'; ctx.fillRect(35, 24, barRight - 35, 74);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(35, 24, barRight - 35, 74);
     ctx.fillStyle = '#fff4df'; ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText('INVENTORY CHECK', 62, 70);
-    ctx.fillStyle = '#ffd054'; ctx.textAlign = 'right'; ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, W - 58, 70);
+    ctx.fillStyle = '#ffd054'; ctx.textAlign = 'right'; ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, barRight - 28, 70);
     ctx.textAlign = 'left'; ctx.fillStyle = '#fff4df'; ctx.font = 'bold 22px Trebuchet MS'; ctx.fillText(`BONUS  +${pz.scoreEarned}`, 63, 112);
     for (let i = 0; i < PUZZLE_SIZE; i++) {
       const col = i % m.cols, row = Math.floor(i / m.cols);
       const x = m.x + col * (m.cell + m.gap), y = m.y + row * (m.cell + m.gap);
       ctx.fillStyle = pz.cells[i] === null ? 'rgba(0,0,0,.18)' : 'rgba(255,255,255,.08)';
       ctx.fillRect(x, y, m.cell, m.cell);
-      ctx.lineWidth = pz.cells[i] === null && pz.selectedEmpty ? 5 : 3;
+      ctx.lineWidth = pz.cells[i] === null ? 4 : 3;
       ctx.strokeStyle = pz.cells[i] === null ? '#27a9ff' : 'rgba(255,255,255,.28)';
       ctx.strokeRect(x, y, m.cell, m.cell);
       if (pz.cells[i] !== null) drawClothingItem(pz.cells[i], x + 5, y + 4, m.cell - 10, m.cell - 8);
@@ -2968,10 +5755,11 @@
     else { ctx.fillStyle = '#4d5052'; ctx.fillRect(0, 0, W, H); }
     ctx.fillStyle = 'rgba(0,0,0,.26)'; ctx.fillRect(0, 0, W, H);
     ctx.save();
-    ctx.fillStyle = 'rgba(12,15,18,.91)'; ctx.fillRect(36, 20, W - 72, 74);
-    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(36, 20, W - 72, 74);
-    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText('QUARANTINE CHAOS', 62, 65);
-    ctx.textAlign = 'right'; ctx.fillStyle = '#ffd054'; ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, W - 60, 65);
+    const barRight = W - 178;
+    ctx.fillStyle = 'rgba(12,15,18,.91)'; ctx.fillRect(36, 20, barRight - 36, 74);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(36, 20, barRight - 36, 74);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText('SPERRLAGER: ITEMS IN BAD CONDITION', 62, 65);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#ffd054'; ctx.fillText(`TIME  ${Math.max(0, Math.ceil((pz.until - now) / 1000))}s`, barRight - 28, 65);
     ctx.textAlign = 'left'; ctx.font = 'bold 18px Trebuchet MS';
     ctx.fillStyle = '#fff4df'; ctx.fillText(`DISPOSED  ${pz.disposeCount}    DESTROYED  ${pz.destroyCount}    BONUS  +${pz.scoreEarned}`, 62, 118);
     pz.items.forEach(item => drawQSSprite(item));
@@ -2981,9 +5769,6 @@
       ctx.fillStyle = '#b58652'; ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
       ctx.strokeStyle = '#ff6900'; ctx.strokeRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
     }
-    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 15px Trebuchet MS'; ctx.textAlign = 'center';
-    ctx.fillText('DISPOSE', b.x - b.w / 4, b.y + 14); ctx.fillText('DESTROY', b.x + b.w / 4, b.y + 14);
-    ctx.strokeStyle = 'rgba(255,255,255,.72)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(b.x, b.y - b.h / 2 + 12); ctx.lineTo(b.x, b.y + b.h / 2 - 12); ctx.stroke();
     if (now < pz.flashUntil) {
       ctx.fillStyle = pz.flashText.startsWith('+5') ? '#71dd8d' : '#ee394d';
       ctx.font = 'bold 30px Trebuchet MS'; ctx.fillText(pz.flashText, W / 2, 174);
@@ -3036,11 +5821,13 @@
     const r = OFFICE_APP_MONITOR;
     const buttonStyle = page === 'jira' ? 'jira' : 'default';
     drawOfficeHeader(title, tokenMode ? 'Choose one ready task for SOP Scout to complete instantly.' : 'Choose the backlog category to process.');
-    types.forEach((type, i) => officeButton(r.x + 24, r.y + 92 + i * 46, r.width - 48, 36, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskJobsReady(type) > 0 && (!tokenMode || game.tasks.tokens > 0), buttonStyle));
+    types.forEach((type, i) => officeButton(r.x + 24, r.y + 92 + i * 46, r.width - 48, 36, `${TASK_LABELS[type]} — ${taskJobsReady(type)} READY`, `${tokenMode ? 'token-' : 'puzzle-'}${type}`, taskAvailable(type) && (!tokenMode || game.tasks.tokens > 0), buttonStyle));
     officeButton(r.x + r.width - 125, r.y + r.height - 39, 101, 27, 'BACK', 'office-menu', true, buttonStyle);
   }
   function startOfficePuzzle(type) {
     if (taskJobsReady(type) < 1) return;
+    const remaining = taskCooldownRemaining(type);
+    if (remaining > 0) { addMessage(`${TASK_LABELS[type]} COOLDOWN ${Math.ceil(remaining / 1000)}s`, '#ffd054', 1800); return; }
     const data = TASK_PUZZLES[type];
     let index = randInt(0, data.puzzles.length - 1);
     if (data.puzzles.length > 1) {
@@ -3092,13 +5879,18 @@
     if (!pz || pz.selected.length !== 3) return;
     const ok = pz.selected.slice().sort().join('|') === pz.challenge.answer.slice().sort().join('|');
     completeTaskUnit(pz.type, false, ok);
-    game.office.result = { ok, type: pz.type, until: performance.now() + 1600 };
+    const now = performance.now();
+    game.office.result = { ok, type: pz.type, flashUntil: ok ? now : now + 2000, until: ok ? now + 1600 : now + 3600 };
     game.office.puzzle = null;
     game.office.page = 'result';
   }
   function drawOfficeResult(now) {
     const r = OFFICE_APP_MONITOR, result = game.office.result;
     if (!result) { game.office.page = 'menu'; return; }
+    if (!result.ok && images.errorScreen && now < result.flashUntil) {
+      drawCoverImage(images.errorScreen, r.x, r.y, r.width, r.height);
+      return;
+    }
     drawOfficeHeader(TASK_LABELS[result.type] + ' TASK RESULT');
     ctx.save(); ctx.textAlign = 'center';
     ctx.fillStyle = result.ok ? '#1b8b4c' : '#bd2837';
@@ -3150,8 +5942,9 @@
       if (locked) { ctx.font = '11px Arial'; ctx.fillText('🔒', x + 28, y + 11); }
       ctx.restore();
     });
-    officeButton(r.x + r.width - 302, r.y + r.height - 39, 158, 28, 'BUY HINT  -100', 'buy-hint', game.score >= HINT_COST, jira ? 'jira' : 'default');
-    officeButton(r.x + r.width - 133, r.y + r.height - 39, 112, 28, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3, jira ? 'jira' : 'default');
+    const actionsRight = r.x + r.width - 20;
+    officeButton(actionsRight - 284, r.y + r.height - 39, 158, 28, 'BUY HINT  -100', 'buy-hint', game.score >= HINT_COST, jira ? 'jira' : 'default');
+    officeButton(actionsRight - 112, r.y + r.height - 39, 112, 28, 'SUBMIT', 'submit-puzzle', pz.selected.length === 3, jira ? 'jira' : 'default');
   }
   function drawOffice(now) {
     drawOfficeBase();
@@ -3163,21 +5956,273 @@
     else if (game.office.page === 'result') drawOfficeResult(now);
     if (images.officeFrame) drawCoverImage(images.officeFrame, 0, 0, W, H);
     officeButton(W - 178, H - 62, 148, 42, 'LEAVE OFFICE', 'leave-office', true);
+    drawOfficeDebugBoxes();
     ctx.save(); ctx.fillStyle = '#fff4df'; ctx.font = 'bold 16px Trebuchet MS'; ctx.fillText('ESC — LEAVE OFFICE', 22, H - 23); ctx.restore();
     drawTokenCelebration(now);
   }
 
-  function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskJobsReady('alm') || taskJobsReady('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskJobsReady('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskJobsReady('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id === 'buy-hint') { buyOfficeHint(); return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) { if (!game.office.puzzle.locked.includes(emoji)) chosen.splice(idx, 1); } else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
+  function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskAvailable('alm') || taskAvailable('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskAvailable('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskAvailable('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id === 'buy-hint') { buyOfficeHint(); return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) { if (!game.office.puzzle.locked.includes(emoji)) chosen.splice(idx, 1); } else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
+
+  function drawBossBackground(victory = false) {
+    const img = victory ? (images.bossBgWin || images.bossBg) : images.bossBg;
+    if (!img) { ctx.fillStyle = '#1a0e1c'; ctx.fillRect(0,0,W,H); return bossViewport(); }
+    const view = bossViewport();
+    ctx.drawImage(img, view.cameraX / view.scale, 0, W / view.scale, img.height, 0, 0, W, H);
+    return view;
+  }
+  function drawBossIntro(now) {
+    const bz = game.boss;
+    ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+    if (!bz) return;
+    const elapsed = now - bz.introStart;
+    const fade = elapsed < 800 ? elapsed / 800 : 1;
+    ctx.save(); ctx.globalAlpha = fade;
+    if (images.bossIntro) drawCoverImage(images.bossIntro, 0, 0, W, H); else { ctx.fillStyle = '#111'; ctx.fillRect(0,0,W,H); }
+    const story = 'Crazy Ivan has turned himself into an Evil AI Robot and he isnt going to let you get away! Battle him so you can get to the next warehouse!';
+    const chars = Math.floor(story.length * (bz.typed || 0));
+    ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(70, H - 154, W - 140, 98);
+    ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 3; ctx.strokeRect(70, H - 154, W - 140, 98);
+    ctx.fillStyle = '#fff4df'; ctx.font = 'bold 23px Trebuchet MS'; ctx.textAlign = 'center';
+    wrapText(story.slice(0, chars), W/2, H - 116, W - 190, 29);
+    ctx.restore();
+  }
+  function wrapText(text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' '); let line = '', yy = y;
+    words.forEach(word => { const test = line ? line + ' ' + word : word; if (ctx.measureText(test).width > maxWidth && line) { ctx.fillText(line, x, yy); line = word; yy += lineHeight; } else line = test; });
+    if (line) ctx.fillText(line, x, yy);
+  }
+  function drawBossActor(now, view, victory = false) {
+    const bz = game.boss; if (!bz) return;
+    const b = bz.boss;
+    if (victory && Math.floor((now - bz.victoryStart) / 130) % 2 === 0 && now - bz.victoryStart < 1600) return;
+    const sx = b.x * view.scale - view.cameraX, sy = b.y;
+    // Ivan's source art is square. Always draw him into a square target so he is never squeezed tall/narrow.
+    const size = Math.max(b.w, b.h);
+    if (images.bossIvan) tintDraw(images.bossIvan, sx - size/2, sy - size/2, size, size, (now < b.hitFlashUntil ? .55 : 1), false, true);
+    else { ctx.font = '140px Arial'; ctx.textAlign='center'; ctx.fillText('🤖', sx, sy); }
+  }
+  function drawBossPlayer(now, view) {
+    const bz = game.boss; if (!bz) return;
+    const x = bz.player.x * view.scale - view.cameraX, y = bz.player.y;
+    if (bz.phase === 'victory') {
+      if (images.bossCarWin) drawContain(images.bossCarWin, x - 310, H - 330, 620, 360, 1, true);
+      if (images.actionssprite) {
+        const frame = Math.floor(((now - bz.victoryStart) / 140) % 10);
+        const f = frame < 5 ? frame : 9 - frame;
+        const sw = images.actionssprite.width / 5;
+        const sh = images.actionssprite.height / 3;
+        const dh = 430;
+        const dw = dh * (sw / sh);
+        spriteFrame(images.actionssprite, 5, 3, f, 1, x - dw / 2, H - 515, dw, dh, false, 1, true);
+      }
+      return;
+    }
+    const alpha = now < (bz.player.invulnerableUntil || 0) && Math.floor(now/100)%2 === 0 ? .55 : 1;
+    const carSize = 306; // 15% smaller than previous 360
+    if (images.bossCar) tintDraw(images.bossCar, x - carSize/2, y - 213, carSize, carSize, alpha, false, true);
+    else { ctx.font = '94px Arial'; ctx.textAlign='center'; ctx.fillText('🚜', x, y); }
+  }
+  function drawBossProjectiles(now, view) {
+    const bz = game.boss; if (!bz) return;
+
+    bz.fireballs.forEach(f => {
+      const x = f.x * view.scale - view.cameraX;
+      ctx.save();
+      const pulse = 1 + Math.sin((now - f.born) / 110) * 0.08;
+      const drawW = f.w * pulse;
+      const drawH = f.h * pulse;
+      const radius = Math.max(drawW, drawH) * .74;
+      const glow = ctx.createRadialGradient(x, f.y, 0, x, f.y, radius);
+      glow.addColorStop(0, 'rgba(255, 241, 130, .95)');
+      glow.addColorStop(.22, 'rgba(255, 160, 0, .82)');
+      glow.addColorStop(.55, 'rgba(255, 72, 0, .42)');
+      glow.addColorStop(1, 'rgba(255, 0, 0, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, f.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (images.fireball) {
+        ctx.shadowColor = '#ff6a00';
+        ctx.shadowBlur = 24;
+        drawContain(images.fireball, x - drawW/2, f.y - drawH/2, drawW, drawH, 1, false);
+      } else {
+        ctx.font='64px Arial';
+        ctx.textAlign='center';
+        ctx.fillText('🔥', x, f.y);
+      }
+      ctx.restore();
+    });
+
+    bz.shoes.forEach(s => {
+      const x = s.x * view.scale - view.cameraX;
+
+      if (s.exploded) return;
+
+      const drop = Math.max(0, s.groundY - s.y);
+      const shadowScale = s.landed ? 1 : Math.max(.35, 1 - drop / 220);
+      ctx.save();
+      ctx.globalAlpha = s.landed ? .28 : .16 + shadowScale * .18;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(x, s.groundY + 10, 20 * shadowScale, 8 * shadowScale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(x, s.y);
+      ctx.rotate(s.spin);
+      ctx.shadowColor = s.canHitBoss ? '#ffd054' : '#ff9a3b';
+      ctx.shadowBlur = s.impact ? 22 : 14;
+      ctx.globalAlpha = Math.min(1, Math.max(.38, (now - s.born) / 120));
+      const scale = s.impact ? 1.16 : 1;
+      if (images[s.image]) tintDraw(images[s.image], -s.w*scale/2, -s.h*scale/2, s.w*scale, s.h*scale, 1, false, true);
+      else { ctx.font='50px Arial'; ctx.textAlign='center'; ctx.fillText('👟',0,0); }
+      ctx.restore();
+    });
+
+    (bz.effects || []).forEach(fx => {
+      const x = fx.x * view.scale - view.cameraX;
+      const p = Math.min(1, Math.max(0, (now - fx.start) / fx.dur));
+
+      if (fx.type === 'shoeExplosion') {
+        const grow = p < .5 ? (0.55 + p * 2.2) : (1.65 - (p - .5) * 1.8);
+        const alpha = p < .6 ? 1 : 1 - ((p - .6) / .4);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, alpha);
+        const radius = 32 + 72 * grow;
+        const flash = ctx.createRadialGradient(x, fx.y, 0, x, fx.y, radius);
+        flash.addColorStop(0, 'rgba(255,255,240,.96)');
+        flash.addColorStop(.22, 'rgba(255,214,84,.92)');
+        flash.addColorStop(.55, 'rgba(255,100,0,.55)');
+        flash.addColorStop(1, 'rgba(255,0,0,0)');
+        ctx.fillStyle = flash;
+        ctx.beginPath();
+        ctx.arc(x, fx.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        const drawSize = 86 + 90 * grow;
+        if (images.fireball) {
+          drawContain(images.fireball, x - drawSize/2, fx.y - drawSize/2, drawSize, drawSize, 1, false);
+        }
+        ctx.restore();
+      }
+
+      if (fx.type === 'shoeImpact' || fx.type === 'ramImpact' || fx.type === 'playerImpact') {
+        const alpha = 1 - p;
+        const radius = fx.type === 'ramImpact' ? 90 * (0.65 + p) : 58 * (0.65 + p);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        const flash = ctx.createRadialGradient(x, fx.y, 0, x, fx.y, radius);
+        flash.addColorStop(0, 'rgba(255,255,220,1)');
+        flash.addColorStop(.22, fx.type === 'playerImpact' ? 'rgba(255,80,80,.95)' : 'rgba(255,220,120,.92)');
+        flash.addColorStop(.58, fx.type === 'playerImpact' ? 'rgba(255,0,0,.28)' : 'rgba(255,140,0,.22)');
+        flash.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = flash;
+        ctx.beginPath();
+        ctx.arc(x, fx.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    });
+  }
+  function drawBossUI(now) {
+    const bz = game.boss; if (!bz) return;
+    ctx.save(); ctx.fillStyle='rgba(12,15,18,.78)'; roundRect(24, 74, 195, 168, 12, true, false); ctx.strokeStyle='#ff6900'; ctx.lineWidth=2; roundRect(24,74,195,168,12,false,true);
+    ctx.fillStyle='#fff4df'; ctx.font='bold 20px Trebuchet MS'; ctx.fillText('SCOUT', 46, 111); ctx.fillText('HEARTS', 46, 153); ctx.fillText('♥'.repeat(Math.max(0,game.health)), 46, 194);
+    ctx.fillStyle='rgba(12,15,18,.78)'; roundRect(W-228, 74, 204, 250, 12, true, false); ctx.strokeStyle='#ff6900'; roundRect(W-228,74,204,250,12,false,true);
+    ctx.fillStyle='#ff9a3b'; ctx.font='bold 20px Trebuchet MS'; ctx.fillText('CRAZY IVAN', W-205, 112);
+    for (let i=0;i<bz.boss.maxHearts;i++) { ctx.globalAlpha = i < bz.boss.hearts ? 1 : .20; ctx.fillStyle='#ed4959'; ctx.font='bold 28px Trebuchet MS'; ctx.fillText('♥', W-126, 156 + i*28); }
+    ctx.globalAlpha=1;
+    if (game.mode === 'bossCountdown') { ctx.textAlign='center'; ctx.fillStyle='#ffd054'; ctx.font='bold 78px Trebuchet MS'; ctx.fillText(String(bz.countdown), W/2, H/2); }
+    if (game.mode === 'bossFight') { ctx.textAlign='center'; ctx.fillStyle='#fff4df'; ctx.font='bold 18px Trebuchet MS'; ctx.fillStyle='rgba(0,0,0,.50)'; roundRect(W/2 - 455, H - 74, 910, 38, 12, true, false); ctx.fillStyle='#fff4df'; ctx.fillText('Drive closer, ram Ivan, or throw offline stock at him to get him away from the exit!', W/2, H-49); }
+    ctx.restore();
+  }
+  function drawBossVictorySummary(now) {
+    const bz = game.boss; if (!bz || !bz.summaryUntil) return;
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,.58)';
+    ctx.fillRect(0,0,W,H);
+
+    const boardW=1040, boardH=430, x=(W-boardW)/2, y=86;
+    if (images.score) {
+      ctx.drawImage(images.score, x, y, boardW, boardH);
+    } else {
+      ctx.fillStyle='rgba(255,214,132,.96)';
+      roundRect(x,y,boardW,boardH,18,true,false);
+      ctx.strokeStyle='#5b2c09'; ctx.lineWidth=4;
+      roundRect(x,y,boardW,boardH,18,false,true);
+    }
+
+    ctx.fillStyle='#1d1006';
+    ctx.textAlign='center';
+    ctx.shadowColor='rgba(255,245,190,.55)';
+    ctx.shadowBlur=2;
+    ctx.font='bold 40px Trebuchet MS';
+    ctx.fillText('CRAZY IVAN DEFEATED!', W/2, y+106);
+
+    const rewardY = y + 165;
+    const spin = (now - bz.victoryStart) / 300;
+    ctx.fillStyle='#1d1006';
+    ctx.font='bold 30px Trebuchet MS';
+    ctx.fillText('You won an extra heart!', W/2, rewardY);
+
+    const heartOffset = 320;
+    ctx.save();
+    ctx.translate(W/2 - heartOffset, rewardY - 8);
+    ctx.rotate(spin);
+    ctx.fillStyle='#ed1d3b';
+    ctx.font='bold 64px Trebuchet MS';
+    ctx.textAlign='center';
+    ctx.fillText('♥', 0, 20);
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(W/2 + heartOffset, rewardY - 8);
+    ctx.rotate(-spin);
+    ctx.fillStyle='#ed1d3b';
+    ctx.font='bold 64px Trebuchet MS';
+    ctx.textAlign='center';
+    ctx.fillText('♥', 0, 20);
+    ctx.restore();
+
+    ctx.fillStyle='#1d1006';
+    ctx.textAlign='center';
+    ctx.font='bold 24px Trebuchet MS';
+    ctx.fillText(`Max hearts now: ${game.maxHearts}`, W/2, y+220);
+    ctx.font='bold 22px Trebuchet MS';
+    ctx.fillText(`Ivan hearts removed: ${game.stats.bossHits} / 6`, W/2, y+270);
+    ctx.fillText(`Rams: ${game.stats.bossRams} × 2 hearts`, W/2, y+310);
+    ctx.fillText(`Offline stock hits: ${game.stats.bossShoeHits} × 1 heart`, W/2, y+350);
+    ctx.restore();
+  }
+  function drawBoss(now) {
+    if (game.mode === 'bossIntro') { drawBossIntro(now); return; }
+    const bz = game.boss; if (!bz) return;
+    const victory = bz.phase === 'victory';
+    const view = drawBossBackground(victory);
+    if (!victory) drawBossProjectiles(now, view);
+    if (!victory || now - bz.victoryStart < 1600) drawBossActor(now, view, victory);
+    if (victory && now - bz.victoryStart < 1700) { ctx.save(); ctx.globalAlpha = .55 * (1 - (now - bz.victoryStart)/1700); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.restore(); }
+    drawBossPlayer(now, view);
+    if (!victory) drawBossUI(now);
+    drawBossVictorySummary(now);
+  }
+
   function draw(now) {
     if (game.mode !== 'play' && game.mode !== 'cockpitHelp') hideFireOverlay();
     ctx.clearRect(0, 0, W, H);
     if (game.mode === 'title' || game.mode === 'intro') drawTitle();
     else if (game.mode === 'play' || game.mode === 'dying' || game.mode === 'cockpitHelp') drawWorld(now);
+    else if (game.mode === 'mapBuilder') drawMapBuilder(now);
     else if (game.mode === 'inventoryBriefing') drawInventoryBriefing();
     else if (game.mode === 'inventoryPuzzle') drawInventoryPuzzle(now);
     else if (game.mode === 'office') drawOffice(now);
     else if (game.mode === 'qsPuzzle') drawQSPuzzle(now);
+    else if (game.mode === 'noEanBriefing') drawNoEanBriefing(now);
+    else if (game.mode === 'noEanPuzzle') drawNoEanPuzzle(now);
     else if (game.mode === 'transition') drawTransition(now);
+    else if (game.mode === 'bossIntro' || game.mode === 'bossEnter' || game.mode === 'bossCountdown' || game.mode === 'bossFight' || game.mode === 'bossVictory') drawBoss(now);
     else if (game.mode === 'gameover') drawGameOver();
   }
 
@@ -3199,14 +6244,12 @@
     rc.fillStyle = '#ffd054'; rc.font = 'bold 23px Trebuchet MS'; rc.fillText(`WAREHOUSES CLEARED  ${game.stats.warehousesCleared}`, report.width / 2, 366);
     const lines = [
       [`Deliveries`, game.stats.trucksCompleted], [`Coffees`, game.stats.coffeesCollected],
-      [`Lunch breaks`, game.stats.lunchBreaks], [`Returns`, game.stats.returnsProcessed],
-      [`Inventory pairs`, game.stats.inventoryMatches], [`Shoes collected`, game.stats.shoesCollected],
-      [`Big boxes opened`, game.stats.boxesOpened], [`Small boxes opened`, game.stats.smallBoxesOpened],
-      [`QS sorted`, game.stats.quarantineSorts], [`Fires extinguished`, game.stats.firesExtinguished],
-      [`SOP tokens found`, game.stats.sopTokensFound], [`SOP tokens used`, game.stats.sopTokensUsed],
-      [`Hints bought`, game.stats.hintsBought], [`Task failures`, game.stats.taskFailures],
-      [`ALM tasks`, game.stats.almTasksCompleted], [`SL tasks`, game.stats.slTasksCompleted],
-      [`Email tasks`, game.stats.emailTasksCompleted], [`Workday tasks`, game.stats.workdayTasksCompleted]
+      [`Lunch breaks`, game.stats.lunchBreaks], [`CNR Return`, game.stats.returnsProcessed],
+      [`Inventory pairs`, game.stats.inventoryMatches], [`Articles in bad condition`, game.stats.quarantineSorts],
+      [`Fires extinguished`, game.stats.firesExtinguished], [`SOP tokens used`, game.stats.sopTokensUsed],
+      [`Task failures`, game.stats.taskFailures], [`ALM Tickets`, game.stats.almTasksCompleted],
+      [`SL Tickets`, game.stats.slTasksCompleted], [`Email tasks`, game.stats.emailTasksCompleted],
+      [`Workday tasks`, game.stats.workdayTasksCompleted]
     ];
     rc.font = 'bold 15px Trebuchet MS'; rc.textAlign = 'left';
     lines.forEach(([label, value], i) => {
@@ -3242,6 +6285,7 @@
   downloadScoreButton.addEventListener('click', downloadScoreCard);
   closeCockpitHelpButton.addEventListener('click', closeCockpitHelp);
   muteToggleButton.addEventListener('click', () => { synth.init(); if (game.mode === 'title') startTitleMusic(); volumePanel.classList.toggle('hidden'); });
+  muteToggleButton.addEventListener('dblclick', event => { event.preventDefault(); event.stopPropagation(); synth.init(); toggleAudio(); volumePanel.classList.add('hidden'); });
   displayToggleButton.addEventListener('click', () => { toggleDisplayMode(); });
   volumeSlider.addEventListener('input', event => { synth.init(); setVolume(event.target.value); if (game.mode === 'title') startTitleMusic(); });
   unstuckButton.addEventListener('click', () => { synth.init(); emergencyMove(); });
@@ -3249,7 +6293,7 @@
     const code = button.dataset.key;
     const press = event => {
       event.preventDefault();
-      if (game.mode !== 'play') return;
+      if (game.mode !== 'play' && game.mode !== 'bossFight') return;
       synth.init();
       keys.add(code);
       button.classList.add('active');
@@ -3266,9 +6310,13 @@
   });
   actionControl.addEventListener('pointerdown', event => {
     event.preventDefault();
-    if (game.mode !== 'play') return;
+    if (game.mode !== 'play' && game.mode !== 'bossFight') return;
     synth.init();
-    if (!keys.has('Space')) handleActionPress(performance.now());
+    if (game.mode === 'bossFight') {
+      throwBossShoe(performance.now());
+    } else if (!keys.has('Space')) {
+      handleActionPress(performance.now());
+    }
     keys.add('Space');
     actionControl.classList.add('active');
   });
@@ -3291,8 +6339,27 @@
   adminExitButton.addEventListener('click', exitAdminMode);
   adminButtons.forEach(button => button.addEventListener('click', () => handleAdminAction(button.dataset.admin)));
 
+  if (adminCollapseButton) adminCollapseButton.addEventListener('click', event => { event.stopPropagation(); adminPanel.classList.toggle('collapsed'); });
+  (function setupAdminPanelDrag() {
+    const header = adminPanel.querySelector('.admin-header');
+    if (!header) return;
+    makeViewportDraggable(adminPanel, header);
+  })();
+
+
   titleUI.addEventListener('pointerdown', () => { synth.init(); startTitleMusic(); });
   nameInput.addEventListener('focus', () => { synth.init(); startTitleMusic(); });
+  canvas.addEventListener('contextmenu', event => {
+    if (game.mode === 'mapBuilder') {
+      event.preventDefault();
+      const { x, y } = canvasPoint(event);
+      const mb = game.mapBuilder;
+      const t = mapBuilderScreenToTile(x, y);
+      const obj = mapBuilderObjectAt(t);
+      if (obj && !(mb.selectedIds || []).includes(obj.id)) mapBuilderSelectObject(obj, false);
+      if ((mb.selectedIds || []).length) mb.contextMenu = { x: Math.min(x, W - 176), y: Math.min(y, H - 276) };
+    }
+  });
   canvas.addEventListener('click', event => {
     const { x, y } = canvasPoint(event);
     if (game.mode === 'inventoryPuzzle') handleInventoryClick(x, y);
@@ -3300,6 +6367,14 @@
     else if (game.mode === 'play') { const c = cockpitRect(); if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) openCockpitHelp(); }
   });
   canvas.addEventListener('pointerdown', event => {
+    if (game.mode === 'mapBuilder') {
+      const { x, y } = canvasPoint(event);
+      if (beginMapBuilderPointer(x, y, event.pointerId, event)) {
+        canvas.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+      }
+      return;
+    }
     if (game.mode !== 'qsPuzzle') return;
     const { x, y } = canvasPoint(event);
     if (handleQSPointerDown(x, y, event.pointerId)) {
@@ -3309,11 +6384,23 @@
     }
   });
   canvas.addEventListener('pointermove', event => {
+    if (game.mode === 'mapBuilder') {
+      const { x, y } = canvasPoint(event);
+      if (updateMapBuilderPointer(x, y, event.pointerId)) event.preventDefault();
+      return;
+    }
     if (game.mode !== 'qsPuzzle') return;
     const { x, y } = canvasPoint(event);
     if (handleQSPointerMove(x, y, event.pointerId)) event.preventDefault();
   });
   const releaseQSPointer = event => {
+    if (game.mode === 'mapBuilder') {
+      if (endMapBuilderPointer(event.pointerId)) {
+        canvas.releasePointerCapture?.(event.pointerId);
+        event.preventDefault();
+      }
+      return;
+    }
     if (game.mode !== 'qsPuzzle') return;
     const { x, y } = canvasPoint(event);
     if (handleQSPointerUp(x, y, event.pointerId)) {
@@ -3326,11 +6413,14 @@
   introNextButton.addEventListener('click', nextIntroSlide);
   introSkipButton.addEventListener('click', skipIntro);
   nameInput.addEventListener('input', () => {
-    nameWarning.textContent = 'Enter your name to begin your shift.';
     nameWarning.classList.add('hidden');
-    const matched = findProfileByName(nameInput.value);
-    if (matched) { game.activeProfileId = matched.id; localStorage.setItem(ACTIVE_PROFILE_KEY, matched.id); game.playerName = matched.playerName; }
-    renderProfileList();
+    showProfileWarning();
+    const value = nameInput.value.trim().toLowerCase();
+    const match = readProfiles().find(profile => profile.name.toLowerCase() === value);
+    game.selectedProfileId = match ? match.id : '';
+    localStorage.setItem(ACTIVE_PROFILE_KEY, game.selectedProfileId);
+    renderProfiles();
+    continueSavedButton.classList.add('hidden');
   });
   nameInput.addEventListener('keydown', event => {
     if (event.key === 'Enter') startNewShift();
@@ -3340,7 +6430,7 @@
 
   document.addEventListener('keydown', event => {
     const prevent = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code);
-    if (prevent && (game.mode === 'play' || game.mode === 'qsPuzzle')) event.preventDefault();
+    if (prevent && (game.mode === 'play' || game.mode === 'qsPuzzle' || game.mode === 'bossFight' || game.mode === 'bossCountdown' || game.mode === 'noEanPuzzle' || game.mode === 'noEanBriefing' || game.mode === 'mapBuilder')) event.preventDefault();
     if (event.code === 'Escape' && game.mode === 'title') {
       const now = performance.now();
       game.adminEscapeCount = now <= game.adminEscapeUntil ? game.adminEscapeCount + 1 : 1;
@@ -3348,7 +6438,8 @@
       if (game.adminEscapeCount >= 5) enterAdminMode();
       return;
     }
-    if (document.activeElement === nameInput) return;
+    if (event.code === 'Space' && event.ctrlKey && event.shiftKey) { game.debugOverlay = !game.debugOverlay; event.preventDefault(); addMessage(game.debugOverlay ? 'DEBUG ZONES ON' : 'DEBUG ZONES OFF', '#71dd8d', 1400); return; }
+    if (document.activeElement === nameInput && game.mode === 'title') return;
     synth.init();
     const directionButton = controlButtonForCode(event.code);
     if (directionButton) directionButton.classList.add('active');
@@ -3361,11 +6452,16 @@
       skipIntro();
       return;
     }
+    if (event.code === 'Escape' && game.mode === 'mapBuilder') { mapBuilderExitToGame(); return; }
     if (event.code === 'Escape' && game.mode === 'office') {
       game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return;
     }
     if (event.code === 'Escape' && game.mode === 'qsPuzzle') {
       finishQSPuzzle();
+      return;
+    }
+    if (event.code === 'Escape' && (game.mode === 'noEanPuzzle' || game.mode === 'noEanBriefing')) {
+      finishNoEanPuzzle();
       return;
     }
     if (event.code === 'Escape') {
@@ -3385,6 +6481,20 @@
       startTitleMusic();
       return;
     }
+    if (game.mode === 'mapBuilder') {
+      if (game.mapBuilder && (event.code === 'Equal' || event.code === 'NumpadAdd')) { game.mapBuilder.zoom = Math.min(.42, game.mapBuilder.zoom + .025); refreshMapBuilderPanel(); }
+      if (game.mapBuilder && (event.code === 'Minus' || event.code === 'NumpadSubtract')) { game.mapBuilder.zoom = Math.max(.08, game.mapBuilder.zoom - .025); refreshMapBuilderPanel(); }
+      if (event.code === 'KeyE') mapBuilderExport();
+      return;
+    }
+    if (game.mode === 'noEanPuzzle') {
+      const now = performance.now();
+      if ((event.code === 'ArrowUp' || event.code === 'KeyW') && !keys.has(event.code)) noEanAdvanceAngle(game.noEanPuzzle, 1, now);
+      if ((event.code === 'ArrowDown' || event.code === 'KeyS') && !keys.has(event.code)) noEanAdvanceAngle(game.noEanPuzzle, -1, now);
+      if (event.code === 'Enter') { resetNoEanScanner(); event.preventDefault(); return; }
+      if (event.code === 'Space' && !keys.has('Space')) { fireNoEanScanner(now); actionControl.classList.add('active'); }
+    }
+    if (event.code === 'Space' && game.mode === 'bossFight' && !keys.has('Space')) { event.preventDefault(); synth.init(); throwBossShoe(performance.now()); actionControl.classList.add('active'); }
     if (event.code === 'Space' && game.mode === 'play' && !keys.has('Space')) {
       const now = performance.now();
       handleActionPress(now);
@@ -3404,6 +6514,22 @@
     directionControls.forEach(button => button.classList.remove('active'));
     actionControl.classList.remove('active');
   });
+
+  
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__sopTest = {
+      game,
+      keys,
+      startBossIntro,
+      updateBossIntro,
+      updateBossEnter,
+      updateBossCountdown,
+      updateBossFight,
+      throwBossShoe,
+      damageBoss,
+      triggerDeath
+    };
+  }
 
   loadAssets().catch(error => {
     loading.textContent = `Asset loading failed: ${error.message}`;
