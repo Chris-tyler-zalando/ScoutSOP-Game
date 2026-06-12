@@ -1,433 +1,54 @@
-ZALANDO SCOUT — SYSTEM UPDATE V2.73
-====================================
-
-Phase 1 mobile-control patch.
-
-Changes:
-- Added a mobile-only Fullscreen Mode button under Start on the title screen.
-- Kept the playable game locked to 16:9 and added a mobile landscape fit rule using the visible viewport height.
-- In mobile mode/landscape, the 16:9 game aligns to the right so the spare black space becomes a left control sidebar.
-- Added a soft black fade/drop shadow from the left sidebar into the gameplay edge.
-- Moved the mobile D-pad into the left sidebar area, enlarged it, and changed it to a proper cross layout.
-- Moved the mobile Action button to the far right.
-- Moved the skull/unstuck button above Action.
-- Moved zoom minus/plus beside the skull button above Action.
-- Strengthened shadows on mobile controls so elements remain readable when they bleed slightly into gameplay.
-
-Not changed in this phase:
-- Cockpit/score/task HUD relocation is still deferred because it is drawn inside the canvas.
-- Desktop layout is intended to remain unchanged.
-
-Previous baseline continues below.
-
-ZALANDO SCOUT — SYSTEM UPDATE V2.66
+ZALANDO SCOUT — SYSTEM UPDATE V2.74
 ====================================
 
 This ZIP contains the system files only:
 - index.html
 - styles.css
 - game.js
+- custom_map_layout (1).json
 
-Keep your existing assets folder beside these files. The new version expects these additional assets in that folder when available:
-- palletjack.png
-- clothesdamaged.png
-- slbox.png
-- qs2.jpg (or qs2.png fallback)
-- fire.png (extinguisher)
-- fire.webp (animated fire)
+Keep your existing /assets folder beside these files. Image and sound asset paths have not changed.
 
-Changes in V2.66
+Baseline
+--------
+This build continues from V2.73 mobile mini-game hotfix.
+
+Changes in V2.74
 ----------------
-- Restored the original pcmenu.jpg image for the Dock Office home screen. The game no longer redraws its own replacement app menu.
-- Once an app is clicked, only the menu image is removed and the Jira / Email / Workday / SOP Scout content is drawn on the blank monitor in baseoffice.jpg.
-- Reduced the office task-interface drawing area so the task screens fit within the monitor frame.
-- Added visible CORRECT / WRONG result screens before an office task moves to the next backlog item or returns to the menu.
-- Boxes now generate Email and Workday task progress only. ALM and SL task progress continues to come from shoes.
-- Corrected Quarantine Storage: it is now a 30-second falling-item catcher game rather than a drag-and-drop basket screen.
-- In Quarantine Storage, clothes.png items belong in DISPOSE and clothesdamaged.png items belong in DESTROY; correct catches score +5 points, and the fall frequency increases across the 30-second round.
-- Quarantine Storage triggers on entering the area or being sent there by a box, then uses a 30-second retrigger cooldown.
-- Added random Fire Events during normal warehouse play, with a red alarm vignette, guidance arrow to the nearest extinguisher point, carried extinguisher display, return guidance to the fire and time-based scoring.
-- Fire event score: +200 within 60 seconds, +150 within 90 seconds, +100 within 120 seconds, +50 within 150 seconds, otherwise +0.
+- Added a quick translucent PATH BLOCKED toast when the player keeps walking into a blocked object/wall.
+- Bathroom/first-aid decorative room art is now drawn as a background layer after the cement floor and before shelves/boxes/player layers, so the scout should not visually walk behind it.
+- Bathroom background art is also treated as a protected visual zone when placing filler shelves/boxes, so clutter should avoid covering it as much as possible.
+- Mobile top-right phone/desktop and mute buttons are pinned tighter to the top-right corner with stronger shadows.
+- No EAN Scanner now plays a laser sound when scanning, a success sound on correct target, and an error sound on wrong target.
+- Sperrlager/QS now plays a mechanical success sound for a correct catch and a mechanical error sound for a wrong catch.
+- Added admin URL access. Use any of these:
+  - index.html?admin=1
+  - index.html?mode=admin
+  - index.html#admin
+- Crazy Ivan boss death handling changed: if the player dies during Ivan, Continue restarts the Ivan scene instead of returning to the dock.
+- Crazy Ivan mobile performance pass:
+  - mobile boss mode caps boss rendering to about 30fps,
+  - reduces expensive boss glow/gradient effects on mobile,
+  - uses a fixed 2000px boss arena width on mobile,
+  - slightly simplifies/scales boss actors for mobile performance.
+- Cache refs bumped to 2.74.
 
-Retained from earlier builds
-----------------------------
-- Pallet jacks, including one near the Dock, with 30-second speed/protection effect.
-- Cockpit help modal, safe zones, task-gated exit, Inventory Check, mobile controls, coffee sprint, score download, carrier toast and increased enemies.
+Files changed
+-------------
+- index.html
+- styles.css
+- game.js
+- README.txt
 
+Testing notes
+-------------
+After uploading, open the page with:
+  index.html?v=274
 
-V2.66 additions and corrections:
-- Office home screen keeps pcmenu.jpg, moved upward and resized to prevent clipping/white strip.
-- Jira interaction buttons are blue with rounded corners.
-- Office task puzzles now have an optional 100-point hint system with locked revealed answers or incorrect-selection explanations.
-- Task riddles avoid immediately repeating the previous riddle of the same type.
-- Fire uses a doubled-size animated DOM WebP overlay for reliable animation and enables automatic 2x emergency response movement while active.
-- Hidden Admin Test Mode: press Escape five times from the title screen to launch modules directly without saving test scores.
-
-
-V2.66 updates:
-- QS falling articles and the sorting crate are twice as large.
-- Removed the black sign backing so warehouse labels render cleanly without sign panels.
-- Fire event now displays an extinguisher pickup in the guided collection area.
-- Fire is rendered using a large 75%-opacity base layer plus the animated WebP screen-blend layer.
-- Office bottom actions have been shifted to the centre/right to avoid the chair overlap.
-- Added up to three separate saved scout profiles with select, continue and delete controls on the title screen.
-
-
-V2.66 updates:
-- Saved-shift profile cards now continue that save directly when clicked.
-- Removed the redundant Continue button from the title screen.
-- Combined Saved Shifts and Scout Name into one title-screen panel and removed the grey saved-shift backing.
-- Removed the title-screen tagline.
-- Added even collectible shoe rotation using shoe.png, shoe1.png, shoe2.png and shoe3.png when available.
-
-
-V2.66 updates:
-- Dock is pinned to the top-left and the map size is reduced by roughly 25%.
-- Added lane-style light/dark floor overlays.
-- Added central elevator using elevator.png with rotating destination labels.
-- Added horizontal conveyors using conveyor.png, with moving box.png parcels and occasional moving shoe pickups.
-- Improved pickup spacing to prevent stacked clutter.
-- Dock office entrance collision is opened up.
-- End summary labels cleaned up and renamed.
-- Wrong office task answers show error.jpg inside the computer monitor for 2 seconds before the failure message.
-
-
-V2.66:
-- Reworked title panel into a compact two-line layout.
-- Removed Saved Shifts / Max 3 text from visible title UI.
-- Start button now spans both rows and says Start.
-- Empty save slots now appear as 1, 2, 3.
-
-
-V2.66:
-- Moved the compact title panel down so the empty space below it is not stupidly large.
-
-V2.66:
-- Office/dock collision restored with a forgiving inset footprint instead of being fully removed.
-- Inventory Check now runs 60 seconds, uses a 6x5 grid, larger cells, and one-click neighbour-only swaps.
-- Quarantine Chaos now runs 60 seconds, lets the crate move half off-screen so each side can reach the screen edge, and removes extra drawn Dispose/Destroy labels.
-- Area sign images are restored behind labels without artificial black backing.
-- Conveyors added to the top/bottom of QS and Inventory zones so those areas read as side-entry work zones.
-- Fire extinguishing now plays a spray noise, shows a spray effect, fades the fire out, and shows the fire-extinguished points toast.
-
-V2.66:
-- Space / Action no longer opens the office from anywhere in the Dock; it only opens near the office door.
-- Dock start position moved away from the conveyor/collision area.
-- Dock conveyor shifted so it does not trap the starting point.
-- Light/dark walking-path overlays made more visible.
-- Conveyor pieces now draw with drop shadows too.
-
-V2.66:
-- Elevator visual/navigation hub reduced to about half size while preserving the 2:1 elevator image ratio.
-- Shelf placement rules tightened: shelves now snap to aligned aisle rows.
-- Shelf runs are placed as whole groups of 4–6 shelves, with deliberate lane gaps only between groups.
-- Removed the previous orphan/staggered partial shelf dividers that caused random out-of-line shelves.
-- Empty-patch filler now adds aligned shelf runs instead of scattered loose shelves.
-
-V2.66:
-- Locked map rules from the sketch.
-- Tile size is now 100px.
-- Standard map size is now fixed at 80 x 50 tiles.
-- Dock is fixed at the top-left.
-- Elevator is fixed in the central pod.
-- Inventory, Quarantine, Exit and Kitchens rotate between reserved area pods each warehouse.
-- A fixed light corridor skeleton is kept open.
-- Shelf/maze generation is restricted to the remaining grey blocks.
-- Pickups now prefer the light walkable corridor cells.
-- Shelf runs remain aligned rather than scattered.
-
-V2.66:
-- Dock driveway extends left off-map, with truck entering/leaving from the left.
-- Dock office/building is about 25% larger and positioned at the far-right of the driveway.
-- Dock driveway has traffic cone guide rows with gaps.
-- Dock area has top and bottom conveyor boundaries.
-- inventory1.png, table.png and table2.png are scaled up in the Inventory area.
-- table3.png is no longer used.
-- Kitchen image is 25% larger and centered in its kitchen pod.
-- Quarantine area now places large mouldy boxes mostly along bottom/sides, with small boxes and conveyors inside.
-- Area pod dark fill removed; only a very faint outline remains.
-- Cone guides added along open walking lanes where shelves are not present.
-
-V2.66:
-- Cleared shelf/border boxes and clutter from the left-side Dock driveway/road.
-- Dock driveway is now treated as a safe zone; robots/forklifts should not enter or path through it.
-- Elevator pod is now treated as a safe zone; robots/forklifts should not enter or path through it.
-- Conveyor moving items are drawn slightly higher so they sit on the belt instead of looking like they are falling off.
-- Elevator image is drawn at 60% scale inside its pod.
-- Elevator destination labels are now drawn inside the black label boxes above the doors.
-- Future note locked: when boss levels are added, there should be a boss every 3 levels, and defeating a boss should add an extra heart capacity.
-
-V2.66:
-- Added No EAN on Shipping Notice scanner mini-game.
-- Box loot can now trigger the No EAN scanner task.
-- Uses welcome3.jpg as the briefing screen.
-- Supports scanner.png, scanner2.png and scanner3.png feedback states.
-- Supports a full scanner/conveyor background using noeanbg.jpg/png, scannerbg.jpg/png, or conveyorbg.jpg/png.
-- Scanner moves left/right, snaps through fixed angles, Space fires a red scanner beam, Enter resets to centre/90°.
-- One target category per 60-second round: SHOES, TOPS or PANTS.
-- Correct hit +15, wrong hit -30, missed target -30; penalties at zero score cost hearts.
-- Wrong hits flash the screen red and do not remove the wrong item.
-- Added Admin Test button for No EAN Scanner.
-
-V2.66:
-- No EAN Scanner briefing still uses welcome3.jpg.
-- No EAN Scanner gameplay now prioritizes conveyor.jpg as the background image.
-- Removed welcome3.jpg as the gameplay background fallback so the instruction image is not accidentally used during play.
-
-V2.66:
-- Fixed No EAN scanner sprite aspect ratio. scanner.png is 229x500, so it is now drawn tall instead of squashed.
-- Replaced the long horizontal No EAN stats box with a narrow vertical HUD in the left-side open space.
-- Moved the start target toast lower so it does not fight the HUD.
-
-V2.66:
-- Rebuilt the No EAN item path against conveyor.jpg using a 1672x941 coordinate base.
-- Items now follow the visible conveyor belt centreline instead of sliding through the open floor.
-- Added item visual offsets so shoes/clothes sit on the belt surface more naturally.
-- Moved the No EAN HUD down into the left-side vertical space instead of the top area.
-- Scanner beam origin now uses the top centre of the tall scanner sprite.
-- Scanner start and movement limits now follow the 1672x941 movement-band spec.
-
-V2.66:
-- No EAN scanner now uses dedicated category sprite cards: shoes.webp, tops.webp, pants.webp.
-- Removed the max-active item cap for No EAN so the conveyor does not get empty gaps as the 60-second round accelerates.
-- Spawning now uses a tighter path-gap rule instead of a hard item limit.
-- Spawn intervals are denser across the whole round.
-- Spawn mix is balanced so each round gets plenty of target items and distractors.
-
-V2.66:
-- Fixed No EAN sprite-card slicing for shoes.webp, tops.webp and pants.webp.
-- No EAN sprite cards now use a fixed 4x3 grid with alpha-bounds cropping, so items are not cut from the wrong grid.
-- Added a stronger dark drop shadow behind No EAN clothes/shoe sprites.
-- Added conveyor2.png support as a single conveyor machine/end-cap per conveyor run.
-- conveyor2.png is only placed at one end of a conveyor run, not between repeated conveyor pieces.
-- conveyor2.png flips when it is on the left side so the machine faces into the conveyor.
-- Moving conveyor items now use the extended conveyor path including the conveyor2 end-cap area.
-
-V2.66:
-- Added minimap.webp support, scaled into a top-right minimap HUD.
-- Minimap markers: flashing player, fire, extinguisher, active truck, and optional debug robots.
-- Added Ctrl+Shift+Space debug overlay: red collision boxes and green interaction/click zones.
-- Admin/office mode now shows green app click boxes for monitor hotspots.
-- Fire cooldown changed to 10 minutes after resolution, with less aggressive initial fire timing.
-- Inventory, Sperrlager/QS, No EAN and office task modules now use 5-minute cooldowns.
-- Pallet jack riders cannot start Inventory Check or Sperrlager.
-- Pallet jack robot/forklift hit disables that enemy for 5 minutes.
-- Robot counts now use the 10/8/6 repeating warehouse density pattern and far fewer forklifts.
-- Fixed conveyor2.png placement: one machine per run, attached after the normal conveyor, not overlapping.
-- Conveyor moving items now stop at the machine entrance.
-- Kitchen coffee is placed to the right of the refrigerator.
-- Elevator destination text moved into the black sign boxes.
-- Inventory top bar shortened so timer avoids the top-right buttons.
-- Quarantine Chaos renamed to Sperrlager: Items in bad condition and falling items are about 20% faster.
-- No EAN target selection avoids immediate repeats, and the right-side conveyor path is pulled left.
-
-V2.66:
-- Added level-based required task counts: warehouse 1 requires any 2 tasks, warehouse 2 requires any 3 tasks, warehouse 3+ requires all 4 task types.
-- Reworked box rewards into a filtered loot table so cooldown tasks cannot be awarded while unavailable.
-- Operational Excellence now unlocks the exit route and shows the new message.
-- SOPScout token pickup now flashes scoticon.png with a glow and the new office-help toast.
-- Robot count is now fixed by cycle: 15 / 20 / 30 robots.
-- Random clutter and box placement now avoid tables, machinery, task props, conveyors, dock road, elevator, and mandatory clear paths.
-- Consolidated safe-zone logic through isSafeZone(tile).
-- Minimap marker drawing is more visible and live-state focused.
-- Conveyor draw alignment moved slightly down and No EAN right-side path pulled left.
-
-V2.66:
-- Added Crazy Ivan boss fight after every third warehouse.
-- Added it2.jpg intro flow, bossbg.jpg scrolling arena, boss1.webp animated boss, fireball.webp projectiles, car.webp battle vehicle, car.png victory car, bossbg1.jpg victory background, and actionssprite.png win animation support.
-- Boss has 6 hearts. Vertical forklift rams deal 2 damage. Unlimited thrown offline-stock shoes deal 1 damage and spin while travelling upward.
-- Player enters the boss fight with full current max-heart capacity.
-- Defeating Ivan grants +1 max heart capacity and shows a score-board style summary with the extra-heart reward.
-- boss.mp3, robot1.mp3, robot2.mp3, robot3.mp3, and success.mp3 are supported when present in assets.
-
-V2.66:
-- Fixed startup/gameplay freeze caused by old MAX_HEARTS references after maxHearts was introduced.
-- Saved shifts now preserve maxHearts.
-- Name input no longer swallows gameplay movement keys after the intro.
-- Starting/continuing a shift blurs the title input and clears stuck keys.
-
-V2.66:
-- Cleared pending list items: removed return reward, improved filtered loot, stronger shoe availability, pushable smallbox3, area-edge shelves/boxes, conveyor-machine alignment, No EAN path pull-left, QS timer layout, elevator label/helper text, live minimap visibility, admin drag/collapse/edit, and carry-forward resources between warehouses.
-
-V2.66:
-- Rebuilt car_battle_sheet.png from car.webp using edge-connected black removal so only visible car pixels draw.
-- Boss car now draws from the cropped transparent sprite sheet and preserves aspect ratio.
-- Boss/car/fireball visuals adjusted: Ivan larger, fireballs larger/glowing from chest, victory car larger.
-- Forklift enemies now flip horizontally when moving right so they face their travel direction.
-- Conveyor drawing now uses same-scale same-top placement for conveyor.png and conveyor2.png; no fake vertical centering.
-- Moving conveyor item lane adjusted to sit on the visible belt surface.
-- Filler room prop installer now actually runs, supports printers/bathroom, and adds denser box/shelf walls around pods.
-- Added Admin Build a Map mode with prop palette, grid view, place/erase, zoom hotkeys, and JSON export.
-
-V2.66:
-- Admin Test Mode panel is now fixed to the browser viewport and can be dragged into the black side margins outside the 16:9 play area.
-- Build a Map controls moved into a draggable DOM panel instead of being locked inside the canvas.
-- Build a Map panel can be dragged into the black side margins, collapsed, zoomed, switched between place/erase, and used to export JSON.
-- Map Builder canvas is now free to use the full play area for the map.
-
-V2.66:
-- Build a Map is now a template editor with editable yellow path blocks and green area pods.
-- Shows all default pods including top-right and bottom-middle.
-- Green areas and yellow paths can be placed, moved, resized with corner handles, selected, duplicated, and deleted.
-- Dock and elevator area blocks display their actual images when available.
-- Tools added: Place, Erase, Move, Select.
-- Select supports click selection, drag-select marquee, centre-dot moving, and right-click menu actions.
-- Prop palette is now two columns with smaller buttons.
-
-V2.66:
-- Fixed Build a Map opening blank.
-- Added the missing uid() helper used by editable green/yellow map objects.
-- Added safe draw guards for missing map-builder arrays.
-- Kept the advanced map-builder controls from V2.66.
-
-V2.66:
-- Fixed Build a Map right-click actions.
-- Yellow Path and Green Area placement now works by click-dragging a rectangle.
-- Middle mouse / mouse wheel button drag now pans the map workspace.
-- Control panel buttons and padding reduced.
-- Prop palette is now a compact 3-column icon-only grid.
-
-V2.66:
-- Build a Map objects can now be dragged partially outside the 80x50 board.
-- Movement/resizing only clamps when less than roughly one tile would remain on the board.
-- This lets shelves/large props sit over the edge like real boundary decoration without losing them completely.
-
-V2.66:
-- Added named Save and Load for Build a Map using browser local storage.
-- Back/Escape now autosaves the current map before leaving the builder.
-- Header now has emoji Back, Collapse, and Close controls.
-- Tool controls are emoji-style.
-- Green Area and Yellow Path buttons now use colored dots.
-- Added new prop placement scale buttons: 1x, 2x, 3x.
-- Added Rescale selected objects button with 1x/2x/3x choices.
-- Added layer ordering to right-click menu: Bring front, Move forward, Move backward, Send back.
-- Right-click menu still includes Duplicate, Delete, Flip, Collision.
-- Prop palette remains compact 3-column icon-only.
-
-V2.66:
-- Dock/carrier delivery response timer changed from 30 seconds to 60 seconds.
-- Delivery prompt text updated to say 60 seconds.
-
-V2.66 boss hotfix:
-- Boss music now starts as soon as the boss intro screen appears.
-- Removed main-canvas rectangle tinting that caused visible square backgrounds around boss/player/fireball assets.
-- Rebuilt car_battle_sheet.png from car.webp with edge-connected black background removed and square 1100x1100 frames.
-- Added fireball_sheet.png from fireball.webp so fireballs animate manually.
-- Boss victory now switches to bossVictory mode immediately, stops future fireballs/voices, clears current fireballs and clears shoe projectiles.
-- Fireballs now originate from Ivan's chest cannon area and are larger/glowing.
-- Space/action now throws boss shoes from the boss fight, with larger spinning projectiles and a wider boss hitbox.
-- Boss battle car is drawn square to preserve the original character/car aspect ratio.
-- Victory car is larger and the winning scout animation is about double size with correct sprite-frame aspect ratio.
-
-V2.66:
-- Ivan now draws into a square target so he is not vertically squashed.
-- Ivan source dimensions/logic updated to square 560x560.
-- Boss combat logic tightened:
-  * Ivan starts with 6 hearts.
-  * Shoe/offline stock hit removes 1 heart.
-  * Ram hit removes 2 hearts.
-  * Ivan fireball hit removes 1 player heart.
-  * Shoes travel straight upward and only hit if the player is horizontally aligned, so Ivan can dodge by moving quickly.
-- Shoe projectile hit detection now uses a swept vertical hit check so fast shoes do not pass through Ivan without registering.
-- Victory scoreboard is taller, larger, and uses dark text for readability.
-- Admin panel buttons reordered by workflow and colour-coded:
-  * system/tools = yellow
-  * gameplay/mini-games = gray
-  * tasks = green
-  * events = orange/red
-  * boss = red
-
-V2.66:
-- Rebuilt from structurally complete V2.66 because V2.66-d accidentally removed large sections of game.js.
-- Reapplied loader fix safely without deleting middle code.
-- Added cache-busted image loading, per-image timeout, and placeholder fallback.
-- Bundled full base assets from images.zip plus newer available boss/scanner/map assets.
-- Reapplied boss fixes:
-  * boss/success audio stops before returning to gameplay
-  * boss game-over works when player hearts reach 0
-  * shoe/offline stock = exactly 1 Ivan heart
-  * ram = exactly 2 Ivan hearts
-  * fireball = exactly 1 player heart
-  * ramming only damages while actively driving upward
-  * shoes are 30% smaller
-  * fireball glow is radial and animated
-  * score.png stretches to fit the summary board
-- Ran node syntax check and a browser-like startup/first-frame harness.
-
-V2.66:
-- Fixed boss shoe projectiles so they are visible, slower, smaller, and cannot damage Ivan immediately on spawn.
-- Shoe/offline-stock damage now only happens on actual overlap with Ivan's hitbox after the shoe has armed.
-- Ivan fireballs can now shoot thrown shoes out of the air, causing a small explosion and preventing the hit.
-- Kept Ivan damage locked: shoe = 1 heart, ram = 2 hearts, fireball = 1 player heart.
-- Victory scoreboard redesigned to take less vertical space: heart reward on the left, text summary on the right.
-- Cache-buster updated to 2.62.
-
-V2.66:
-- Boss fight repaired after V2.66 freeze.
-- Added the missing shootBossFireball() function.
-- Replaced missing randomRange() calls with existing rand().
-- Boss mode now sets a real worldW and bossViewport no longer depends on undefined width.
-- startBossFight() re-enables gameplay controls.
-- On-screen direction buttons now work in bossFight as well as play mode.
-- Space/action now throws shoes in bossFight correctly.
-- Boss fireballs damage game.health, not a non-existent game.hearts variable.
-- Boss simulation checks were run before packaging:
-  * boss reaches fight mode
-  * Ivan moves
-  * player moves
-  * Space creates a shoe
-  * shoe hit removes exactly 1 heart
-  * ram removes exactly 2 hearts
-  * fireball hit removes exactly 1 player health
-  * 0 health triggers Game Over
-  * no passive Ivan heart loss
-
-V2.66:
-- Boss shoes now travel in a visible arc and drop onto the ground instead of just disappearing upward.
-- Ivan now fires less often.
-- Fireballs are larger and still remove exactly 1 player heart each.
-- Ivan targets active thrown shoes first, then the player.
-- If Ivan shoots a thrown shoe, the shoe now explodes visibly with a flash.
-- If a thrown shoe hits Ivan, the shoe reaches him and a visible impact flash appears at the hit point.
-
-V2.66:
-- Victory scoreboard tightened: reduced title/reward gap and added one heart on each side of the reward text.
-- Boss car/player is 15% smaller during the fight.
-- Offline stock/shoes only damage Ivan after they visibly travel upward and start coming down.
-- Shoes now require the player to drive closer before they can reach Ivan; from the back of the arena they arc and land short.
-- On hit, the shoe briefly remains at the impact point and creates a flash so the hit is visible instead of feeling skipped.
-- Ivan fires slightly less often to balance the new range requirement.
-
-V2.66:
-- Boss arena player/forklift can now drive further forward into the room.
-- Boss player collision now uses the lower visible driving footprint instead of the full tall sprite box.
-- Fireball collision against the player is smaller and centered on the visible lower/forklift area.
-- Ram collision now uses the player footprint instead of the sprite top.
-- Ivan can drift backward/forward a bit more while still mostly moving left/right.
-- Shoe hit range threshold updated so the player still needs to drive closer before offline stock can reach Ivan.
-
-V2.70 boss fight patch:
-- Removed Crazy Ivan car/forklift ram damage. Driving into Ivan no longer removes boss hearts.
-- Boss damage is now shoe/offline-stock only.
-- Each successful shoe hit removes exactly 1 Ivan heart.
-- Ivan now has a 3-second damage cooldown after each successful shoe hit.
-- Thrown shoes travel slightly further, with about ±10% random range variation per throw.
-- Boss fight helper text and victory summary were updated so they no longer promote ram damage.
-
-
-V2.72 mobile phase 1 hotfix:
-- Phones/tablets now start in mobile control mode automatically instead of requiring the top display toggle first.
-- The Fullscreen Mode button now appears on touch/mobile layouts even before the mobile-mode class has been applied.
-- Cache references bumped from 2.71 to 2.72.
-- Reason for hotfix: V2.71 mobile CSS was present, but several changes could appear missing if the saved display mode was still desktop on the phone.
-
-
-V2.73 mobile controls and minigame hotfix:
-- Dynamic mobile action button labels added: JUMP, OPEN BOX, TRAVEL, OFFICE, SCAN, THROW, PICK UP, SPRAY, etc.
-- No EAN Scanner now exposes mobile controls: left/right move the scanner, up/down rotate, Action fires the scan beam.
-- Sperrlager/QS keeps the control overlay hidden; the red crate is the mobile control and can be dragged directly left/right with a wider touch area.
-- D-pad touch handling now tracks the thumb as it slides from one arrow to another instead of requiring lift-and-retap.
-- Long-press text selection/copy-paste menus are suppressed inside the game shell while keeping the name input usable.
-- Mobile cockpit/task panel is duplicated into the left sidebar during warehouse play, and the old canvas cockpit is hidden in mobile landscape.
-- Added defensive music handoff helpers for major scene changes.
-- Cache references bumped to 2.73.
+On mobile, test:
+- PATH BLOCKED toast when walking into shelves/walls.
+- Bathroom/first-aid pod drawing order.
+- No EAN scan sounds and controls.
+- Sperrlager correct/wrong catch sounds.
+- Admin URL.
+- Ivan fight speed and Continue behaviour after death.

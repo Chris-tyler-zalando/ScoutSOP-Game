@@ -64,11 +64,11 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.73';
+  const VERSION = 'V2.74';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
-  const ASSET_VERSION = '2.73';
+  const ASSET_VERSION = '2.74';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
   const PROFILES_KEY = 'zalandoScoutProfilesV1';
@@ -237,6 +237,7 @@
     map: [],
     obstacles: [],
     zoneProps: [],
+    backgroundProps: [],
     borderProps: [],
     decorativeProps: [],
     conveyors: [],
@@ -282,6 +283,10 @@
     nextFireAt: 0,
     tokenFlashUntil: 0,
     exitWarnUntil: 0,
+    pathBlockedUntil: 0,
+    pathBlockedNextAt: 0,
+    deathReturnMode: null,
+    lastBossDrawAt: 0,
     stats: freshStats()
   };
 
@@ -353,6 +358,11 @@
     route() { [523, 659, 784, 1047].forEach((f, i) => this.note(f, .12, 'square', .045, i * .08)); }
     powerDown() { this.note(260, .07, 'sawtooth', .045); this.note(130, .17, 'sawtooth', .045, .07); }
     jump() { this.note(360, .06, 'square', .045); this.note(650, .11, 'triangle', .05, .05); this.note(920, .09, 'square', .035, .13); }
+    laser() { this.note(1180, .035, 'square', .038); this.note(760, .045, 'sawtooth', .026, .018); }
+    correct() { this.note(640, .055, 'square', .04); this.note(880, .075, 'triangle', .045, .055); this.note(1180, .095, 'sine', .038, .12); }
+    wrong() { this.note(210, .08, 'sawtooth', .055); this.note(135, .14, 'square', .045, .075); }
+    mechanicalGood() { this.note(520, .05, 'square', .035); this.note(690, .075, 'square', .035, .05); }
+    mechanicalBad() { this.note(190, .07, 'sawtooth', .05); this.note(115, .12, 'sawtooth', .045, .055); }
     spray(duration = .85) {
       if (game.muted || game.volume <= 0 || !game.soundReady || !this.audio) return;
       const t = this.audio.currentTime;
@@ -529,6 +539,7 @@
     refreshSavedButton();
     updateMuteButton();
     updateDisplayModeButton();
+    maybeEnterAdminFromUrl();
     console.table(assetStatus);
     requestAnimationFrame(loop);
   }
@@ -698,6 +709,7 @@
       }
     };
     (game.zoneProps || []).forEach(add);
+    (game.backgroundProps || []).forEach(add);
     (game.conveyors || []).forEach(c => rects.push({ left: c.visualLeft ?? c.left, top: (c.top || 0) - .65, width: (c.visualRight ?? (c.left + c.width)) - (c.visualLeft ?? c.left), height: 2.45 }));
     plannedConveyorRects().forEach(r => rects.push(r));
     const d = game.zones && game.zones.dock;
@@ -760,11 +772,15 @@
   function addZoneProp(image, rect, options = {}) {
     if (!images[image] || !withinMap(rect)) return;
     const collisionRect = sceneryFootprint(rect, image, options);
+    const flipX = options.flipX ?? (canFlipImage(image) && Math.random() < 0.5);
+    if (options.background) {
+      game.backgroundProps.push({ ...rect, image, flipX, collisionRect: null, background: true });
+      return;
+    }
     if (options.block !== false) {
       markBlocked(collisionRect);
       addCollider(collisionRect, image, options.collisionInset ?? .04);
     }
-    const flipX = options.flipX ?? (canFlipImage(image) && Math.random() < 0.5);
     game.zoneProps.push({ ...rect, image, flipX, collisionRect: options.block === false ? null : collisionRect });
   }
   function addBorderProp(image, rect, flipX = false) {
@@ -1012,7 +1028,7 @@
           top: z.top + (z.height - roomH) / 2,
           width: roomW,
           height: roomH
-        }, { collisionInset: .22, floorBand: .20, sideInset: .08 });
+        }, img === 'bathroom' ? { background: true, block: false, flipX: false } : { collisionInset: .22, floorBand: .20, sideInset: .08 });
       }
 
       if (!shelfImages.length) return;
@@ -1347,6 +1363,7 @@
     game.map = makeFloorGrid();
     game.obstacles = [];
     game.zoneProps = [];
+    game.backgroundProps = [];
     game.borderProps = [];
     game.decorativeProps = [];
     game.conveyors = [];
@@ -2026,14 +2043,22 @@
   function continueAfterDeath() {
     game.health = game.maxHearts;
     game.coffees = 0;
+    gameoverUI.classList.add('hidden');
+    game.messages = [];
+    game.specialMusic = null;
+    keys.clear();
+    if (game.deathReturnMode === 'boss') {
+      game.deathReturnMode = null;
+      setGameplayControlsVisible(false);
+      startBossIntro();
+      addMessage('CONTINUE SHIFT — IVAN REMATCH', '#ff7700', 2400);
+      return;
+    }
     const p = destinationPosition(game.zones.dock);
     game.player = { x: p.x, y: p.y, r: 23, speed: 315, facing: 'down', frame: 0, anim: 0, moving: false, sprinting: false, invulnerableUntil: performance.now() + 3000, action: null, palletJackUntil: 0 };
     spawnEnemies();
     game.mode = 'play';
     setGameplayControlsVisible(true);
-    gameoverUI.classList.add('hidden');
-    game.messages = [];
-    game.specialMusic = null;
     centerCamera();
     music.playGameplay(true);
     addMessage('CONTINUE SHIFT — BACK TO DOCK', '#ff7700', 2900);
@@ -2080,6 +2105,13 @@
       px + radius > collider.left && px - radius < collider.left + collider.width &&
       py + radius > collider.top && py - radius < collider.top + collider.height
     );
+  }
+  function showPathBlockedToast(now = performance.now()) {
+    if (game.mode !== 'play' || playerRidingPalletJack(now) || (game.player && game.player.action)) return;
+    if (now < (game.pathBlockedNextAt || 0)) return;
+    game.pathBlockedUntil = now + 700;
+    game.pathBlockedNextAt = now + 1050;
+    synth.note(160, .045, 'square', .022);
   }
   function propOccupiesTile(prop, t) {
     const r = prop.collisionRect || prop;
@@ -2325,8 +2357,16 @@
       const step = p.speed * (playerRidingPalletJack(now) ? 2 : (p.sprinting ? 1.72 : responseSpeed)) * dt;
       const moveRadius = playerRidingPalletJack(now) ? 18 : p.r;
       pushSmallBoxIfNeeded(dx, dy, step);
-      if (canMove(p.x + dx * step, p.y, moveRadius)) p.x += dx * step;
-      if (canMove(p.x, p.y + dy * step, moveRadius)) p.y += dy * step;
+      let movedX = false, movedY = false, blockedX = false, blockedY = false;
+      if (dx) {
+        if (canMove(p.x + dx * step, p.y, moveRadius)) { p.x += dx * step; movedX = true; }
+        else blockedX = true;
+      }
+      if (dy) {
+        if (canMove(p.x, p.y + dy * step, moveRadius)) { p.y += dy * step; movedY = true; }
+        else blockedY = true;
+      }
+      if ((blockedX || blockedY) && !movedX && !movedY) showPathBlockedToast(now);
       p.anim += dt * (playerRidingPalletJack(now) || game.fire ? 15 : (p.sprinting ? 17 : 10));
       p.frame = Math.floor(p.anim) % 5;
     } else p.frame = 0;
@@ -2817,12 +2857,12 @@
           if (side === 'dispose') pz.disposeCount++; else pz.destroyCount++;
           game.stats.quarantineSorts++;
           pz.flashText = '+5  CORRECT';
-          synth.points();
+          synth.mechanicalGood();
           updateBest();
         } else {
           pz.failedCount++;
           pz.flashText = 'WRONG SORT  +0';
-          synth.note(180, .08, 'square', .03);
+          synth.mechanicalBad();
         }
         pz.flashUntil = now + 700;
         pz.items.splice(i, 1);
@@ -3044,7 +3084,7 @@
     else { game.score = 0; game.health = Math.max(0, game.health - 1); }
     if (reason === 'wrong') { pz.wrongHits++; game.stats.noEanWrong++; }
     if (reason === 'missed') { pz.missedTargets++; game.stats.noEanMissed++; }
-    synth.note(160, .12, 'sawtooth', .045);
+    synth.wrong();
     shake(8);
     updateBest();
     if (game.health <= 0) {
@@ -3067,7 +3107,7 @@
     });
     const beamEnd = best ? { x: ray.x + ray.dx * best.along, y: ray.y + ray.dy * best.along } : { x: ray.x + ray.dx * W * 1.45, y: ray.y + ray.dy * W * 1.45 };
     pz.beam = { x1: ray.x, y1: ray.y, x2: beamEnd.x, y2: beamEnd.y, until: now + 130 };
-    synth.note(760, .035, 'square', .025);
+    synth.laser();
     if (!best) return;
     const item = best.item;
     if (item.category === pz.target) {
@@ -3079,7 +3119,7 @@
       game.stats.noEanScans++;
       game.score += 15;
       setNoEanFeedback('correct', now);
-      synth.note(1040, .08, 'sine', .05);
+      synth.correct();
       burst(item.x, item.y, '#ff3b3b', 12);
       updateBest();
     } else {
@@ -3411,6 +3451,10 @@
   }
 
 
+  function bossPerformanceMode() {
+    return game.displayMode === 'mobile' || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  }
+
   function shouldStartBossAfterWarehouse(level) { return level > 0 && level % 3 === 0; }
   function startBossIntro() {
     game.mode = 'bossIntro';
@@ -3421,7 +3465,7 @@
     const bgW = bg ? bg.width : 2000;
     const bgH = bg ? bg.height : 576;
     const worldScale = H / bgH;
-    const bossWorldW = Math.max(2000, bgW);
+    const bossWorldW = bossPerformanceMode() ? 2000 : Math.max(2000, bgW);
     game.boss = {
       phase: 'intro',
       introStart: performance.now(),
@@ -3429,8 +3473,8 @@
       worldW: bossWorldW,
       worldScale,
       countdown: 3,
-      player: { x: bossWorldW / 2, y: H + 220, speed: 430, invulnerableUntil: performance.now() + 2300 },
-      boss: { x: bossWorldW / 2, y: -350, w: 560, h: 560, vx: 135, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
+      player: { x: bossWorldW / 2, y: H + 220, speed: bossPerformanceMode() ? 500 : 430, invulnerableUntil: performance.now() + 2300 },
+      boss: { x: bossWorldW / 2, y: -350, w: bossPerformanceMode() ? 500 : 560, h: bossPerformanceMode() ? 500 : 560, vx: bossPerformanceMode() ? 120 : 135, hearts: 6, maxHearts: 6, hitFlashUntil: 0, dead: false },
       fireballs: [],
       shoes: [],
       effects: [],
@@ -3892,6 +3936,7 @@
   }
   function triggerDeath() {
     if (game.mode === 'bossIntro' || game.mode === 'bossEnter' || game.mode === 'bossCountdown' || game.mode === 'bossFight' || game.mode === 'bossVictory') {
+      game.deathReturnMode = 'boss';
       game.mode = 'gameover';
       game.boss = null;
       setGameplayControlsVisible(false);
@@ -4027,6 +4072,20 @@
     modal.classList.remove('hidden');
   }
 
+  function adminUrlRequested() {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const hash = String(window.location.hash || '').toLowerCase();
+      return params.has('admin') || params.get('mode') === 'admin' || hash === '#admin' || hash === '#testmode';
+    } catch (err) {
+      return false;
+    }
+  }
+  function maybeEnterAdminFromUrl() {
+    if (!adminUrlRequested() || game.adminMode || game.mode !== 'title') return;
+    enterAdminMode();
+  }
+
   function showAdminPanel(show) {
     adminPanel.classList.toggle('hidden', !show);
   }
@@ -4045,7 +4104,7 @@
     setGameplayControlsVisible(true);
     cockpitHelpUI.classList.add('hidden');
     gameoverUI.classList.add('hidden');
-    music.playGameplay();
+    playSceneMusic('gameplay');
   }
   function enterAdminMode() {
     if (game.mode !== 'title') return;
@@ -5223,6 +5282,7 @@
   }
   function drawStaticWorldView() {
     drawFloors();
+    (game.backgroundProps || []).forEach(prop => drawSceneryProp(prop, false));
     drawObstacles();
     drawZones();
     drawDecorativeClutter(performance.now());
@@ -5652,6 +5712,28 @@
     ctx.fillText('Use the SOPScout to help you complete a task in the office!', W / 2, H / 2 + 105);
     ctx.restore();
   }
+
+  function drawPathBlockedToast(now) {
+    if (!game.pathBlockedUntil || now >= game.pathBlockedUntil) return;
+    const remaining = clamp((game.pathBlockedUntil - now) / 700, 0, 1);
+    const alpha = Math.min(.86, remaining * 1.2);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 18px Trebuchet MS';
+    ctx.textAlign = 'center';
+    const text = 'PATH BLOCKED';
+    const tw = ctx.measureText(text).width + 44;
+    const x = W / 2 - tw / 2;
+    const y = H * .62;
+    ctx.fillStyle = 'rgba(0,0,0,.58)';
+    roundRect(x, y, tw, 34, 10, true, false);
+    ctx.strokeStyle = 'rgba(255,105,0,.72)';
+    roundRect(x, y, tw, 34, 10, false, true);
+    ctx.fillStyle = '#ffe2b0';
+    ctx.fillText(text, W / 2, y + 23);
+    ctx.restore();
+  }
+
   function drawHUD(now) {
     ctx.save();
     ctx.fillStyle = 'rgba(12,15,18,.88)'; ctx.fillRect(0, 0, W, 70);
@@ -5703,6 +5785,7 @@
     drawGuidanceArrow(now);
     drawCarrierToast(now);
     drawTokenCelebration(now);
+    drawPathBlockedToast(now);
     drawFireAlarm(now);
   }
   function drawTitle() {
@@ -6117,26 +6200,34 @@
   function drawBossProjectiles(now, view) {
     const bz = game.boss; if (!bz) return;
 
+    const lowFx = bossPerformanceMode();
     bz.fireballs.forEach(f => {
       const x = f.x * view.scale - view.cameraX;
       ctx.save();
-      const pulse = 1 + Math.sin((now - f.born) / 110) * 0.08;
+      const pulse = lowFx ? 1 : 1 + Math.sin((now - f.born) / 110) * 0.08;
       const drawW = f.w * pulse;
       const drawH = f.h * pulse;
-      const radius = Math.max(drawW, drawH) * .74;
-      const glow = ctx.createRadialGradient(x, f.y, 0, x, f.y, radius);
-      glow.addColorStop(0, 'rgba(255, 241, 130, .95)');
-      glow.addColorStop(.22, 'rgba(255, 160, 0, .82)');
-      glow.addColorStop(.55, 'rgba(255, 72, 0, .42)');
-      glow.addColorStop(1, 'rgba(255, 0, 0, 0)');
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(x, f.y, radius, 0, Math.PI * 2);
-      ctx.fill();
+      const radius = Math.max(drawW, drawH) * (lowFx ? .50 : .74);
+      if (lowFx) {
+        ctx.fillStyle = 'rgba(255, 104, 0, .38)';
+        ctx.beginPath();
+        ctx.arc(x, f.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        const glow = ctx.createRadialGradient(x, f.y, 0, x, f.y, radius);
+        glow.addColorStop(0, 'rgba(255, 241, 130, .95)');
+        glow.addColorStop(.22, 'rgba(255, 160, 0, .82)');
+        glow.addColorStop(.55, 'rgba(255, 72, 0, .42)');
+        glow.addColorStop(1, 'rgba(255, 0, 0, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(x, f.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       if (images.fireball) {
         ctx.shadowColor = '#ff6a00';
-        ctx.shadowBlur = 24;
+        ctx.shadowBlur = lowFx ? 0 : 24;
         drawContain(images.fireball, x - drawW/2, f.y - drawH/2, drawW, drawH, 1, false);
       } else {
         ctx.font='64px Arial';
@@ -6183,15 +6274,22 @@
         ctx.save();
         ctx.globalAlpha = Math.max(0, alpha);
         const radius = 32 + 72 * grow;
-        const flash = ctx.createRadialGradient(x, fx.y, 0, x, fx.y, radius);
-        flash.addColorStop(0, 'rgba(255,255,240,.96)');
-        flash.addColorStop(.22, 'rgba(255,214,84,.92)');
-        flash.addColorStop(.55, 'rgba(255,100,0,.55)');
-        flash.addColorStop(1, 'rgba(255,0,0,0)');
-        ctx.fillStyle = flash;
-        ctx.beginPath();
-        ctx.arc(x, fx.y, radius, 0, Math.PI * 2);
-        ctx.fill();
+        if (lowFx) {
+          ctx.fillStyle = 'rgba(255, 139, 0, .42)';
+          ctx.beginPath();
+          ctx.arc(x, fx.y, radius * .62, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          const flash = ctx.createRadialGradient(x, fx.y, 0, x, fx.y, radius);
+          flash.addColorStop(0, 'rgba(255,255,240,.96)');
+          flash.addColorStop(.22, 'rgba(255,214,84,.92)');
+          flash.addColorStop(.55, 'rgba(255,100,0,.55)');
+          flash.addColorStop(1, 'rgba(255,0,0,0)');
+          ctx.fillStyle = flash;
+          ctx.beginPath();
+          ctx.arc(x, fx.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
         const drawSize = 86 + 90 * grow;
         if (images.fireball) {
@@ -6205,15 +6303,22 @@
         const radius = 58 * (0.65 + p);
         ctx.save();
         ctx.globalAlpha = alpha;
-        const flash = ctx.createRadialGradient(x, fx.y, 0, x, fx.y, radius);
-        flash.addColorStop(0, 'rgba(255,255,220,1)');
-        flash.addColorStop(.22, fx.type === 'playerImpact' ? 'rgba(255,80,80,.95)' : 'rgba(255,220,120,.92)');
-        flash.addColorStop(.58, fx.type === 'playerImpact' ? 'rgba(255,0,0,.28)' : 'rgba(255,140,0,.22)');
-        flash.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = flash;
-        ctx.beginPath();
-        ctx.arc(x, fx.y, radius, 0, Math.PI * 2);
-        ctx.fill();
+        if (lowFx) {
+          ctx.fillStyle = fx.type === 'playerImpact' ? 'rgba(255,40,40,.38)' : 'rgba(255,220,120,.36)';
+          ctx.beginPath();
+          ctx.arc(x, fx.y, radius * .68, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          const flash = ctx.createRadialGradient(x, fx.y, 0, x, fx.y, radius);
+          flash.addColorStop(0, 'rgba(255,255,220,1)');
+          flash.addColorStop(.22, fx.type === 'playerImpact' ? 'rgba(255,80,80,.95)' : 'rgba(255,220,120,.92)');
+          flash.addColorStop(.58, fx.type === 'playerImpact' ? 'rgba(255,0,0,.28)' : 'rgba(255,140,0,.22)');
+          flash.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = flash;
+          ctx.beginPath();
+          ctx.arc(x, fx.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       }
     });
@@ -6362,7 +6467,12 @@
     const dt = Math.min(.035, (time - (game.lastTime || time)) / 1000);
     game.lastTime = time;
     update(dt, time);
-    draw(time);
+    const bossModeActive = game.mode === 'bossIntro' || game.mode === 'bossEnter' || game.mode === 'bossCountdown' || game.mode === 'bossFight' || game.mode === 'bossVictory';
+    const capBossDraw = bossModeActive && bossPerformanceMode();
+    if (!capBossDraw || !game.lastBossDrawAt || time - game.lastBossDrawAt >= 32) {
+      draw(time);
+      if (capBossDraw) game.lastBossDrawAt = time;
+    }
     updateActionButtonLabel();
     updateMobileCockpitPanel();
     requestAnimationFrame(loop);

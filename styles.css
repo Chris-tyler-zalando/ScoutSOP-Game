@@ -1243,7 +1243,7 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
 }
 
 
-/* V2.72 mobile phase 1 hotfix: landscape control sidebar, fullscreen start button, safer viewport fit */
+/* V2.74 mobile polish: controls, sidebar, blocker toast, admin URL and boss performance */
 .fullscreen-start-button {
   display: none;
   width: 100%;
@@ -1513,5 +1513,21 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
   #game-shell.mobile-mode .action-control {
     white-space: normal;
     line-height: 1.1;
+  }
+}
+
+
+@media (orientation: landscape) {
+  #game-shell.mobile-mode .audio-toggle {
+    top: 8px;
+    right: 8px;
+    z-index: 44;
+    box-shadow: 0 10px 22px rgba(0,0,0,.68);
+  }
+  #game-shell.mobile-mode .display-toggle {
+    top: 8px;
+    right: 68px;
+    z-index: 44;
+    box-shadow: 0 10px 22px rgba(0,0,0,.68);
   }
 }
