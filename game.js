@@ -63,11 +63,11 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.71';
+  const VERSION = 'V2.72';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
-  const ASSET_VERSION = '2.71';
+  const ASSET_VERSION = '2.72';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
   const PROFILES_KEY = 'zalandoScoutProfilesV1';
@@ -164,6 +164,17 @@
   };
   const gameplayPlaylist = ['gameplay', 'gameplay1', 'gameplay2', 'gameplay3'];
 
+  function isLikelyMobileDevice() {
+    try {
+      const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      const smallLandscape = window.matchMedia && window.matchMedia('(orientation: landscape) and (max-height: 620px)').matches;
+      const touchCapable = navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
+      return !!(coarsePointer || (touchCapable && smallLandscape));
+    } catch (err) {
+      return false;
+    }
+  }
+
   // Opening story sequence and its soundtrack mapping.
   const introSlides = [
     { images: ['wecome0.jpg'], music: 'welcome', text: 'Welcome to Zalando Scout! I know you are in the Ops team, but we need your help.' },
@@ -218,7 +229,10 @@
     muted: localStorage.getItem(MUTE_KEY) === '1',
     volume: clamp(Number(localStorage.getItem(VOLUME_KEY) || 72) / 100, 0, 1),
     previousVolume: clamp(Number(localStorage.getItem('zalando-scout-prev-volume') || localStorage.getItem(VOLUME_KEY) || 72) / 100, .05, 1),
-    displayMode: localStorage.getItem(DISPLAY_MODE_KEY) === 'mobile' ? 'mobile' : 'desktop',
+    // V2.72: phones should start in the mobile layout automatically.
+    // The old default was desktop unless the toggle had already been pressed,
+    // which made several mobile-only CSS changes look like they had not loaded.
+    displayMode: isLikelyMobileDevice() ? 'mobile' : (localStorage.getItem(DISPLAY_MODE_KEY) === 'mobile' ? 'mobile' : 'desktop'),
     map: [],
     obstacles: [],
     zoneProps: [],

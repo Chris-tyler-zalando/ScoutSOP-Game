@@ -413,3 +413,10 @@ V2.70 boss fight patch:
 - Ivan now has a 3-second damage cooldown after each successful shoe hit.
 - Thrown shoes travel slightly further, with about ±10% random range variation per throw.
 - Boss fight helper text and victory summary were updated so they no longer promote ram damage.
+
+
+V2.72 mobile phase 1 hotfix:
+- Phones/tablets now start in mobile control mode automatically instead of requiring the top display toggle first.
+- The Fullscreen Mode button now appears on touch/mobile layouts even before the mobile-mode class has been applied.
+- Cache references bumped from 2.71 to 2.72.
+- Reason for hotfix: V2.71 mobile CSS was present, but several changes could appear missing if the saved display mode was still desktop on the phone.
