@@ -1313,6 +1313,19 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
     background: linear-gradient(to right, rgba(0,0,0,.68), rgba(0,0,0,.34), rgba(0,0,0,0));
   }
 
+  #game-shell.mobile-mode .mobile-cockpit-panel {
+    display: block;
+    left: calc(10px - min(var(--mobile-left-rail), 236px));
+    top: 18px;
+    width: 232px;
+    max-width: 232px;
+    filter: drop-shadow(0 12px 18px rgba(0,0,0,.72));
+  }
+
+  #game-shell.mobile-mode .mobile-cockpit-panel.hidden {
+    display: none !important;
+  }
+
   #game-shell.mobile-mode .play-controls {
     position: absolute;
     inset: 0;
@@ -1409,5 +1422,96 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
       --mobile-shell-width: min(100vw, calc(var(--mobile-usable-height) * 16 / 9));
       --mobile-left-rail: max(0px, calc(100vw - var(--mobile-shell-width)));
     }
+  }
+}
+
+
+/* V2.73 mobile cockpit panel shown in the left mobile sidebar */
+.mobile-cockpit-panel {
+  display: none;
+  position: absolute;
+  z-index: 36;
+  color: #fff4df;
+  background: rgba(12,15,18,.91);
+  border: 2px solid rgba(255,105,0,.82);
+  border-radius: 10px;
+  box-shadow: 0 16px 30px rgba(0,0,0,.76), 0 0 0 1px rgba(255,105,0,.18);
+  padding: 11px 12px 10px;
+  pointer-events: auto;
+  font-family: "Trebuchet MS", Arial, sans-serif;
+}
+.mobile-cockpit-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+.mobile-cockpit-title strong {
+  color: #ffd054;
+  font-size: 16px;
+  letter-spacing: .04em;
+}
+.mobile-cockpit-title span {
+  color: #ff9a3b;
+  font-size: 10px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+.mobile-cockpit-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 7px;
+  font-size: 12px;
+  font-weight: bold;
+}
+.mobile-cockpit-row strong {
+  color: #cdbd9e;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.mobile-cockpit-row.is-done span,
+.mobile-cockpit-row.is-done strong { color: #71dd8d; }
+.mobile-cockpit-token {
+  margin-top: 14px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+
+/* V2.73 mobile touch hardening: stop long-press selection/copy menus inside the game */
+#game-shell,
+#gameCanvas,
+.play-controls,
+.control-button,
+.unstuck-button,
+.audio-toggle,
+.display-toggle,
+.mobile-cockpit-panel {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#gameCanvas,
+.play-controls,
+.control-button,
+.unstuck-button,
+.mobile-cockpit-panel {
+  touch-action: none;
+}
+.name-input,
+.name-input * {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+  touch-action: auto;
+}
+
+@media (orientation: landscape) {
+  #game-shell.mobile-mode .action-control {
+    white-space: normal;
+    line-height: 1.1;
   }
 }

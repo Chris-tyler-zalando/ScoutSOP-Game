@@ -36,6 +36,7 @@
   const unstuckButton = document.getElementById('unstuck-button');
   const playControls = document.getElementById('play-controls');
   const actionControl = document.getElementById('action-control');
+  const mobileCockpitPanel = document.getElementById('mobile-cockpit-panel');
   const directionControls = Array.from(document.querySelectorAll('.direction[data-key]'));
   const introUI = document.getElementById('intro-ui');
   const introImage = document.getElementById('intro-image');
@@ -63,11 +64,11 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.72';
+  const VERSION = 'V2.73';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
-  const ASSET_VERSION = '2.72';
+  const ASSET_VERSION = '2.73';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
   const PROFILES_KEY = 'zalandoScoutProfilesV1';
@@ -1901,6 +1902,47 @@
     if (game.mode === 'play') addMessage(`ZOOM ${game.viewZoomStep > 0 ? '+' : ''}${game.viewZoomStep}`, '#ffd054', 850);
   }
 
+  function mobileSidebarActive() {
+    return game.displayMode === 'mobile' && (!window.matchMedia || window.matchMedia('(orientation: landscape)').matches);
+  }
+
+  function controlsAllowedForMode() {
+    return game.mode === 'play' || game.mode === 'bossFight' || game.mode === 'noEanPuzzle';
+  }
+
+  function nearbyBoxAvailable() {
+    if (!game.player) return false;
+    if ((game.decorativeProps || []).some(prop => prop.interactive && dist(game.player, decorativeCenter(prop)) < TILE * 1.05)) return true;
+    return (game.boxes || []).some(box => dist(game.player, box) < TILE * 1.30);
+  }
+
+  function playerNearTruckAction() {
+    return !!(game.truck && game.player && dist(game.player, destinationPosition(game.zones.dock)) < TILE * 3.7);
+  }
+
+  function actionButtonLabel() {
+    if (!actionControl || playControls.classList.contains('hidden')) return 'ACTION';
+    if (game.mode === 'noEanPuzzle') return 'SCAN';
+    if (game.mode === 'bossFight') return 'THROW';
+    if (game.mode !== 'play') return 'ACTION';
+    if (game.fire && !game.fire.hasExtinguisher && dist(game.player, game.fire.station.pos) < TILE * 3.0) return 'PICK UP';
+    if (game.fire && game.fire.hasExtinguisher && dist(game.player, game.fire) < TILE * 1.9) return 'SPRAY';
+    if (elevatorDoorIndexFromPlayer() >= 0) return 'TRAVEL';
+    if (nearbyBoxAvailable()) return 'OPEN BOX';
+    if (playerNearTruckAction()) return 'ACCEPT';
+    if (nearestAvailablePalletJack()) return 'RIDE';
+    if (playerNearDockOffice()) return 'OFFICE';
+    if (game.player && game.player.moving && game.coffees > 0) return 'SPRINT';
+    return 'JUMP';
+  }
+
+  function updateActionButtonLabel() {
+    if (!actionControl) return;
+    const label = actionButtonLabel();
+    if (actionControl.textContent !== label) actionControl.textContent = label;
+    actionControl.setAttribute('aria-label', label);
+  }
+
   function toggleDisplayMode() {
     game.displayMode = game.displayMode === 'mobile' ? 'desktop' : 'mobile';
     localStorage.setItem(DISPLAY_MODE_KEY, game.displayMode);
@@ -1942,10 +1984,19 @@
       stopSprint();
       directionControls.forEach(button => button.classList.remove('active'));
       actionControl.classList.remove('active');
+      keys.delete('ArrowUp'); keys.delete('ArrowDown'); keys.delete('ArrowLeft'); keys.delete('ArrowRight');
     }
+    updateActionButtonLabel();
   }
   function startTitleMusic() {
     if (game.mode === 'title' && !game.muted && game.volume > 0) music.play('startup', true);
+  }
+
+  function playSceneMusic(name, loop = true) {
+    music.stop();
+    stopOneShots();
+    if (name === 'gameplay') music.playGameplay(true);
+    else music.play(name, loop);
   }
 
   function setVolume(value) {
@@ -2591,7 +2642,7 @@
     game.inventoryBriefUntil = now + 3400;
     keys.clear();
     game.specialMusic = 'inventory';
-    music.play('inventory', true);
+    playSceneMusic('inventory', true);
   }
   function randomClothingType() { return randInt(0, 11); }
   function createInventoryPuzzle() {
@@ -2682,7 +2733,7 @@
     game.mode = 'play';
     setGameplayControlsVisible(true);
     centerCamera();
-    music.playGameplay();
+    playSceneMusic('gameplay');
     addMessage(resultText, '#ff7700', 3000);
     updateBest();
   }
@@ -2733,7 +2784,7 @@
     keys.clear();
     stopSprint();
     game.specialMusic = 'inventory';
-    music.play('inventory', true);
+    playSceneMusic('inventory', true);
     createQSPuzzle();
   }
   function updateQSPuzzle(dt, now) {
@@ -2796,7 +2847,7 @@
     keys.clear();
     setGameplayControlsVisible(true);
     centerCamera();
-    music.playGameplay();
+    playSceneMusic('gameplay');
     addMessage(`SPERRLAGER COMPLETE  +${pz.scoreEarned}  DISPOSE ${pz.disposeCount}  DESTROY ${pz.destroyCount}`, '#ff7700', 3400);
     updateBest();
   }
@@ -2809,7 +2860,7 @@
     game.noEanBriefUntil = now + 5200;
     game.mode = 'noEanBriefing';
     game.specialMusic = 'inventory';
-    music.play('inventory', true);
+    playSceneMusic('inventory', true);
     return true;
   }
 
@@ -2836,6 +2887,8 @@
       missedTargets: 0
     };
     game.mode = 'noEanPuzzle';
+    setGameplayControlsVisible(true);
+    updateActionButtonLabel();
   }
 
   function nextNoEanTarget() {
@@ -3088,7 +3141,7 @@
     setGameplayControlsVisible(true);
     centerCamera();
     if (!silent) addMessage(`NO EAN SCAN COMPLETE  +${pz.scoreEarned}  SCANNED ${pz.correctHits}`, '#ff7700', 3400);
-    music.playGameplay();
+    playSceneMusic('gameplay');
     updateBest();
   }
 
@@ -3267,10 +3320,12 @@
     const pz = game.qsPuzzle;
     if (!pz) return false;
     const b = pz.basket;
-    if (x < b.x - b.w / 2 || x > b.x + b.w / 2 || y < b.y - b.h / 2 || y > b.y + b.h / 2) return false;
+    const touchPad = game.displayMode === 'mobile' ? 42 : 0;
+    if (x < b.x - b.w / 2 - touchPad || x > b.x + b.w / 2 + touchPad || y < b.y - b.h / 2 - touchPad || y > b.y + b.h / 2 + touchPad) return false;
     b.dragging = true;
     b.pointerId = pointerId;
-    b.offsetX = x - b.x;
+    b.offsetX = 0;
+    b.x = clamp(x, 0, W);
     return true;
   }
   function handleQSPointerMove(x, y, pointerId = null) {
@@ -3387,7 +3442,7 @@
       summaryUntil: 0,
       fade: 1
     };
-    music.play('boss', true);
+    playSceneMusic('boss', true);
   }
   function startBossFight() {
     if (!game.boss) return;
@@ -3397,7 +3452,7 @@
     game.boss.nextFireAt = performance.now() + 2200;
     game.boss.nextVoiceAt = performance.now() + randInt(10000, 15000);
     setGameplayControlsVisible(true);
-    music.play('boss', true);
+    playSceneMusic('boss', true);
   }
   function bossViewport() {
     const bg = images.bossBg || images.bossBgWin;
@@ -3811,7 +3866,7 @@
       }
       return;
     }
-    music.play('winner', false);
+    playSceneMusic('winner', false);
     startPlayerAction('win', 1040, () => {
       game.score += 750 + game.health * 100;
       game.health = Math.min(game.maxHearts, game.health + 1);
@@ -3832,7 +3887,7 @@
     setGameplayControlsVisible(true);
     buildLevel(game.level);
     applyLevelCarry(carry);
-    music.playGameplay(true);
+    playSceneMusic('gameplay');
     addMessage(`WAREHOUSE ${game.level} — THREATS INCREASED`, '#ff7700', 3200);
   }
   function triggerDeath() {
@@ -3845,7 +3900,7 @@
       keys.clear();
       updateBest();
       gameoverUI.classList.remove('hidden');
-      music.play('gameover', true);
+      playSceneMusic('gameover', true);
       saveShift();
       return;
     }
@@ -3858,7 +3913,7 @@
       game.mode = 'gameover';
       updateBest();
       gameoverUI.classList.remove('hidden');
-      music.play('gameover', true);
+      playSceneMusic('gameover', true);
       saveShift();
     });
   }
@@ -5480,8 +5535,9 @@
     ctx.globalAlpha = .95; ctx.shadowBlur = 0; ctx.font = 'bold 13px Trebuchet MS'; ctx.fillStyle = '#ffd054';
     ctx.fillText(label, screenX, screenY + 22); ctx.restore();
   }
-  function cockpitRect() { return { x: 16, y: 80, w: 232, h: 169 }; }
+  function cockpitRect() { return mobileSidebarActive() ? { x: -9999, y: -9999, w: 0, h: 0 } : { x: 16, y: 80, w: 232, h: 169 }; }
   function drawTaskBoard() {
+    if (mobileSidebarActive()) return;
     ctx.save(); const { x, y, w, h } = cockpitRect();
     ctx.fillStyle = 'rgba(12,15,18,.88)'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = '#ff6900'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
     ctx.font = 'bold 16px Trebuchet MS'; ctx.fillStyle = '#ffd054'; ctx.fillText('COCKPIT', x + 13, y + 23);
@@ -5489,6 +5545,20 @@
     TASK_TYPES.forEach((type, i) => { const py = y + 51 + i * 21, jobs = taskJobsReady(type); ctx.font = 'bold 13px Trebuchet MS'; ctx.fillStyle = game.tasks.completed[type] ? '#71dd8d' : '#fff4df'; ctx.fillText(`${TASK_LABELS[type]} ${game.tasks[type]}/5`, x + 13, py); ctx.textAlign = 'right'; ctx.fillStyle = jobs ? '#ff9a3b' : '#cdbd9e'; ctx.fillText(jobs ? `${jobs} READY` : (game.tasks.completed[type] ? 'DONE ✓' : '—'), x + w - 12, py); ctx.textAlign = 'left'; });
     ctx.fillStyle = '#fff4df'; ctx.font = 'bold 13px Trebuchet MS'; ctx.fillText(`SOP TOKENS  ${game.tasks.tokens}`, x + 13, y + h - 11);
     ctx.restore();
+  }
+
+  function updateMobileCockpitPanel() {
+    if (!mobileCockpitPanel) return;
+    const visible = mobileSidebarActive() && (game.mode === 'play' || game.mode === 'cockpitHelp');
+    mobileCockpitPanel.classList.toggle('hidden', !visible);
+    if (!visible) return;
+    const rows = TASK_TYPES.map(type => {
+      const ready = taskJobsReady(type);
+      const status = game.tasks.completed[type] ? 'DONE ✓' : (ready ? `${ready} READY` : '—');
+      const doneClass = game.tasks.completed[type] ? ' is-done' : '';
+      return `<div class="mobile-cockpit-row${doneClass}"><span>${TASK_LABELS[type]} ${game.tasks[type]}/5</span><strong>${status}</strong></div>`;
+    }).join('');
+    mobileCockpitPanel.innerHTML = `<div class="mobile-cockpit-title"><strong>COCKPIT</strong><span>TAP FOR HELP ?</span></div>${rows}<div class="mobile-cockpit-token">SOP TOKENS&nbsp; ${game.tasks.tokens}</div>`;
   }
   function openCockpitHelp() {
     if (game.mode !== 'play') return;
@@ -5983,7 +6053,7 @@
     drawTokenCelebration(now);
   }
 
-  function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskAvailable('alm') || taskAvailable('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskAvailable('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskAvailable('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id === 'buy-hint') { buyOfficeHint(); return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) { if (!game.office.puzzle.locked.includes(emoji)) chosen.splice(idx, 1); } else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
+  function handleOfficeClick(x, y) { if (game.mode !== 'office' || !game.office) return; const spot = game.office.hotspots.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); if (!spot || !spot.active) return; const id = spot.id; if (id === 'leave-office') { game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); playSceneMusic('gameplay'); return; } if (id === 'office-menu') { game.office.page = 'menu'; game.office.puzzle = null; return; } if (id === 'app-sop') { if (game.tasks.tokens && anyTaskReady()) game.office.page = 'sop'; else addMessage('NO SOP TOKEN OR NO READY TASKS', '#ffd054', 1800); return; } if (id === 'app-jira') { if (taskAvailable('alm') || taskAvailable('sl')) game.office.page = 'jira'; else addMessage('NO JIRA TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id === 'app-email') { if (taskAvailable('email')) startOfficePuzzle('email'); else addMessage('NO EMAIL TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id === 'app-workday') { if (taskAvailable('workday')) startOfficePuzzle('workday'); else addMessage('NO WORKDAY TASKS READY OR COOLDOWN ACTIVE', '#ffd054', 1700); return; } if (id.startsWith('puzzle-')) { startOfficePuzzle(id.slice(7)); return; } if (id.startsWith('token-')) { const type = id.slice(6); if (game.tasks.tokens > 0 && taskJobsReady(type) > 0) { game.tasks.tokens--; completeTaskUnit(type, true, true); addMessage(`SOP SCOUT COMPLETED ${TASK_LABELS[type]}  +50`, '#ff7700', 2300); if (!anyTaskReady() || game.tasks.tokens <= 0) game.office.page = 'menu'; } return; } if (id === 'buy-hint') { buyOfficeHint(); return; } if (id.startsWith('emoji-') && game.office.puzzle) { const emoji = id.slice(6), chosen = game.office.puzzle.selected, idx = chosen.indexOf(emoji); if (idx >= 0) { if (!game.office.puzzle.locked.includes(emoji)) chosen.splice(idx, 1); } else if (chosen.length < 3) chosen.push(emoji); return; } if (id === 'submit-puzzle') submitOfficePuzzle(); }
 
   function drawBossBackground(victory = false) {
     const img = victory ? (images.bossBgWin || images.bossBg) : images.bossBg;
@@ -6293,6 +6363,8 @@
     game.lastTime = time;
     update(dt, time);
     draw(time);
+    updateActionButtonLabel();
+    updateMobileCockpitPanel();
     requestAnimationFrame(loop);
   }
 
@@ -6311,33 +6383,64 @@
   displayToggleButton.addEventListener('click', () => { toggleDisplayMode(); });
   volumeSlider.addEventListener('input', event => { synth.init(); setVolume(event.target.value); if (game.mode === 'title') startTitleMusic(); });
   unstuckButton.addEventListener('click', () => { synth.init(); emergencyMove(); });
+  let directionPointerId = null;
+  let activeDirectionCode = null;
+  function directionButtonFromPoint(clientX, clientY) {
+    const el = document.elementFromPoint(clientX, clientY);
+    return el ? el.closest('.direction[data-key]') : null;
+  }
+  function setActiveDirection(code) {
+    if (activeDirectionCode === code) return;
+    if (activeDirectionCode) {
+      keys.delete(activeDirectionCode);
+      const oldButton = directionControls.find(button => button.dataset.key === activeDirectionCode);
+      if (oldButton) oldButton.classList.remove('active');
+    }
+    activeDirectionCode = code || null;
+    if (activeDirectionCode) {
+      keys.add(activeDirectionCode);
+      const newButton = directionControls.find(button => button.dataset.key === activeDirectionCode);
+      if (newButton) newButton.classList.add('active');
+      if (game.mode === 'noEanPuzzle' && (activeDirectionCode === 'ArrowUp' || activeDirectionCode === 'ArrowDown')) {
+        noEanAdvanceAngle(game.noEanPuzzle, activeDirectionCode === 'ArrowUp' ? 1 : -1, performance.now());
+      }
+    }
+  }
+  function releaseActiveDirection(event) {
+    if (event) event.preventDefault();
+    setActiveDirection(null);
+    directionPointerId = null;
+  }
   directionControls.forEach(button => {
-    const code = button.dataset.key;
-    const press = event => {
+    button.addEventListener('pointerdown', event => {
       event.preventDefault();
-      if (game.mode !== 'play' && game.mode !== 'bossFight') return;
+      if (!controlsAllowedForMode()) return;
       synth.init();
-      keys.add(code);
-      button.classList.add('active');
-    };
-    const release = event => {
-      event.preventDefault();
-      keys.delete(code);
-      button.classList.remove('active');
-    };
-    button.addEventListener('pointerdown', press);
-    button.addEventListener('pointerup', release);
-    button.addEventListener('pointercancel', release);
-    button.addEventListener('pointerleave', release);
+      directionPointerId = event.pointerId;
+      button.setPointerCapture?.(event.pointerId);
+      setActiveDirection(button.dataset.key);
+    });
   });
+  document.addEventListener('pointermove', event => {
+    if (directionPointerId === null || event.pointerId !== directionPointerId) return;
+    if (!controlsAllowedForMode()) { releaseActiveDirection(event); return; }
+    const button = directionButtonFromPoint(event.clientX, event.clientY);
+    if (button) setActiveDirection(button.dataset.key);
+    event.preventDefault();
+  }, { passive: false });
+  document.addEventListener('pointerup', event => { if (directionPointerId !== null && event.pointerId === directionPointerId) releaseActiveDirection(event); }, { passive: false });
+  document.addEventListener('pointercancel', event => { if (directionPointerId !== null && event.pointerId === directionPointerId) releaseActiveDirection(event); }, { passive: false });
   actionControl.addEventListener('pointerdown', event => {
     event.preventDefault();
-    if (game.mode !== 'play' && game.mode !== 'bossFight') return;
+    if (game.mode !== 'play' && game.mode !== 'bossFight' && game.mode !== 'noEanPuzzle') return;
     synth.init();
+    const now = performance.now();
     if (game.mode === 'bossFight') {
-      throwBossShoe(performance.now());
+      throwBossShoe(now);
+    } else if (game.mode === 'noEanPuzzle') {
+      fireNoEanScanner(now);
     } else if (!keys.has('Space')) {
-      handleActionPress(performance.now());
+      handleActionPress(now);
     }
     keys.add('Space');
     actionControl.classList.add('active');
@@ -6371,6 +6474,12 @@
 
   titleUI.addEventListener('pointerdown', () => { synth.init(); startTitleMusic(); });
   nameInput.addEventListener('focus', () => { synth.init(); startTitleMusic(); });
+  gameShell.addEventListener('contextmenu', event => {
+    if (event.target !== nameInput) event.preventDefault();
+  });
+  if (mobileCockpitPanel) {
+    mobileCockpitPanel.addEventListener('pointerdown', event => { event.preventDefault(); synth.init(); openCockpitHelp(); });
+  }
   canvas.addEventListener('contextmenu', event => {
     if (game.mode === 'mapBuilder') {
       event.preventDefault();
@@ -6402,8 +6511,8 @@
     if (handleQSPointerDown(x, y, event.pointerId)) {
       synth.init();
       canvas.setPointerCapture?.(event.pointerId);
-      event.preventDefault();
     }
+    event.preventDefault();
   });
   canvas.addEventListener('pointermove', event => {
     if (game.mode === 'mapBuilder') {
@@ -6476,7 +6585,7 @@
     }
     if (event.code === 'Escape' && game.mode === 'mapBuilder') { mapBuilderExitToGame(); return; }
     if (event.code === 'Escape' && game.mode === 'office') {
-      game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); music.playGameplay(); return;
+      game.mode = 'play'; game.office = null; setGameplayControlsVisible(true); playSceneMusic('gameplay'); return;
     }
     if (event.code === 'Escape' && game.mode === 'qsPuzzle') {
       finishQSPuzzle();
@@ -6534,6 +6643,8 @@
     keys.clear();
     stopSprint();
     directionControls.forEach(button => button.classList.remove('active'));
+    activeDirectionCode = null;
+    directionPointerId = null;
     actionControl.classList.remove('active');
   });
 

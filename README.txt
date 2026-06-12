@@ -1,4 +1,4 @@
-ZALANDO SCOUT — SYSTEM UPDATE V2.71
+ZALANDO SCOUT — SYSTEM UPDATE V2.73
 ====================================
 
 Phase 1 mobile-control patch.
@@ -420,3 +420,14 @@ V2.72 mobile phase 1 hotfix:
 - The Fullscreen Mode button now appears on touch/mobile layouts even before the mobile-mode class has been applied.
 - Cache references bumped from 2.71 to 2.72.
 - Reason for hotfix: V2.71 mobile CSS was present, but several changes could appear missing if the saved display mode was still desktop on the phone.
+
+
+V2.73 mobile controls and minigame hotfix:
+- Dynamic mobile action button labels added: JUMP, OPEN BOX, TRAVEL, OFFICE, SCAN, THROW, PICK UP, SPRAY, etc.
+- No EAN Scanner now exposes mobile controls: left/right move the scanner, up/down rotate, Action fires the scan beam.
+- Sperrlager/QS keeps the control overlay hidden; the red crate is the mobile control and can be dragged directly left/right with a wider touch area.
+- D-pad touch handling now tracks the thumb as it slides from one arrow to another instead of requiring lift-and-retap.
+- Long-press text selection/copy-paste menus are suppressed inside the game shell while keeping the name input usable.
+- Mobile cockpit/task panel is duplicated into the left sidebar during warehouse play, and the old canvas cockpit is hidden in mobile landscape.
+- Added defensive music handoff helpers for major scene changes.
+- Cache references bumped to 2.73.
