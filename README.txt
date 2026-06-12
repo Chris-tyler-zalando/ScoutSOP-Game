@@ -1,3 +1,25 @@
+ZALANDO SCOUT — SYSTEM UPDATE V2.71
+====================================
+
+Phase 1 mobile-control patch.
+
+Changes:
+- Added a mobile-only Fullscreen Mode button under Start on the title screen.
+- Kept the playable game locked to 16:9 and added a mobile landscape fit rule using the visible viewport height.
+- In mobile mode/landscape, the 16:9 game aligns to the right so the spare black space becomes a left control sidebar.
+- Added a soft black fade/drop shadow from the left sidebar into the gameplay edge.
+- Moved the mobile D-pad into the left sidebar area, enlarged it, and changed it to a proper cross layout.
+- Moved the mobile Action button to the far right.
+- Moved the skull/unstuck button above Action.
+- Moved zoom minus/plus beside the skull button above Action.
+- Strengthened shadows on mobile controls so elements remain readable when they bleed slightly into gameplay.
+
+Not changed in this phase:
+- Cockpit/score/task HUD relocation is still deferred because it is drawn inside the canvas.
+- Desktop layout is intended to remain unchanged.
+
+Previous baseline continues below.
+
 ZALANDO SCOUT — SYSTEM UPDATE V2.66
 ====================================
 

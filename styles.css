@@ -1241,3 +1241,170 @@ button:disabled { opacity: .44; cursor: default; filter: none; }
   opacity: .82;
   font-size: 11px;
 }
+
+
+/* V2.71 mobile phase 1: landscape control sidebar, fullscreen start button, safer viewport fit */
+.fullscreen-start-button {
+  display: none;
+  width: 100%;
+  min-width: 0;
+}
+#game-shell.mobile-mode .fullscreen-start-button {
+  display: block;
+}
+#game-shell.mobile-mode .combined-start-card .title-start-action {
+  display: grid;
+  grid-template-rows: minmax(50px, 1fr) 40px;
+  gap: 8px;
+}
+#game-shell.mobile-mode .combined-start-card .title-start-action .orange-button {
+  height: auto;
+  min-height: 50px;
+}
+#game-shell.mobile-mode .combined-start-card .fullscreen-start-button {
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #fff4df;
+  background: rgba(22, 26, 31, .92);
+  border-color: rgba(255, 105, 0, .62);
+  box-shadow: 0 6px 16px rgba(0,0,0,.48);
+}
+
+@media (orientation: landscape) {
+  #game-shell.mobile-mode {
+    --mobile-usable-height: calc(100dvh - 6px);
+    --mobile-shell-width: min(100dvw, calc(var(--mobile-usable-height) * 16 / 9));
+    --mobile-left-rail: max(0px, calc(100dvw - var(--mobile-shell-width)));
+    width: var(--mobile-shell-width);
+    max-width: 100dvw;
+    max-height: var(--mobile-usable-height);
+    justify-self: end;
+    align-self: center;
+    overflow: visible;
+  }
+
+  #game-shell.mobile-mode::before {
+    content: "";
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    right: 100%;
+    width: max(120px, var(--mobile-left-rail));
+    pointer-events: none;
+    z-index: 2;
+    background: linear-gradient(to right, rgba(2,3,5,.98) 0%, rgba(6,8,11,.98) 70%, rgba(6,8,11,.84) 100%);
+    box-shadow: 22px 0 34px rgba(0,0,0,.88), inset -18px 0 26px rgba(0,0,0,.72);
+  }
+
+  #game-shell.mobile-mode::after {
+    content: "";
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    right: calc(100% - 18px);
+    width: 58px;
+    pointer-events: none;
+    z-index: 3;
+    background: linear-gradient(to right, rgba(0,0,0,.68), rgba(0,0,0,.34), rgba(0,0,0,0));
+  }
+
+  #game-shell.mobile-mode .play-controls {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    height: auto;
+    display: block;
+    transform: none;
+    pointer-events: none;
+    z-index: 35;
+  }
+
+  #game-shell.mobile-mode .dpad {
+    position: absolute;
+    left: calc(12px - min(var(--mobile-left-rail), 214px));
+    bottom: 20px;
+    width: 196px;
+    height: 196px;
+    pointer-events: auto;
+    filter: drop-shadow(0 11px 18px rgba(0,0,0,.72));
+  }
+
+  #game-shell.mobile-mode .direction {
+    position: absolute;
+    width: 66px;
+    height: 66px;
+    border-radius: 15px;
+    font-size: 32px;
+    line-height: 61px;
+    background: rgba(12, 16, 20, .88);
+    box-shadow: 0 10px 18px rgba(0,0,0,.62), inset 0 0 9px rgba(255,255,255,.04);
+  }
+  #game-shell.mobile-mode .direction.up { left: 65px; top: 0; }
+  #game-shell.mobile-mode .direction.left { left: 0; top: 65px; bottom: auto; }
+  #game-shell.mobile-mode .direction.right { right: 0; top: 65px; bottom: auto; }
+  #game-shell.mobile-mode .direction.down { left: 65px; top: 130px; bottom: auto; }
+
+  #game-shell.mobile-mode .action-control {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    width: 158px;
+    height: 68px;
+    border-radius: 16px;
+    font-size: 20px;
+    letter-spacing: .08em;
+    pointer-events: auto;
+    background: rgba(18, 22, 27, .94);
+    box-shadow: 0 12px 24px rgba(0,0,0,.68), 0 0 0 1px rgba(255,105,0,.22);
+  }
+
+  #game-shell.mobile-mode .unstuck-button {
+    right: 20px;
+    bottom: 100px;
+    width: 58px;
+    min-width: 58px;
+    height: 58px;
+    border-radius: 16px;
+    font-size: 31px;
+    z-index: 36;
+    background: rgba(13,17,20,.94);
+    box-shadow: 0 12px 22px rgba(0,0,0,.68), 0 0 0 1px rgba(255,105,0,.20);
+    filter: none;
+  }
+
+  #game-shell.mobile-mode .game-zoom-controls {
+    position: absolute;
+    right: 88px;
+    bottom: 106px;
+    display: flex;
+    gap: 8px;
+    pointer-events: auto;
+    filter: drop-shadow(0 11px 18px rgba(0,0,0,.72));
+  }
+
+  #game-shell.mobile-mode .zoom-control {
+    width: 50px;
+    min-width: 50px;
+    height: 50px;
+    border-radius: 14px;
+    font-size: 28px;
+    background: rgba(12, 16, 20, .90);
+    box-shadow: 0 10px 18px rgba(0,0,0,.62), inset 0 0 9px rgba(255,255,255,.04);
+  }
+
+  #game-shell.mobile-mode .control-button[data-tooltip]:hover::after {
+    display: none;
+  }
+}
+
+@supports not (height: 100dvh) {
+  @media (orientation: landscape) {
+    #game-shell.mobile-mode {
+      --mobile-usable-height: calc(100vh - 6px);
+      --mobile-shell-width: min(100vw, calc(var(--mobile-usable-height) * 16 / 9));
+      --mobile-left-rail: max(0px, calc(100vw - var(--mobile-shell-width)));
+    }
+  }
+}

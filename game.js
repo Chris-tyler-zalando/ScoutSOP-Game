@@ -22,6 +22,7 @@
   const profileSlots = document.getElementById('profile-slots');
   const profileWarning = document.getElementById('profile-warning');
   const newShiftButton = document.getElementById('new-shift');
+  const fullscreenModeButton = document.getElementById('fullscreen-mode');
   const continueSavedButton = document.getElementById('continue-saved');
   const continueShiftButton = document.getElementById('continue-shift');
   const restartShiftButton = document.getElementById('restart-shift');
@@ -62,11 +63,11 @@
   let WORLD_W = MAP_W * TILE;
   let WORLD_H = MAP_H * TILE;
   const STARTING_MAX_HEARTS = 3;
-  const VERSION = 'V2.70';
+  const VERSION = 'V2.71';
   const ACTIVE_BOXES = 40;
   const ACTIVE_COFFEES = 18;
   const ASSET_PATH = 'assets/';
-  const ASSET_VERSION = '2.70';
+  const ASSET_VERSION = '2.71';
   const SAVE_KEY = 'zalandoScoutSavedShiftV2';
   const NAME_KEY = 'zalandoScoutPlayerName';
   const PROFILES_KEY = 'zalandoScoutProfilesV1';
@@ -1891,6 +1892,23 @@
     localStorage.setItem(DISPLAY_MODE_KEY, game.displayMode);
     updateDisplayModeButton();
     if (game.mode === 'play') addMessage(game.displayMode === 'mobile' ? 'MOBILE CONTROLS ON' : 'DESKTOP CONTROLS ON', '#ffd054', 1200);
+  }
+
+  function requestFullscreenMode() {
+    const target = document.documentElement;
+    const request = target.requestFullscreen || target.webkitRequestFullscreen || target.msRequestFullscreen;
+    if (!request) {
+      showProfileWarning('Fullscreen is not supported in this browser. Try Add to Home Screen for the best mobile view.');
+      return;
+    }
+    try {
+      const result = request.call(target);
+      if (result && typeof result.catch === 'function') {
+        result.catch(() => showProfileWarning('Fullscreen was blocked by the browser. Try tapping again, or use Add to Home Screen.'));
+      }
+    } catch (err) {
+      showProfileWarning('Fullscreen was blocked by the browser. Try Add to Home Screen for the best mobile view.');
+    }
   }
 
   function updateMuteButton() {
@@ -6265,6 +6283,7 @@
   }
 
   newShiftButton.addEventListener('click', startNewShift);
+  if (fullscreenModeButton) fullscreenModeButton.addEventListener('click', requestFullscreenMode);
   continueSavedButton.addEventListener('click', continueSavedShift);
   continueShiftButton.addEventListener('click', continueAfterDeath);
   restartShiftButton.addEventListener('click', () => {
